@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 
+from app.api.menus import router as menus_router
 from app.settings import settings
 
 app = FastAPI(
@@ -7,6 +8,8 @@ app = FastAPI(
     version="0.1.0",
     description="API central do APETIT-APP.",
 )
+
+app.include_router(menus_router)
 
 
 @app.get("/api/health", tags=["system"])
