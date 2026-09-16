@@ -35,6 +35,25 @@ export type PublishResult = {
   item_count: number
 }
 
+export type FeedbackSummary = {
+  unit_id: string
+  restaurant_id: string | null
+  period_start: string
+  period_end: string
+  responses: number
+  minimum_group: number
+  suppressed: boolean
+  message: string | null
+  ratings: null | {
+    overall: number
+    food: number
+    service: number
+  }
+  tags: Array<{ tag: string; count: number }>
+  trend: Array<{ date: string; responses: number; rating: number }>
+  comments: Array<{ date: string; comment: string }>
+}
+
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
 
 function readError(payload: unknown, fallback: string) {
@@ -87,4 +106,26 @@ export async function publishMenu(params: {
   const payload = await response.json().catch(() => null)
   if (!response.ok) throw new Error(readError(payload, 'Não foi possível publicar o cardápio.'))
   return payload as PublishResult
+}
+
+export async function getFeedbackSummary(params: {
+  unitId: string
+  restaurantId?: string
+  start: string
+  end: string
+  adminKey: string
+}): Promise<FeedbackSummary> {
+  const query = new URLSearchParams({
+    unit_id: params.unitId,
+    start: params.start,
+    end: params.end,
+  })
+  if (params.restaurantId?.trim()) query.set('restaurant_id', params.restaurantId.trim())
+
+  const response = await fetch(`${API_URL}/api/admin/feedback/summary?${query.toString()}`, {
+    headers: { 'X-Apetit-Admin-Key': params.adminKey },
+  })
+  const payload = await response.json().catch(() => null)
+  if (!response.ok) throw new Error(readError(payload, 'Não foi possível carregar os feedbacks.'))
+  return payload as FeedbackSummary
 }
