@@ -130,12 +130,21 @@ def normalize_planning_rows(rows: Iterable[Iterable[object]]) -> list[ImportedMe
     return imported
 
 
-def read_planning_xlsx(path: str | Path, sheet_name: str = "Planejamento") -> list[ImportedMenuItem]:
-    workbook = load_workbook(filename=path, read_only=True, data_only=True)
+def _read_workbook(workbook, sheet_name: str) -> list[ImportedMenuItem]:
     if sheet_name not in workbook.sheetnames:
         raise ValueError(f"aba obrigatória não encontrada: {sheet_name}")
     sheet = workbook[sheet_name]
     return normalize_planning_rows(sheet.iter_rows(values_only=True))
+
+
+def read_planning_xlsx(path: str | Path, sheet_name: str = "Planejamento") -> list[ImportedMenuItem]:
+    workbook = load_workbook(filename=path, read_only=True, data_only=True)
+    return _read_workbook(workbook, sheet_name)
+
+
+def read_planning_xlsx_bytes(content: bytes, sheet_name: str = "Planejamento") -> list[ImportedMenuItem]:
+    workbook = load_workbook(filename=io.BytesIO(content), read_only=True, data_only=True)
+    return _read_workbook(workbook, sheet_name)
 
 
 def read_planning_csv(content: bytes | str, delimiter: str | None = None) -> list[ImportedMenuItem]:
