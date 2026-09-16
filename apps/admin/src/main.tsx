@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App'
 import { FeedbackPage } from './FeedbackPage'
+import { UnitsPage } from './UnitsPage'
 import './styles.css'
 
 function Root() {
@@ -15,6 +16,10 @@ function Root() {
       const label = button.textContent?.toLowerCase() ?? ''
       if (label.includes('feedback') || label.includes('satisfação')) {
         window.location.hash = 'feedbacks'
+      } else if (label.includes('unidades')) {
+        window.location.hash = 'unidades'
+      } else if (label.includes('cardápios')) {
+        window.location.hash = 'cardapios'
       }
     }
     window.addEventListener('hashchange', onHash)
@@ -25,7 +30,9 @@ function Root() {
     }
   }, [])
 
-  return hash === 'feedbacks' ? <FeedbackPage /> : <App />
+  if (hash === 'feedbacks') return <FeedbackPage />
+  if (hash === 'unidades') return <UnitsPage />
+  return <App />
 }
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
