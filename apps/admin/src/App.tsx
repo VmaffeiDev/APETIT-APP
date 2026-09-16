@@ -1,5 +1,6 @@
 import { DragEvent, useMemo, useRef, useState } from 'react'
 import { MenuPreview, PublishResult, previewMenu, publishMenu } from './api'
+import { DEMO_UNITS } from './demoUnits'
 
 type Stage = 'upload' | 'preview' | 'published'
 
@@ -19,7 +20,7 @@ function App() {
   const fileInput = useRef<HTMLInputElement>(null)
   const [stage, setStage] = useState<Stage>('upload')
   const [file, setFile] = useState<File | null>(null)
-  const [unitId, setUnitId] = useState('')
+  const [unitId, setUnitId] = useState(DEMO_UNITS[0].unitId)
   const [mealType, setMealType] = useState('almoco')
   const [adminKey, setAdminKey] = useState('')
   const [preview, setPreview] = useState<MenuPreview | null>(null)
@@ -29,6 +30,8 @@ function App() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [dragging, setDragging] = useState(false)
+
+  const selectedUnit = DEMO_UNITS.find((unit) => unit.unitId === unitId) ?? DEMO_UNITS[0]
 
   const summary = useMemo(() => {
     if (!preview) return null
@@ -125,10 +128,11 @@ function App() {
 
         {stage === 'upload' && (
           <section className="card content-card">
-            <div className="section-heading"><div><h2>Nova importação</h2><p>Use o arquivo de planejamento semanal da operação.</p></div><span className="badge">Planejamento</span></div>
+            <div className="section-heading"><div><h2>Nova importação</h2><p>Use o arquivo de planejamento semanal da operação.</p></div><span className="badge">Demonstração</span></div>
             <div className="form-grid">
-              <label><span>Unidade</span><input value={unitId} onChange={(e) => setUnitId(e.target.value)} placeholder="UUID da unidade" /></label>
+              <label><span>Unidade</span><select value={unitId} onChange={(e) => setUnitId(e.target.value)}>{DEMO_UNITS.map((unit) => <option key={unit.unitId} value={unit.unitId}>{unit.company} · {unit.unitName.replace(' — Demonstração', '')}</option>)}</select><small>Base fictícia temporária para apresentação.</small></label>
               <label><span>Refeição</span><select value={mealType} onChange={(e) => setMealType(e.target.value)}><option value="almoco">Almoço</option><option value="jantar">Jantar</option><option value="cafe">Café</option></select></label>
+              <label className="full"><span>Refeitório da unidade</span><input value={selectedUnit.restaurantName} readOnly /></label>
               <label className="full"><span>Chave administrativa</span><input type="password" value={adminKey} onChange={(e) => setAdminKey(e.target.value)} placeholder="Chave de acesso da operação" /></label>
             </div>
             <div className={`dropzone ${dragging ? 'dragging' : ''} ${file ? 'has-file' : ''}`} onDragOver={(e) => {e.preventDefault(); setDragging(true)}} onDragLeave={() => setDragging(false)} onDrop={onDrop} onClick={() => fileInput.current?.click()}>
@@ -162,7 +166,7 @@ function App() {
         )}
 
         {stage === 'published' && publishResult && (
-          <section className="card success-card"><div className="success-icon">✓</div><span className="eyebrow">PUBLICAÇÃO CONCLUÍDA</span><h2>Cardápio disponível no aplicativo</h2><p>O período foi publicado e já pode ser consultado pelos funcionários da unidade.</p><div className="publish-summary"><div><small>Período</small><strong>{publishResult.period_start} → {publishResult.period_end}</strong></div><div><small>Itens</small><strong>{publishResult.item_count}</strong></div><div><small>ID da importação</small><strong>{publishResult.menu_import_id.slice(0, 8)}…</strong></div></div><button className="primary" onClick={restart}>Publicar outra semana</button></section>
+          <section className="card success-card"><div className="success-icon">✓</div><span className="eyebrow">PUBLICAÇÃO CONCLUÍDA</span><h2>Cardápio disponível no aplicativo</h2><p>O período foi publicado e já pode ser consultado pelos funcionários da unidade.</p><div className="publish-summary"><div><small>Unidade</small><strong>{selectedUnit.company}</strong></div><div><small>Período</small><strong>{publishResult.period_start} → {publishResult.period_end}</strong></div><div><small>Itens</small><strong>{publishResult.item_count}</strong></div><div><small>ID da importação</small><strong>{publishResult.menu_import_id.slice(0, 8)}…</strong></div></div><button className="primary" onClick={restart}>Publicar outra semana</button></section>
         )}
       </main>
     </div>
