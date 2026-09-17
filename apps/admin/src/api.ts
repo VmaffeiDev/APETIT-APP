@@ -8,50 +8,27 @@ export type PreviewItem = {
   raw_value: string
 }
 
-export type PreviewDay = {
-  day: number
-  items: PreviewItem[]
+export type PreviewDay = { day: number; items: PreviewItem[] }
+export type MenuPreview = { preview_id: string; file_name: string; unit_id: string; meal_type: string; suggested_month: number | null; suggested_year: number | null; item_count: number; day_count: number; days: PreviewDay[]; warnings: string[]; requires_period_confirmation: boolean }
+export type PublishResult = { status: 'published'; menu_import_id: string; period_start: string; period_end: string; item_count: number; enriched_items?: number }
+export type FeedbackSummary = { unit_id: string; restaurant_id: string | null; period_start: string; period_end: string; responses: number; minimum_group: number; suppressed: boolean; message: string | null; ratings: null | { overall: number; food: number; service: number }; tags: Array<{ tag: string; count: number }>; trend: Array<{ date: string; responses: number; rating: number }>; comments: Array<{ date: string; comment: string }> }
+
+export type TechnicalSheetSummary = {
+  code: string
+  name: string
+  category: string | null
+  portion_quantity: number | null
+  portion_unit: string | null
+  kcal: number | null
+  protein_g: number | null
+  carbs_g: number | null
+  fat_g: number | null
+  updated_at: string
 }
 
-export type MenuPreview = {
-  preview_id: string
-  file_name: string
-  unit_id: string
-  meal_type: string
-  suggested_month: number | null
-  suggested_year: number | null
-  item_count: number
-  day_count: number
-  days: PreviewDay[]
-  warnings: string[]
-  requires_period_confirmation: boolean
-}
-
-export type PublishResult = {
-  status: 'published'
-  menu_import_id: string
-  period_start: string
-  period_end: string
-  item_count: number
-}
-
-export type FeedbackSummary = {
-  unit_id: string
-  restaurant_id: string | null
-  period_start: string
-  period_end: string
-  responses: number
-  minimum_group: number
-  suppressed: boolean
-  message: string | null
-  ratings: null | {
-    overall: number
-    food: number
-    service: number
-  }
-  tags: Array<{ tag: string; count: number }>
-  trend: Array<{ date: string; responses: number; rating: number }>
-  comments: Array<{ date: string; comment: string }>
+export type TechnicalSheet = TechnicalSheetSummary & {
+  ingredients: string[]
+  allergens: Array<{ allergen: string; status: 'contains' | 'may_contain' | 'free_from' }>
 }
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
@@ -64,68 +41,39 @@ function readError(payload: unknown, fallback: string) {
   return fallback
 }
 
-export async function previewMenu(params: {
-  unitId: string
-  mealType: string
-  adminKey: string
-  file: File
-}): Promise<MenuPreview> {
-  const body = new FormData()
-  body.set('unit_id', params.unitId)
-  body.set('meal_type', params.mealType)
-  body.set('file', params.file)
-
-  const response = await fetch(`${API_URL}/api/admin/menu-imports/preview`, {
-    method: 'POST',
-    headers: { 'X-Apetit-Admin-Key': params.adminKey },
-    body,
-  })
+async function read<T>(response: Response, fallback: string): Promise<T> {
   const payload = await response.json().catch(() => null)
-  if (!response.ok) throw new Error(readError(payload, 'Não foi possível validar o cardápio.'))
-  return payload as MenuPreview
+  if (!response.ok) throw new Error(readError(payload, fallback))
+  return payload as T
 }
 
-export async function publishMenu(params: {
-  previewId: string
-  month: number
-  year: number
-  adminKey: string
-}): Promise<PublishResult> {
-  const response = await fetch(`${API_URL}/api/admin/menu-imports/${params.previewId}/publish`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Apetit-Admin-Key': params.adminKey,
-    },
-    body: JSON.stringify({
-      month: params.month,
-      year: params.year,
-      confirm_period: true,
-    }),
-  })
-  const payload = await response.json().catch(() => null)
-  if (!response.ok) throw new Error(readError(payload, 'Não foi possível publicar o cardápio.'))
-  return payload as PublishResult
+export async function previewMenu(params: { unitId: string; mealType: string; adminKey: string; file: File }): Promise<MenuPreview> {
+  const body = new FormData(); body.set('unit_id', params.unitId); body.set('meal_type', params.mealType); body.set('file', params.file)
+  return read(await fetch(`${API_URL}/api/admin/menu-imports/preview`, { method: 'POST', headers: { 'X-Apetit-Admin-Key': params.adminKey }, body }), 'Não foi possível validar o cardápio.')
 }
 
-export async function getFeedbackSummary(params: {
-  unitId: string
-  restaurantId?: string
-  start: string
-  end: string
-  adminKey: string
-}): Promise<FeedbackSummary> {
-  const query = new URLSearchParams({
-    unit_id: params.unitId,
-    start: params.start,
-    end: params.end,
-  })
-  if (params.restaurantId?.trim()) query.set('restaurant_id', params.restaurantId.trim())
+export async function publishMenu(params: { previewId: string; month: number; year: number; adminKey: string }): Promise<PublishResult> {
+  return read(await fetch(`${API_URL}/api/admin/menu-imports/${params.previewId}/publish`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Apetit-Admin-Key': params.adminKey }, body: JSON.stringify({ month: params.month, year: params.year, confirm_period: true }) }), 'Não foi possível publicar o cardápio.')
+}
 
-  const response = await fetch(`${API_URL}/api/admin/feedback/summary?${query.toString()}`, {
-    headers: { 'X-Apetit-Admin-Key': params.adminKey },
-  })
-  const payload = await response.json().catch(() => null)
-  if (!response.ok) throw new Error(readError(payload, 'Não foi possível carregar os feedbacks.'))
-  return payload as FeedbackSummary
+export async function getFeedbackSummary(params: { unitId: string; restaurantId?: string; start: string; end: string; adminKey: string }): Promise<FeedbackSummary> {
+  const query = new URLSearchParams({ unit_id: params.unitId, start: params.start, end: params.end }); if (params.restaurantId?.trim()) query.set('restaurant_id', params.restaurantId.trim())
+  return read(await fetch(`${API_URL}/api/admin/feedback/summary?${query.toString()}`, { headers: { 'X-Apetit-Admin-Key': params.adminKey } }), 'Não foi possível carregar os feedbacks.')
+}
+
+export async function listTechnicalSheets(adminKey: string, search = ''): Promise<{ items: TechnicalSheetSummary[]; count: number }> {
+  const query = new URLSearchParams({ search })
+  return read(await fetch(`${API_URL}/api/admin/technical-sheets?${query.toString()}`, { headers: { 'X-Apetit-Admin-Key': adminKey } }), 'Não foi possível carregar as fichas técnicas.')
+}
+
+export async function getTechnicalSheet(adminKey: string, code: string): Promise<TechnicalSheet> {
+  return read(await fetch(`${API_URL}/api/admin/technical-sheets/${encodeURIComponent(code)}`, { headers: { 'X-Apetit-Admin-Key': adminKey } }), 'Não foi possível carregar a ficha técnica.')
+}
+
+export async function saveTechnicalSheet(adminKey: string, code: string, payload: Omit<TechnicalSheet, 'code' | 'updated_at'>): Promise<TechnicalSheet> {
+  return read(await fetch(`${API_URL}/api/admin/technical-sheets/${encodeURIComponent(code)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'X-Apetit-Admin-Key': adminKey }, body: JSON.stringify(payload) }), 'Não foi possível salvar a ficha técnica.')
+}
+
+export async function deleteTechnicalSheet(adminKey: string, code: string): Promise<void> {
+  await read(await fetch(`${API_URL}/api/admin/technical-sheets/${encodeURIComponent(code)}`, { method: 'DELETE', headers: { 'X-Apetit-Admin-Key': adminKey } }), 'Não foi possível excluir a ficha técnica.')
 }
