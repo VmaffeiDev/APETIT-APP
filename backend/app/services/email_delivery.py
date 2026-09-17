@@ -12,6 +12,7 @@ from app.settings import settings
 
 MAILTRAP_SANDBOX_API_URL = "https://sandbox.api.mailtrap.io/api/send/{sandbox_id}"
 MAILTRAP_SEND_API_URL = "https://send.api.mailtrap.io/api/send"
+MAILTRAP_USER_AGENT = "apetit-backend/0.1 (+https://github.com/VmaffeiDev/APETIT-APP)"
 LOGIN_EMAIL_SUBJECT = "Seu código de acesso à Apetit"
 
 
@@ -118,6 +119,25 @@ def _sender() -> dict[str, str]:
     return sender
 
 
+def _mailtrap_error_reason(exc: urllib.error.HTTPError) -> str:
+    """Resumo curto e seguro do erro (só as mensagens de erro, nunca headers ou token)."""
+    try:
+        raw = exc.read().decode("utf-8", errors="replace")
+    except Exception:  # noqa: BLE001
+        return "sem corpo"
+    try:
+        data = json.loads(raw)
+    except ValueError:
+        snippet = " ".join(raw.split())[:120]
+        return f"resposta não-JSON: {snippet}" if snippet else "sem corpo"
+    errors = data.get("errors") if isinstance(data, dict) else None
+    if isinstance(errors, list):
+        return "; ".join(str(item) for item in errors)[:200]
+    if isinstance(errors, str):
+        return errors[:200]
+    return str(data)[:200]
+
+
 def _send_via_mailtrap_api(*, recipient: str, text_body: str, html_body: str) -> None:
     if not settings.mailtrap_api_token:
         raise EmailDeliveryError("Mailtrap não configurado: defina APETIT_MAILTRAP_API_TOKEN")
@@ -138,13 +158,15 @@ def _send_via_mailtrap_api(*, recipient: str, text_body: str, html_body: str) ->
             "Api-Token": settings.mailtrap_api_token,
             "Content-Type": "application/json",
             "Accept": "application/json",
+            "User-Agent": MAILTRAP_USER_AGENT,
         },
     )
     try:
         with urllib.request.urlopen(request, timeout=settings.email_timeout_seconds) as response:
             body = json.loads(response.read().decode("utf-8") or "{}")
     except urllib.error.HTTPError as exc:
-        raise EmailDeliveryError(f"Mailtrap recusou o envio (HTTP {exc.code})") from exc
+        reason = _mailtrap_error_reason(exc)
+        raise EmailDeliveryError(f"Mailtrap recusou o envio (HTTP {exc.code}): {reason}") from exc
     except (OSError, ValueError) as exc:
         raise EmailDeliveryError("não foi possível contatar a API do Mailtrap") from exc
 
