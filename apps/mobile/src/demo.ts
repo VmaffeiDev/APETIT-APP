@@ -23,3 +23,15 @@ export const DEMO_UNITS = [
     label: 'Unidade Coca-Cola',
   },
 ]
+
+export function configureEmployeeContext(params: { id: string; name: string; unitId?: string | null }) {
+  DEMO_PERSON.id = params.id
+  DEMO_PERSON.name = params.name
+  if (params.unitId) {
+    const index = DEMO_UNITS.findIndex((unit) => unit.id === params.unitId)
+    if (index > 0) {
+      const [unit] = DEMO_UNITS.splice(index, 1)
+      DEMO_UNITS.unshift(unit)
+    }
+  }
+}
