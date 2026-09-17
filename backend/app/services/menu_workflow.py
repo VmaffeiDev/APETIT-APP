@@ -84,6 +84,11 @@ def _technical_sheet_statuses(codes: set[str]) -> dict[str, str]:
     if not codes:
         return statuses
     with engine.connect() as conn:
+        table_exists = conn.execute(
+            text("SELECT to_regclass('public.technical_sheets')")
+        ).scalar_one_or_none()
+        if table_exists is None:
+            return {code: "missing" for code in codes}
         for code in codes:
             row = conn.execute(
                 text(
