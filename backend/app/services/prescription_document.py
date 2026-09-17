@@ -6,9 +6,12 @@ from dataclasses import asdict
 from decimal import Decimal
 from pathlib import Path
 
+import fitz
 from pypdf import PdfReader
 
 from app.domain.prescription import NutritionTarget, PortionInstruction, PrescriptionMeal
+from app.services.ocr import OcrError, extract_document_text
+from app.settings import settings
 
 
 _MEAL_ALIASES = {
@@ -28,9 +31,43 @@ _NUMBER_PATTERNS = {
 }
 
 _PORTION_RE = re.compile(
-    r"(?P<quantity>\d+(?:[.,]\d+)?)\s*(?P<unit>g|kg|ml|l|colher(?:es)?|concha(?:s)?|por[cç][aã]o(?:es)?)\s+(?:de\s+)?(?P<category>[\wÀ-ÿ\s]+)",
+    r"(?P<quantity>\d+(?:[.,]\d+)?)\s*(?P<unit>g|kg|ml|l|colher(?:es)?|concha(?:s)?|por[cç][aã]o(?:es)?)\s+(?:de\s+)?(?P<category>[\wÀ-ÿ][\wÀ-ÿ\s-]*)",
     re.IGNORECASE,
 )
+
+
+def _ocr_image(content: bytes) -> tuple[str | None, str]:
+    try:
+        text = extract_document_text(content).strip()
+    except OcrError:
+        return None, "needs_ocr"
+    return (text, "ocr_text") if text else (None, "needs_ocr")
+
+
+def _ocr_pdf(content: bytes) -> tuple[str | None, str]:
+    try:
+        document = fitz.open(stream=content, filetype="pdf")
+    except Exception:
+        return None, "needs_ocr"
+
+    pages: list[str] = []
+    try:
+        page_count = min(len(document), max(1, settings.ocr_pdf_max_pages))
+        for index in range(page_count):
+            page = document[index]
+            pixmap = page.get_pixmap(matrix=fitz.Matrix(2, 2), alpha=False)
+            image_bytes = pixmap.tobytes("png")
+            try:
+                page_text = extract_document_text(image_bytes).strip()
+            except OcrError:
+                return None, "needs_ocr"
+            if page_text:
+                pages.append(page_text)
+    finally:
+        document.close()
+
+    text = "\n".join(pages).strip()
+    return (text, "ocr_pdf") if text else (None, "needs_ocr")
 
 
 def extract_text(file_name: str, content: bytes) -> tuple[str | None, str]:
@@ -42,8 +79,10 @@ def extract_text(file_name: str, content: bytes) -> tuple[str | None, str]:
         text = "\n".join((page.extract_text() or "") for page in reader.pages).strip()
         if text:
             return text, "pdf_text"
-        return None, "needs_ocr"
-    if extension in {".png", ".jpg", ".jpeg", ".heic", ".webp"}:
+        return _ocr_pdf(content)
+    if extension in {".png", ".jpg", ".jpeg", ".webp"}:
+        return _ocr_image(content)
+    if extension == ".heic":
         return None, "needs_ocr"
     return None, "unsupported"
 
@@ -69,7 +108,10 @@ def parse_prescription_text(text: str, default_meal_type: str = "almoco") -> Pre
         values[key] = _to_decimal(match.group(1)) if match else None
 
     portions: list[PortionInstruction] = []
-    for match in _PORTION_RE.finditer(normalized):
+    for line in normalized.splitlines():
+        match = _PORTION_RE.search(line.strip())
+        if not match:
+            continue
         category = match.group("category").strip(" .,:;-").casefold()
         portions.append(
             PortionInstruction(
