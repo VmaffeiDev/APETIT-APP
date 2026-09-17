@@ -1,0 +1,17 @@
+{
+  "expo": {
+    "name": "Apetit",
+    "slug": "apetit-app",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.apetit.app.demo"
+    },
+    "android": {
+      "package": "com.apetit.app.demo"
+    },
+    "plugins": ["expo-document-picker"]
+  }
+}
