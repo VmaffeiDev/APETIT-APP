@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 from decimal import Decimal
+from pathlib import Path
 
-from fastapi import APIRouter, Header, HTTPException, Query
+from fastapi import APIRouter, File, Header, HTTPException, Query, UploadFile
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 
 from app.db import engine
+from app.services.technical_sheet_import import preview_payload as import_preview_payload
+from app.services.technical_sheet_import import publish_import, stage_import
 from app.settings import settings
 
 router = APIRouter()
@@ -64,7 +67,40 @@ def _sheet_payload(conn, code: str) -> dict | None:
         {"code": code},
     ).mappings().all()
 
-    return {**dict(row), "ingredients": list(ingredients), "allergens": [dict(item) for item in allergens]}
+    return {
+        **dict(row),
+        "ingredients": list(ingredients),
+        "allergens": [dict(item) for item in allergens],
+    }
+
+
+@router.post("/api/admin/technical-sheets/imports/preview", tags=["admin-technical-sheets"])
+async def preview_technical_sheet_import(
+    file: UploadFile = File(...),
+    x_apetit_admin_key: str | None = Header(default=None),
+) -> dict:
+    _require_admin_key(x_apetit_admin_key)
+    file_name = file.filename or "fichas-tecnicas"
+    if Path(file_name).suffix.lower() not in {".xlsx", ".csv"}:
+        raise HTTPException(status_code=415, detail="formato não suportado; envie .xlsx ou .csv")
+    content = await file.read()
+    try:
+        staged = stage_import(file_name, content)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return import_preview_payload(staged)
+
+
+@router.post("/api/admin/technical-sheets/imports/{preview_id}/publish", tags=["admin-technical-sheets"])
+def publish_technical_sheet_import(
+    preview_id: str,
+    x_apetit_admin_key: str | None = Header(default=None),
+) -> dict:
+    _require_admin_key(x_apetit_admin_key)
+    try:
+        return publish_import(preview_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.get("/api/admin/technical-sheets", tags=["admin-technical-sheets"])
@@ -116,7 +152,11 @@ def upsert_technical_sheet(
         raise HTTPException(status_code=422, detail="código da ficha técnica é obrigatório")
 
     ingredients = [item.strip() for item in payload.ingredients if item.strip()]
-    allergens = [(item.allergen.strip().casefold(), item.status) for item in payload.allergens if item.allergen.strip()]
+    allergens = [
+        (item.allergen.strip().casefold(), item.status)
+        for item in payload.allergens
+        if item.allergen.strip()
+    ]
 
     with engine.begin() as conn:
         conn.execute(
@@ -142,14 +182,21 @@ def upsert_technical_sheet(
             ),
             {"code": normalized_code, **payload.model_dump(exclude={"ingredients", "allergens"})},
         )
-        conn.execute(text("DELETE FROM technical_sheet_ingredients WHERE technical_sheet_code = :code"), {"code": normalized_code})
-        conn.execute(text("DELETE FROM technical_sheet_allergens WHERE technical_sheet_code = :code"), {"code": normalized_code})
+        conn.execute(
+            text("DELETE FROM technical_sheet_ingredients WHERE technical_sheet_code = :code"),
+            {"code": normalized_code},
+        )
+        conn.execute(
+            text("DELETE FROM technical_sheet_allergens WHERE technical_sheet_code = :code"),
+            {"code": normalized_code},
+        )
 
         for position, ingredient in enumerate(ingredients, start=1):
             conn.execute(
                 text(
                     "INSERT INTO technical_sheet_ingredients "
-                    "(technical_sheet_code, position, ingredient) VALUES (:code, :position, :ingredient)"
+                    "(technical_sheet_code, position, ingredient) "
+                    "VALUES (:code, :position, :ingredient)"
                 ),
                 {"code": normalized_code, "position": position, "ingredient": ingredient},
             )
@@ -157,7 +204,8 @@ def upsert_technical_sheet(
             conn.execute(
                 text(
                     "INSERT INTO technical_sheet_allergens "
-                    "(technical_sheet_code, allergen, status) VALUES (:code, :allergen, :status)"
+                    "(technical_sheet_code, allergen, status) "
+                    "VALUES (:code, :allergen, :status)"
                 ),
                 {"code": normalized_code, "allergen": allergen, "status": status},
             )
@@ -174,7 +222,10 @@ def delete_technical_sheet(
 ) -> dict:
     _require_admin_key(x_apetit_admin_key)
     with engine.begin() as conn:
-        result = conn.execute(text("DELETE FROM technical_sheets WHERE code = :code"), {"code": code.strip()})
+        result = conn.execute(
+            text("DELETE FROM technical_sheets WHERE code = :code"),
+            {"code": code.strip()},
+        )
     if result.rowcount == 0:
         raise HTTPException(status_code=404, detail="ficha técnica não encontrada")
     return {"status": "deleted", "code": code.strip()}
