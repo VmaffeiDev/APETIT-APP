@@ -18,6 +18,9 @@ router = APIRouter()
 LOGIN_CODE_TTL_MINUTES = 10
 SESSION_TTL_DAYS = 30
 DEMO_CODE = "123456"
+REQUEST_CODE_LIMIT = 3
+VERIFY_FAILURE_LIMIT = 5
+RATE_WINDOW_MINUTES = 15
 
 
 class RequestCodePayload(BaseModel):
@@ -39,6 +42,65 @@ class OnboardingPayload(BaseModel):
 
 def _hash(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def _rate_key(email: str) -> str:
+    return _hash(f"employee-auth:{email}")
+
+
+def _check_rate_limit(*, email: str, event_type: str, limit: int) -> None:
+    key_hash = _rate_key(email)
+    with engine.begin() as conn:
+        conn.execute(
+            text("DELETE FROM auth_rate_events WHERE created_at < now() - interval '2 days'"),
+        )
+        count = conn.execute(
+            text(
+                """
+                SELECT COUNT(*)
+                FROM auth_rate_events
+                WHERE key_hash = :key_hash
+                  AND event_type = :event_type
+                  AND created_at >= now() - (:window_minutes * interval '1 minute')
+                """
+            ),
+            {
+                "key_hash": key_hash,
+                "event_type": event_type,
+                "window_minutes": RATE_WINDOW_MINUTES,
+            },
+        ).scalar_one()
+    if count >= limit:
+        raise HTTPException(
+            status_code=429,
+            detail=f"muitas tentativas; aguarde até {RATE_WINDOW_MINUTES} minutos antes de tentar novamente",
+        )
+
+
+def _record_rate_event(*, email: str, event_type: str) -> None:
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                INSERT INTO auth_rate_events (key_hash, event_type)
+                VALUES (:key_hash, :event_type)
+                """
+            ),
+            {"key_hash": _rate_key(email), "event_type": event_type},
+        )
+
+
+def _clear_verify_failures(email: str) -> None:
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                DELETE FROM auth_rate_events
+                WHERE key_hash = :key_hash AND event_type = 'verify_failed'
+                """
+            ),
+            {"key_hash": _rate_key(email)},
+        )
 
 
 def _bearer(authorization: str | None) -> str:
@@ -74,6 +136,9 @@ def current_person(authorization: str | None) -> dict:
 @router.post("/api/auth/request-code", tags=["employee-auth"])
 def request_code(payload: RequestCodePayload) -> dict:
     email = str(payload.email).strip().lower()
+    _check_rate_limit(email=email, event_type="request_code", limit=REQUEST_CODE_LIMIT)
+    _record_rate_event(email=email, event_type="request_code")
+
     code = DEMO_CODE if settings.environment == "development" else f"{secrets.randbelow(1_000_000):06d}"
     expires_at = datetime.now(timezone.utc) + timedelta(minutes=LOGIN_CODE_TTL_MINUTES)
 
@@ -122,6 +187,8 @@ def request_code(payload: RequestCodePayload) -> dict:
 @router.post("/api/auth/verify-code", tags=["employee-auth"])
 def verify_code(payload: VerifyCodePayload) -> dict:
     email = str(payload.email).strip().lower()
+    _check_rate_limit(email=email, event_type="verify_failed", limit=VERIFY_FAILURE_LIMIT)
+
     with engine.begin() as conn:
         code_row = conn.execute(
             text(
@@ -138,6 +205,7 @@ def verify_code(payload: VerifyCodePayload) -> dict:
             {"email": email, "code_hash": _hash(payload.code)},
         ).mappings().first()
         if code_row is None:
+            _record_rate_event(email=email, event_type="verify_failed")
             raise HTTPException(status_code=401, detail="código inválido ou expirado")
         conn.execute(text("UPDATE employee_login_codes SET used_at = now() WHERE id = :id"), {"id": code_row["id"]})
 
@@ -164,6 +232,7 @@ def verify_code(payload: VerifyCodePayload) -> dict:
             {"person_id": person["id"], "token_hash": _hash(token), "expires_at": expires_at},
         )
 
+    _clear_verify_failures(email)
     return {
         "status": "authenticated",
         "access_token": token,
