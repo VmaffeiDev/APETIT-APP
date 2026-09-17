@@ -51,6 +51,23 @@ export type Recommendation = {
   disclaimer?: string
 }
 
+export type PublishedMenu = {
+  unit_id: string
+  service_date: string
+  meal_type: string
+  items: Array<{
+    id: string
+    name: string
+    category: string
+    standard_portion: string | null
+    kcal: number | null
+    protein_g: number | null
+    carbs_g: number | null
+    fat_g: number | null
+    technical_sheet_code: string | null
+  }>
+}
+
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://127.0.0.1:8000'
 
 async function parseResponse<T>(response: Response): Promise<T> {
@@ -114,5 +131,19 @@ export async function getRecommendation(params: {
   })
   return parseResponse<Recommendation>(
     await fetch(`${API_URL}/api/nutrition/recommendation?${query.toString()}`),
+  )
+}
+
+export async function getPublishedMenu(params: {
+  unitId: string
+  serviceDate: string
+}): Promise<PublishedMenu> {
+  const query = new URLSearchParams({
+    unit_id: params.unitId,
+    service_date: params.serviceDate,
+    meal_type: 'almoco',
+  })
+  return parseResponse<PublishedMenu>(
+    await fetch(`${API_URL}/api/menu?${query.toString()}`),
   )
 }
