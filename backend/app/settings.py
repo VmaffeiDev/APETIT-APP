@@ -6,6 +6,15 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://apetit:apetit@localhost:5432/apetit"
     api_secret: str = "change-me"
 
+    email_provider: str = "console"
+    email_from: str | None = None
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_username: str | None = None
+    smtp_password: str | None = None
+    smtp_starttls: bool = True
+    smtp_use_ssl: bool = False
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_prefix="APETIT_",
