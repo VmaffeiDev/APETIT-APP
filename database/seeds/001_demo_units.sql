@@ -26,3 +26,16 @@ VALUES
 ON CONFLICT (id) DO UPDATE SET
   unit_id = EXCLUDED.unit_id,
   name = EXCLUDED.name;
+
+-- Funcionária fictícia para demonstrar o fluxo privado de prescrição e recomendação.
+INSERT INTO people (id, email, name, unit_id)
+VALUES (
+  '40000000-0000-4000-8000-000000000001',
+  'mariana.demo@apetit.local',
+  'Mariana Demo',
+  '20000000-0000-4000-8000-000000000001'
+)
+ON CONFLICT (id) DO UPDATE SET
+  email = EXCLUDED.email,
+  name = EXCLUDED.name,
+  unit_id = EXCLUDED.unit_id;
