@@ -70,13 +70,14 @@ export function TechnicalSheetsPage() {
       <nav>
         <button className="nav-item" onClick={() => { window.location.hash = 'cardapios' }}>▣ Cardápios</button>
         <button className="nav-item active">⌘ Fichas técnicas</button>
+        <button className="nav-item" onClick={() => { window.location.hash = 'importar-fichas' }}>↥ Importar fichas</button>
         <button className="nav-item" onClick={() => { window.location.hash = 'feedbacks' }}>♡ Feedbacks</button>
         <button className="nav-item" onClick={() => { window.location.hash = 'unidades' }}>□ Unidades</button>
       </nav>
       <div className="privacy-note"><strong>Base nutricional</strong><p>Somente dados técnicos validados devem ser usados para alimentar recomendações.</p></div>
     </aside>
     <main className="main">
-      <header className="topbar"><div><span className="eyebrow">OPERAÇÃO · NUTRIÇÃO</span><h1>Fichas técnicas</h1><p>Cadastre composição, porção, ingredientes e alergênicos por código técnico.</p></div><button className="primary" onClick={reset}>Nova ficha</button></header>
+      <header className="topbar"><div><span className="eyebrow">OPERAÇÃO · NUTRIÇÃO</span><h1>Fichas técnicas</h1><p>Cadastre composição, porção, ingredientes e alergênicos por código técnico.</p></div><div style={{display:'flex',gap:8}}><button className="secondary" onClick={() => { window.location.hash = 'importar-fichas' }}>Importar planilha</button><button className="primary" onClick={reset}>Nova ficha</button></div></header>
 
       <section className="card content-card">
         <div className="form-grid">
