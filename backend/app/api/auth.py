@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import secrets
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
@@ -12,6 +13,8 @@ from sqlalchemy import text
 from app.db import engine
 from app.services.email_delivery import EmailDeliveryError, send_login_code
 from app.settings import settings
+
+logger = logging.getLogger("apetit.auth")
 
 router = APIRouter()
 
@@ -164,6 +167,11 @@ def request_code(payload: RequestCodePayload) -> dict:
             expires_in_minutes=LOGIN_CODE_TTL_MINUTES,
         )
     except EmailDeliveryError as exc:
+        logger.warning(
+            "falha ao enviar código de login (provider=%s): %s",
+            settings.normalized_email_provider,
+            exc,
+        )
         with engine.begin() as conn:
             conn.execute(
                 text("DELETE FROM employee_login_codes WHERE email = :email AND code_hash = :code_hash AND used_at IS NULL"),
