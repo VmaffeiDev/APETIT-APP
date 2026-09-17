@@ -1,1 +1,1 @@
-export { default } from './src/DemoApp'
+export { default } from './src/EmployeeEntry'
