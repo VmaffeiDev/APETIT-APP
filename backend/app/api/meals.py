@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from uuid import UUID, uuid4
 
@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import text
 
 from app.db import engine
+from app.services.prescription_workflow import current_prescription_meal
 
 router = APIRouter()
 
@@ -24,6 +25,20 @@ class MealCreate(BaseModel):
     meal_date: date
     meal_type: str = "almoco"
     items: list[MealItemCreate] = Field(min_length=1, max_length=20)
+
+
+def _totals(rows: list[dict]) -> dict[str, Decimal]:
+    keys = ("kcal", "protein_g", "carbs_g", "fat_g")
+    return {
+        key: sum((Decimal(row[key]) for row in rows if row[key] is not None), Decimal("0"))
+        for key in keys
+    }
+
+
+def _target_ratio(value: Decimal, target: Decimal | None) -> float | None:
+    if target is None or target == 0:
+        return None
+    return round(float(value / target), 3)
 
 
 @router.post("/api/meals", tags=["meals"])
@@ -133,4 +148,127 @@ def register_meal(payload: MealCreate) -> dict:
         "meal_type": meal_type,
         "item_count": len(payload.items),
         "estimated_totals": totals,
+    }
+
+
+@router.get("/api/meals/history", tags=["meals"])
+def meal_history(person_id: UUID, limit: int = 30) -> dict:
+    limit = max(1, min(limit, 90))
+    with engine.connect() as conn:
+        meals = conn.execute(
+            text(
+                """
+                SELECT id, meal_date, meal_type, created_at
+                FROM meals
+                WHERE person_id = :person_id
+                ORDER BY meal_date DESC, created_at DESC
+                LIMIT :limit
+                """
+            ),
+            {"person_id": person_id, "limit": limit},
+        ).mappings().all()
+
+        payload = []
+        for meal in meals:
+            items = conn.execute(
+                text(
+                    """
+                    SELECT item_name, category, quantity, unit, kcal, protein_g, carbs_g, fat_g
+                    FROM meal_items
+                    WHERE meal_id = :meal_id
+                    ORDER BY category, item_name
+                    """
+                ),
+                {"meal_id": meal["id"]},
+            ).mappings().all()
+            payload.append(
+                {
+                    "meal_id": str(meal["id"]),
+                    "meal_date": meal["meal_date"].isoformat(),
+                    "meal_type": meal["meal_type"],
+                    "totals": _totals([dict(row) for row in items]),
+                    "items": [dict(row) for row in items],
+                }
+            )
+
+    return {"person_id": str(person_id), "meals": payload}
+
+
+@router.get("/api/meals/progress", tags=["meals"])
+def meal_progress(person_id: UUID, days: int = 7, meal_type: str = "almoco") -> dict:
+    days = max(1, min(days, 31))
+    meal_type = meal_type.strip().lower()
+    end = date.today()
+    start = end - timedelta(days=days - 1)
+    prescription = current_prescription_meal(person_id=str(person_id), meal_type=meal_type)
+    target = prescription["target"] if prescription else {
+        "kcal": None,
+        "protein_g": None,
+        "carbs_g": None,
+        "fat_g": None,
+    }
+
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text(
+                """
+                SELECT m.id, m.meal_date,
+                       SUM(mi.kcal) AS kcal,
+                       SUM(mi.protein_g) AS protein_g,
+                       SUM(mi.carbs_g) AS carbs_g,
+                       SUM(mi.fat_g) AS fat_g
+                FROM meals m
+                JOIN meal_items mi ON mi.meal_id = m.id
+                WHERE m.person_id = :person_id
+                  AND m.meal_type = :meal_type
+                  AND m.meal_date BETWEEN :start AND :end
+                GROUP BY m.id, m.meal_date
+                ORDER BY m.meal_date ASC
+                """
+            ),
+            {
+                "person_id": person_id,
+                "meal_type": meal_type,
+                "start": start,
+                "end": end,
+            },
+        ).mappings().all()
+
+    series = []
+    adherent_days = 0
+    for row in rows:
+        totals = {
+            key: (Decimal(row[key]) if row[key] is not None else Decimal("0"))
+            for key in ("kcal", "protein_g", "carbs_g", "fat_g")
+        }
+        kcal_ratio = _target_ratio(totals["kcal"], target.get("kcal"))
+        protein_ratio = _target_ratio(totals["protein_g"], target.get("protein_g"))
+        considered = [ratio for ratio in (kcal_ratio, protein_ratio) if ratio is not None]
+        within_target = bool(considered) and all(0.85 <= ratio <= 1.15 for ratio in considered)
+        if within_target:
+            adherent_days += 1
+        series.append(
+            {
+                "date": row["meal_date"].isoformat(),
+                "totals": totals,
+                "ratios": {
+                    "kcal": kcal_ratio,
+                    "protein_g": protein_ratio,
+                    "carbs_g": _target_ratio(totals["carbs_g"], target.get("carbs_g")),
+                    "fat_g": _target_ratio(totals["fat_g"], target.get("fat_g")),
+                },
+                "within_target": within_target,
+            }
+        )
+
+    return {
+        "person_id": str(person_id),
+        "period_start": start.isoformat(),
+        "period_end": end.isoformat(),
+        "meal_type": meal_type,
+        "target": target,
+        "meal_days": len(series),
+        "adherent_days": adherent_days,
+        "adherence_percent": round(adherent_days / len(series) * 100) if series else None,
+        "series": series,
     }
