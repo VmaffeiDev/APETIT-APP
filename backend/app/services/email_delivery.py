@@ -1,10 +1,18 @@
 from __future__ import annotations
 
+import json
 import smtplib
 import ssl
+import urllib.error
+import urllib.request
 from email.message import EmailMessage
+from email.utils import parseaddr
 
 from app.settings import settings
+
+MAILTRAP_SANDBOX_API_URL = "https://sandbox.api.mailtrap.io/api/send/{sandbox_id}"
+MAILTRAP_SEND_API_URL = "https://send.api.mailtrap.io/api/send"
+LOGIN_EMAIL_SUBJECT = "Seu código de acesso à Apetit"
 
 
 class EmailDeliveryError(RuntimeError):
@@ -30,38 +38,57 @@ def _login_email_html(code: str, expires_in_minutes: int) -> str:
 </html>"""
 
 
+def _login_email_text(code: str, expires_in_minutes: int) -> str:
+    return (
+        f"Seu código de acesso à Apetit é {code}. "
+        f"Ele expira em {expires_in_minutes} minutos e só pode ser usado uma vez."
+    )
+
+
 def send_login_code(*, recipient: str, code: str, expires_in_minutes: int) -> str:
-    provider = settings.email_provider.strip().lower()
+    provider = settings.normalized_email_provider
     if provider == "console":
         if settings.environment != "development":
             raise EmailDeliveryError("provedor de e-mail 'console' não é permitido fora de development")
         return "console"
 
-    if provider != "smtp":
-        raise EmailDeliveryError(f"provedor de e-mail não suportado: {settings.email_provider}")
+    if not settings.email_from:
+        raise EmailDeliveryError("remetente não configurado: defina APETIT_EMAIL_FROM")
 
-    if not settings.smtp_host or not settings.email_from:
-        raise EmailDeliveryError("SMTP não configurado: defina APETIT_SMTP_HOST e APETIT_EMAIL_FROM")
+    text_body = _login_email_text(code, expires_in_minutes)
+    html_body = _login_email_html(code, expires_in_minutes)
+
+    if provider == "smtp":
+        _send_via_smtp(recipient=recipient, text_body=text_body, html_body=html_body)
+        return "smtp"
+    if provider == "mailtrap_api":
+        _send_via_mailtrap_api(recipient=recipient, text_body=text_body, html_body=html_body)
+        return "mailtrap_api"
+
+    raise EmailDeliveryError(f"provedor de e-mail não suportado: {settings.email_provider}")
+
+
+def _send_via_smtp(*, recipient: str, text_body: str, html_body: str) -> None:
+    if not settings.smtp_host:
+        raise EmailDeliveryError("SMTP não configurado: defina APETIT_SMTP_HOST")
 
     message = EmailMessage()
-    message["Subject"] = "Seu código de acesso à Apetit"
+    message["Subject"] = LOGIN_EMAIL_SUBJECT
     message["From"] = settings.email_from
     message["To"] = recipient
-    message.set_content(
-        f"Seu código de acesso à Apetit é {code}. "
-        f"Ele expira em {expires_in_minutes} minutos e só pode ser usado uma vez."
-    )
-    message.add_alternative(_login_email_html(code, expires_in_minutes), subtype="html")
+    message.set_content(text_body)
+    message.add_alternative(html_body, subtype="html")
 
+    timeout = settings.email_timeout_seconds
     try:
         if settings.smtp_use_ssl:
             context = ssl.create_default_context()
-            with smtplib.SMTP_SSL(settings.smtp_host, settings.smtp_port, timeout=10, context=context) as smtp:
+            with smtplib.SMTP_SSL(settings.smtp_host, settings.smtp_port, timeout=timeout, context=context) as smtp:
                 if settings.smtp_username:
                     smtp.login(settings.smtp_username, settings.smtp_password or "")
                 smtp.send_message(message)
         else:
-            with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=10) as smtp:
+            with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=timeout) as smtp:
                 smtp.ehlo()
                 if settings.smtp_starttls:
                     smtp.starttls(context=ssl.create_default_context())
@@ -72,4 +99,54 @@ def send_login_code(*, recipient: str, code: str, expires_in_minutes: int) -> st
     except (OSError, smtplib.SMTPException) as exc:
         raise EmailDeliveryError("não foi possível entregar o código por e-mail") from exc
 
-    return "smtp"
+
+def _mailtrap_url() -> str:
+    if settings.mailtrap_api_url:
+        return settings.mailtrap_api_url
+    if settings.mailtrap_sandbox_id:
+        return MAILTRAP_SANDBOX_API_URL.format(sandbox_id=settings.mailtrap_sandbox_id.strip())
+    return MAILTRAP_SEND_API_URL
+
+
+def _sender() -> dict[str, str]:
+    name, address = parseaddr(settings.email_from or "")
+    if not address or "@" not in address:
+        raise EmailDeliveryError("APETIT_EMAIL_FROM inválido; use 'Nome <email@dominio>'")
+    sender = {"email": address}
+    if name:
+        sender["name"] = name
+    return sender
+
+
+def _send_via_mailtrap_api(*, recipient: str, text_body: str, html_body: str) -> None:
+    if not settings.mailtrap_api_token:
+        raise EmailDeliveryError("Mailtrap não configurado: defina APETIT_MAILTRAP_API_TOKEN")
+
+    payload = {
+        "from": _sender(),
+        "to": [{"email": recipient}],
+        "subject": LOGIN_EMAIL_SUBJECT,
+        "text": text_body,
+        "html": html_body,
+        "category": "login-code",
+    }
+    request = urllib.request.Request(
+        _mailtrap_url(),
+        data=json.dumps(payload).encode("utf-8"),
+        method="POST",
+        headers={
+            "Api-Token": settings.mailtrap_api_token,
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        },
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=settings.email_timeout_seconds) as response:
+            body = json.loads(response.read().decode("utf-8") or "{}")
+    except urllib.error.HTTPError as exc:
+        raise EmailDeliveryError(f"Mailtrap recusou o envio (HTTP {exc.code})") from exc
+    except (OSError, ValueError) as exc:
+        raise EmailDeliveryError("não foi possível contatar a API do Mailtrap") from exc
+
+    if not body.get("success"):
+        raise EmailDeliveryError("Mailtrap não confirmou o envio")
