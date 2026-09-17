@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.auth import router as auth_router
 from app.api.feedback import router as feedback_router
 from app.api.meals import router as meals_router
 from app.api.menus import router as menus_router
@@ -24,6 +25,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth_router)
 app.include_router(menus_router)
 app.include_router(feedback_router)
 app.include_router(prescriptions_router)
