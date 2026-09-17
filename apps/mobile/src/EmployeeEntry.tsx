@@ -12,7 +12,7 @@ type Step = 'restoring' | 'email' | 'code' | 'onboarding' | 'app'
 
 export default function EmployeeEntry() {
   const [step, setStep] = useState<Step>('restoring')
-  const [email, setEmail] = useState('mariana.demo@apetit.local')
+  const [email, setEmail] = useState('')
   const [code, setCode] = useState('')
   const [demoCode, setDemoCode] = useState<string | undefined>()
   const [session, setSession] = useState<AuthSession | null>(null)
@@ -64,10 +64,25 @@ export default function EmployeeEntry() {
   }
 
   async function sendCode() {
+    const normalizedEmail = email.trim().toLowerCase()
+    if (!normalizedEmail) {
+      setError('Digite seu e-mail corporativo para continuar.')
+      return
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      setError('Digite um e-mail válido, como nome@empresa.com.br.')
+      return
+    }
+
     setBusy(true); setError('')
-    try { const response = await requestLoginCode(email.trim()); setDemoCode(response.demo_code); setStep('code') }
-    catch (e) { setError(e instanceof Error ? e.message : 'Não foi possível enviar o código.') }
-    finally { setBusy(false) }
+    try {
+      const response = await requestLoginCode(normalizedEmail)
+      setEmail(normalizedEmail)
+      setDemoCode(response.demo_code)
+      setStep('code')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Não foi possível enviar o código.')
+    } finally { setBusy(false) }
   }
 
   async function verify() {
@@ -128,18 +143,32 @@ export default function EmployeeEntry() {
         <Text style={styles.title}>Sua alimentação no trabalho, do seu jeito.</Text>
         <Text style={styles.subtitle}>Entre com seu e-mail para acessar cardápio, recomendações e seu progresso.</Text>
         <Text style={styles.label}>E-mail corporativo</Text>
-        <TextInput style={styles.input} value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" placeholder="voce@empresa.com.br" placeholderTextColor={colors.muted2}/>
-        <Pressable style={styles.primary} onPress={sendCode}><Text style={styles.primaryText}>Receber código de acesso</Text></Pressable>
+        <TextInput
+          style={styles.input}
+          value={email}
+          onChangeText={(value) => { setEmail(value); if (error) setError('') }}
+          autoCapitalize="none"
+          autoCorrect={false}
+          keyboardType="email-address"
+          textContentType="emailAddress"
+          returnKeyType="go"
+          onSubmitEditing={sendCode}
+          placeholder="voce@empresa.com.br"
+          placeholderTextColor={colors.muted2}
+        />
+        <Pressable style={[styles.primary, busy && styles.primaryDisabled]} onPress={sendCode} disabled={busy}>
+          <Text style={styles.primaryText}>{busy ? 'Enviando…' : 'Receber código de acesso'}</Text>
+        </Pressable>
         <View style={styles.note}><Text style={styles.noteTitle}>Acesso simples e seguro</Text><Text style={styles.noteText}>Você recebe um código temporário por e-mail. Não precisa criar uma senha fixa.</Text></View>
       </>}
 
       {step === 'code' && <>
-        <Pressable onPress={() => setStep('email')}><Text style={styles.back}>‹ Voltar</Text></Pressable>
+        <Pressable onPress={() => { setError(''); setStep('email') }}><Text style={styles.back}>‹ Voltar</Text></Pressable>
         <Text style={styles.title}>Digite o código</Text>
         <Text style={styles.subtitle}>Enviamos um código temporário para {email}.</Text>
         {!!demoCode && <View style={styles.demoCode}><Text style={styles.demoCodeLabel}>CÓDIGO DA DEMO</Text><Text style={styles.demoCodeValue}>{demoCode}</Text></View>}
-        <TextInput style={[styles.input, styles.codeInput]} value={code} onChangeText={setCode} keyboardType="number-pad" maxLength={6} placeholder="000000" placeholderTextColor={colors.muted2}/>
-        <Pressable style={styles.primary} onPress={verify}><Text style={styles.primaryText}>Entrar</Text></Pressable>
+        <TextInput style={[styles.input, styles.codeInput]} value={code} onChangeText={(value) => { setCode(value); if (error) setError('') }} keyboardType="number-pad" maxLength={6} placeholder="000000" placeholderTextColor={colors.muted2}/>
+        <Pressable style={[styles.primary, busy && styles.primaryDisabled]} onPress={verify} disabled={busy}><Text style={styles.primaryText}>{busy ? 'Validando…' : 'Entrar'}</Text></Pressable>
       </>}
 
       {step === 'onboarding' && <>
@@ -159,11 +188,49 @@ export default function EmployeeEntry() {
       </>}
 
       {!!error && <View style={styles.error}><Text style={styles.errorText}>{error}</Text></View>}
-      {busy && <ActivityIndicator style={{marginTop:18}} color={colors.red}/>} 
+      {busy && step === 'onboarding' && <ActivityIndicator style={{marginTop:18}} color={colors.red}/>} 
     </ScrollView>
   </SafeAreaView>
 }
 
 const styles = StyleSheet.create({
-  loading:{flex:1,backgroundColor:colors.bg,alignItems:'center',justifyContent:'center'},loadingText:{fontSize:11,color:colors.muted,marginTop:12},safe:{flex:1,backgroundColor:colors.bg},content:{padding:24,paddingTop:54,paddingBottom:60},brandMark:{flexDirection:'row',alignItems:'center',gap:8},brandDot:{width:12,height:12,borderRadius:3,backgroundColor:colors.red,transform:[{rotate:'45deg'}]},brand:{fontSize:23,fontWeight:'900',color:colors.text},tagline:{fontSize:8,fontWeight:'900',letterSpacing:2,color:colors.red,marginTop:5,marginBottom:40},eyebrow:{fontSize:9,letterSpacing:1.8,fontWeight:'900',color:colors.red},title:{fontSize:34,lineHeight:38,fontWeight:'900',color:colors.text,marginTop:10},subtitle:{fontSize:13,lineHeight:20,color:colors.muted,marginTop:12,marginBottom:26},label:{fontSize:11,fontWeight:'900',color:colors.text,marginTop:17,marginBottom:7},input:{backgroundColor:colors.surface,borderWidth:1,borderColor:colors.border,borderRadius:radius.md,paddingHorizontal:15,minHeight:52,fontSize:14,color:colors.text},codeInput:{fontSize:27,letterSpacing:8,textAlign:'center',fontWeight:'900'},primary:{backgroundColor:colors.yellow,minHeight:54,borderRadius:radius.md,alignItems:'center',justifyContent:'center',marginTop:17,paddingHorizontal:16},primaryText:{fontWeight:'900',color:'#101010',fontSize:13},note:{backgroundColor:colors.surface,borderRadius:radius.md,padding:14,marginTop:16,borderWidth:1,borderColor:colors.border},privacy:{backgroundColor:colors.surface,borderRadius:radius.md,padding:14,marginTop:18,borderWidth:1,borderColor:colors.border},noteTitle:{fontSize:11,fontWeight:'900',color:colors.text},noteText:{fontSize:10,lineHeight:16,color:colors.muted,marginTop:4},back:{fontSize:13,fontWeight:'800',color:colors.muted,marginBottom:10},demoCode:{backgroundColor:colors.surface,borderRadius:radius.lg,padding:18,alignItems:'center',marginBottom:16,borderWidth:1,borderColor:colors.border},demoCodeLabel:{fontSize:9,letterSpacing:1.8,fontWeight:'900',color:colors.muted},demoCodeValue:{fontSize:32,letterSpacing:8,fontWeight:'900',color:colors.yellow,marginTop:5},choiceList:{gap:8},choice:{backgroundColor:colors.surface,borderWidth:1,borderColor:colors.border,borderRadius:radius.md,padding:13,minHeight:58,flexDirection:'row',alignItems:'center'},choiceActive:{borderColor:colors.red,backgroundColor:'#1A1115'},choiceTitle:{fontSize:12,fontWeight:'900',color:colors.text,flex:1},choiceText:{fontSize:10,color:colors.muted,marginTop:2},choiceCheck:{fontSize:16,color:colors.muted2},choiceCheckActive:{color:colors.red},tags:{flexDirection:'row',flexWrap:'wrap',gap:8},tag:{paddingHorizontal:12,paddingVertical:9,borderRadius:radius.pill,backgroundColor:colors.surface,borderWidth:1,borderColor:colors.border},tagActive:{backgroundColor:colors.dangerSoft,borderColor:colors.danger},tagText:{fontSize:10,color:colors.muted,textTransform:'capitalize'},tagTextActive:{color:'#FF9AA6'},error:{backgroundColor:colors.dangerSoft,padding:13,borderRadius:radius.md,marginTop:16,borderWidth:1,borderColor:'#6D2630'},errorText:{color:'#FF9AA6',fontSize:11}
+  loading:{flex:1,backgroundColor:colors.bg,alignItems:'center',justifyContent:'center'},
+  loadingText:{fontSize:11,color:colors.muted,marginTop:12},
+  safe:{flex:1,backgroundColor:colors.bg},
+  content:{paddingHorizontal:24,paddingTop:34,paddingBottom:48},
+  brandMark:{flexDirection:'row',alignItems:'center',gap:8},
+  brandDot:{width:12,height:12,borderRadius:3,backgroundColor:colors.red,transform:[{rotate:'45deg'}]},
+  brand:{fontSize:23,fontWeight:'900',color:colors.text},
+  tagline:{fontSize:8,fontWeight:'900',letterSpacing:2,color:colors.red,marginTop:5,marginBottom:28},
+  eyebrow:{fontSize:9,letterSpacing:1.8,fontWeight:'900',color:colors.red},
+  title:{fontSize:31,lineHeight:35,fontWeight:'900',color:colors.text,marginTop:8},
+  subtitle:{fontSize:13,lineHeight:19,color:colors.muted,marginTop:10,marginBottom:18},
+  label:{fontSize:11,fontWeight:'900',color:colors.text,marginTop:12,marginBottom:7},
+  input:{backgroundColor:colors.surface,borderWidth:1,borderColor:colors.border,borderRadius:radius.md,paddingHorizontal:15,minHeight:50,fontSize:14,color:colors.text},
+  codeInput:{fontSize:27,letterSpacing:8,textAlign:'center',fontWeight:'900'},
+  primary:{backgroundColor:colors.yellow,minHeight:52,borderRadius:radius.md,alignItems:'center',justifyContent:'center',marginTop:14,paddingHorizontal:16},
+  primaryDisabled:{opacity:0.72},
+  primaryText:{fontWeight:'900',color:'#101010',fontSize:13},
+  note:{backgroundColor:colors.surface,borderRadius:radius.md,padding:14,marginTop:14,borderWidth:1,borderColor:colors.border},
+  privacy:{backgroundColor:colors.surface,borderRadius:radius.md,padding:14,marginTop:18,borderWidth:1,borderColor:colors.border},
+  noteTitle:{fontSize:11,fontWeight:'900',color:colors.text},
+  noteText:{fontSize:10,lineHeight:16,color:colors.muted,marginTop:4},
+  back:{fontSize:13,fontWeight:'800',color:colors.muted,marginBottom:10},
+  demoCode:{backgroundColor:colors.surface,borderRadius:radius.lg,padding:18,alignItems:'center',marginBottom:16,borderWidth:1,borderColor:colors.border},
+  demoCodeLabel:{fontSize:9,letterSpacing:1.8,fontWeight:'900',color:colors.muted},
+  demoCodeValue:{fontSize:32,letterSpacing:8,fontWeight:'900',color:colors.yellow,marginTop:5},
+  choiceList:{gap:8},
+  choice:{backgroundColor:colors.surface,borderWidth:1,borderColor:colors.border,borderRadius:radius.md,padding:13,minHeight:58,flexDirection:'row',alignItems:'center'},
+  choiceActive:{borderColor:colors.red,backgroundColor:'#1A1115'},
+  choiceTitle:{fontSize:12,fontWeight:'900',color:colors.text,flex:1},
+  choiceText:{fontSize:10,color:colors.muted,marginTop:2},
+  choiceCheck:{fontSize:16,color:colors.muted2},
+  choiceCheckActive:{color:colors.red},
+  tags:{flexDirection:'row',flexWrap:'wrap',gap:8},
+  tag:{paddingHorizontal:12,paddingVertical:9,borderRadius:radius.pill,backgroundColor:colors.surface,borderWidth:1,borderColor:colors.border},
+  tagActive:{backgroundColor:colors.dangerSoft,borderColor:colors.danger},
+  tagText:{fontSize:10,color:colors.muted,textTransform:'capitalize'},
+  tagTextActive:{color:'#FF9AA6'},
+  error:{backgroundColor:colors.dangerSoft,padding:13,borderRadius:radius.md,marginTop:14,borderWidth:1,borderColor:'#6D2630'},
+  errorText:{color:'#FF9AA6',fontSize:11,lineHeight:16}
 })
