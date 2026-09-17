@@ -10,6 +10,7 @@ from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import text
 
 from app.db import engine
+from app.services.email_delivery import EmailDeliveryError, send_login_code
 from app.settings import settings
 
 router = APIRouter()
@@ -91,12 +92,29 @@ def request_code(payload: RequestCodePayload) -> dict:
             {"email": email, "code_hash": _hash(code), "expires_at": expires_at},
         )
 
+    try:
+        send_login_code(
+            recipient=email,
+            code=code,
+            expires_in_minutes=LOGIN_CODE_TTL_MINUTES,
+        )
+    except EmailDeliveryError as exc:
+        with engine.begin() as conn:
+            conn.execute(
+                text("DELETE FROM employee_login_codes WHERE email = :email AND code_hash = :code_hash AND used_at IS NULL"),
+                {"email": email, "code_hash": _hash(code)},
+            )
+        raise HTTPException(
+            status_code=503,
+            detail="não foi possível enviar o código de acesso; tente novamente em instantes",
+        ) from exc
+
     response = {
         "status": "code_sent",
         "expires_in_minutes": LOGIN_CODE_TTL_MINUTES,
         "message": "Enviamos um código de acesso para o e-mail informado.",
     }
-    if settings.environment == "development":
+    if settings.environment == "development" and settings.email_provider == "console":
         response["demo_code"] = code
     return response
 
