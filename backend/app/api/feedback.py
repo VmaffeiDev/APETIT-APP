@@ -7,6 +7,7 @@ from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 
+from app.api.auth import current_person
 from app.db import engine
 from app.services.feedback_reporting import feedback_summary
 from app.settings import settings
@@ -31,7 +32,11 @@ def _require_admin_key(value: str | None) -> None:
 
 
 @router.post("/api/feedback", tags=["feedback"])
-def create_feedback(payload: FeedbackCreate) -> dict:
+def create_feedback(payload: FeedbackCreate, authorization: str | None = Header(default=None)) -> dict:
+    person = current_person(authorization)
+    if person["id"] != payload.person_id:
+        raise HTTPException(status_code=403, detail="você só pode enviar feedback em seu próprio nome")
+
     feedback_id = uuid4()
     cleaned_tags = sorted({tag.strip().lower() for tag in payload.tags if tag.strip()})
     with engine.begin() as conn:
