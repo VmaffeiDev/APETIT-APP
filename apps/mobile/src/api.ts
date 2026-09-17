@@ -1,3 +1,5 @@
+import { Platform } from 'react-native'
+
 export type NutritionTarget = {
   kcal: number | null
   protein_g: number | null
@@ -171,11 +173,18 @@ export async function uploadPrescription(params: {
   const body = new FormData()
   body.append('person_id', params.personId)
   body.append('default_meal_type', 'almoco')
-  body.append('file', {
-    uri: params.uri,
-    name: params.name,
-    type: params.mimeType ?? 'application/octet-stream',
-  } as never)
+
+  if (Platform.OS === 'web') {
+    const fileResponse = await fetch(params.uri)
+    const blob = await fileResponse.blob()
+    body.append('file', blob, params.name)
+  } else {
+    body.append('file', {
+      uri: params.uri,
+      name: params.name,
+      type: params.mimeType ?? 'application/octet-stream',
+    } as never)
+  }
 
   return parseResponse<PrescriptionPreview>(
     await fetch(`${API_URL}/api/prescriptions/preview`, {
