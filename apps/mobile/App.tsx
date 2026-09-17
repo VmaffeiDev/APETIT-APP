@@ -11,10 +11,27 @@ import {
   Text,
   View,
 } from 'react-native'
-import { confirmPrescription, getRecommendation, PrescriptionPreview, Recommendation, uploadPrescription } from './src/api'
+import {
+  confirmPrescription,
+  getPublishedMenu,
+  getRecommendation,
+  PrescriptionPreview,
+  PublishedMenu,
+  Recommendation,
+  uploadPrescription,
+} from './src/api'
 import { DEMO_PERSON, DEMO_UNITS } from './src/demo'
 
-type Screen = 'home' | 'prescription' | 'review' | 'recommendation'
+type Screen = 'home' | 'prescription' | 'review' | 'menu' | 'recommendation'
+
+const categoryLabels: Record<string, string> = {
+  prato_principal: 'Prato principal',
+  arroz: 'Arroz',
+  feijao: 'Feijão',
+  salada: 'Salada',
+  guarnicao: 'Guarnição',
+  sobremesa: 'Sobremesa',
+}
 
 function formatNumber(value: number | null | undefined, suffix = '') {
   if (value === null || value === undefined) return '—'
@@ -26,6 +43,7 @@ export default function App() {
   const [unitId, setUnitId] = useState(DEMO_UNITS[0].id)
   const [preview, setPreview] = useState<PrescriptionPreview | null>(null)
   const [recommendation, setRecommendation] = useState<Recommendation | null>(null)
+  const [menu, setMenu] = useState<PublishedMenu | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
@@ -88,6 +106,21 @@ export default function App() {
     }
   }
 
+  async function loadMenu() {
+    setBusy(true)
+    setError('')
+    try {
+      const today = new Date().toISOString().slice(0, 10)
+      const response = await getPublishedMenu({ unitId, serviceDate: today })
+      setMenu(response)
+      setScreen('menu')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Não foi possível carregar o cardápio.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar style="dark" />
@@ -124,7 +157,16 @@ export default function App() {
             </View>
             <Text style={styles.unitCaption}>{selectedUnit.label} · ambiente fictício de apresentação</Text>
 
-            <Pressable style={styles.controlCard} onPress={() => setScreen('prescription')}>
+            <Pressable style={styles.controlCard} onPress={loadMenu}>
+              <View style={styles.controlIcon}><Text style={styles.controlIconText}>☰</Text></View>
+              <View style={styles.controlContent}>
+                <Text style={styles.controlTitle}>Cardápio de hoje</Text>
+                <Text style={styles.controlText}>Veja tudo o que está disponível no refeitório desta unidade.</Text>
+              </View>
+              <Text style={styles.arrow}>›</Text>
+            </Pressable>
+
+            <Pressable style={[styles.controlCard, styles.controlCardSpacing]} onPress={() => setScreen('prescription')}>
               <View style={styles.controlIcon}><Text style={styles.controlIconText}>⌁</Text></View>
               <View style={styles.controlContent}>
                 <Text style={styles.controlTitle}>Meu controle nutricional</Text>
@@ -210,6 +252,39 @@ export default function App() {
           </>
         )}
 
+        {screen === 'menu' && menu && (
+          <>
+            <Pressable onPress={() => setScreen('home')}><Text style={styles.back}>‹ Início</Text></Pressable>
+            <Text style={styles.pageTitle}>Cardápio de hoje</Text>
+            <Text style={styles.pageSubtitle}>{selectedUnit.company} · {menu.items.length} opções disponíveis no almoço</Text>
+
+            {menu.items.length === 0 ? (
+              <View style={styles.warningCard}>
+                <Text style={styles.warningTitle}>Cardápio ainda não publicado</Text>
+                <Text style={styles.warningText}>A operação ainda não publicou itens para esta unidade e data.</Text>
+              </View>
+            ) : (
+              <View style={styles.menuCard}>
+                {menu.items.map((item) => (
+                  <View key={item.id} style={styles.menuRow}>
+                    <View style={styles.menuCategory}>
+                      <Text style={styles.menuCategoryText}>{categoryLabels[item.category] ?? item.category}</Text>
+                    </View>
+                    <View style={styles.menuBody}>
+                      <Text style={styles.menuName}>{item.name}</Text>
+                      <Text style={styles.menuMeta}>{item.standard_portion ?? 'Porção padrão'} · {item.kcal == null ? 'nutrição pendente' : formatNumber(item.kcal, ' kcal')}</Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            <Pressable style={styles.primaryButton} onPress={loadRecommendation} disabled={busy}>
+              <Text style={styles.primaryButtonText}>{busy ? 'Calculando...' : 'Montar meu prato recomendado'}</Text>
+            </Pressable>
+          </>
+        )}
+
         {screen === 'recommendation' && recommendation && (
           <>
             <Pressable onPress={() => setScreen('home')}><Text style={styles.back}>‹ Início</Text></Pressable>
@@ -223,6 +298,9 @@ export default function App() {
               </View>
             ) : (
               <>
+                <View style={styles.recommendBadge}>
+                  <Text style={styles.recommendBadgeText}>✓ Recomendação personalizada com base na sua prescrição</Text>
+                </View>
                 <View style={styles.mealCard}>
                   {recommendation.items.map((item) => (
                     <View key={item.menu_item_id} style={styles.mealRow}>
@@ -243,6 +321,11 @@ export default function App() {
                     <Metric label="Carboidrato" value={formatNumber(recommendation.estimated_totals?.carbs_g, ' g')} />
                     <Metric label="Gordura" value={formatNumber(recommendation.estimated_totals?.fat_g, ' g')} />
                   </View>
+                </View>
+
+                <View style={styles.goalCard}>
+                  <Text style={styles.goalTitle}>Sua meta para o almoço</Text>
+                  <Text style={styles.goalText}>{formatNumber(recommendation.target.kcal, ' kcal')} · {formatNumber(recommendation.target.protein_g, ' g proteína')} · {formatNumber(recommendation.target.carbs_g, ' g carboidratos')}</Text>
                 </View>
 
                 <Text style={styles.disclaimer}>{recommendation.disclaimer}</Text>
@@ -293,6 +376,7 @@ const styles = StyleSheet.create({
   unitChipTextActive: { color: '#FFFFFF' },
   unitCaption: { color: '#89867E', fontSize: 12, marginTop: 9, marginBottom: 20 },
   controlCard: { backgroundColor: '#FFFFFF', borderRadius: 22, padding: 18, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#E7E4DC' },
+  controlCardSpacing: { marginTop: 12 },
   controlIcon: { width: 46, height: 46, borderRadius: 15, backgroundColor: '#F1F6CB', alignItems: 'center', justifyContent: 'center' },
   controlIconText: { fontSize: 22, color: '#171714' },
   controlContent: { flex: 1, paddingHorizontal: 14 },
@@ -327,12 +411,24 @@ const styles = StyleSheet.create({
   listRow: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#E8E5DD' },
   listMain: { color: '#37352F', fontSize: 14, textTransform: 'capitalize' },
   listValue: { color: '#171714', fontSize: 14, fontWeight: '800' },
+  menuCard: { backgroundColor: '#FFFFFF', borderRadius: 24, borderWidth: 1, borderColor: '#E7E4DC', overflow: 'hidden', marginBottom: 18 },
+  menuRow: { padding: 16, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#E7E4DC' },
+  menuCategory: { alignSelf: 'flex-start', backgroundColor: '#F1F6CB', paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999, marginBottom: 7 },
+  menuCategoryText: { color: '#596200', fontSize: 10, fontWeight: '800', textTransform: 'uppercase' },
+  menuBody: { flex: 1 },
+  menuName: { color: '#171714', fontSize: 16, fontWeight: '800' },
+  menuMeta: { color: '#817E75', fontSize: 12, marginTop: 4 },
+  recommendBadge: { backgroundColor: '#EAF3EC', borderRadius: 15, padding: 13, marginBottom: 12 },
+  recommendBadgeText: { color: '#285236', fontSize: 12, lineHeight: 17, fontWeight: '800' },
   mealCard: { backgroundColor: '#FFFFFF', borderRadius: 24, padding: 18, borderWidth: 1, borderColor: '#E7E4DC', marginBottom: 14 },
   mealRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 11 },
   mealDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#B9D400', marginRight: 12 },
   mealBody: { flex: 1 },
   mealName: { fontSize: 16, fontWeight: '800', color: '#171714' },
   mealMeta: { color: '#817E75', fontSize: 12, marginTop: 3 },
+  goalCard: { backgroundColor: '#171714', borderRadius: 20, padding: 18, marginBottom: 14 },
+  goalTitle: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
+  goalText: { color: '#D7D5CF', fontSize: 13, lineHeight: 19, marginTop: 6 },
   disclaimer: { color: '#8A877F', fontSize: 12, lineHeight: 18, textAlign: 'center', marginHorizontal: 12, marginTop: 4, marginBottom: 16 },
   errorCard: { backgroundColor: '#FFE6E3', padding: 14, borderRadius: 16, marginTop: 16 },
   errorText: { color: '#8C2C22', fontSize: 13, lineHeight: 18 },
