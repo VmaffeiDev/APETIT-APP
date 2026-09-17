@@ -17,6 +17,11 @@ class Settings(BaseSettings):
     smtp_starttls: bool = True
     smtp_use_ssl: bool = False
 
+    mailtrap_api_token: str | None = None
+    mailtrap_sandbox_id: str | None = None
+    mailtrap_api_url: str | None = None
+    email_timeout_seconds: int = 10
+
     ocr_provider: str = "none"
     google_vision_api_key: str | None = None
     ocr_timeout_seconds: int = 20
@@ -43,6 +48,42 @@ class Settings(BaseSettings):
     def allowed_origins(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
 
+    @property
+    def normalized_email_provider(self) -> str:
+        return self.email_provider.strip().lower()
+
+    def _email_readiness(self) -> dict[str, str | bool]:
+        provider = self.normalized_email_provider
+        if provider == "console":
+            if self.environment == "development":
+                return {"ready": True, "detail": "provider console (permitido em development)"}
+            return {"ready": False, "detail": "provider console não é permitido fora de development"}
+
+        missing: list[str] = []
+        if not self.email_from:
+            missing.append("APETIT_EMAIL_FROM")
+
+        if provider == "smtp":
+            for name, value in (
+                ("APETIT_SMTP_HOST", self.smtp_host),
+                ("APETIT_SMTP_USERNAME", self.smtp_username),
+                ("APETIT_SMTP_PASSWORD", self.smtp_password),
+            ):
+                if not value:
+                    missing.append(name)
+            label = "provider smtp"
+        elif provider == "mailtrap_api":
+            if not self.mailtrap_api_token:
+                missing.append("APETIT_MAILTRAP_API_TOKEN")
+            mode = "sandbox" if self.mailtrap_sandbox_id else "envio real"
+            label = f"provider mailtrap_api ({mode})"
+        else:
+            return {"ready": False, "detail": f"provider de e-mail não suportado: {self.email_provider}"}
+
+        if missing:
+            return {"ready": False, "detail": f"{label} incompleto: falta {', '.join(missing)}"}
+        return {"ready": True, "detail": f"{label} configurado"}
+
     def readiness(self) -> dict:
         checks: dict[str, dict[str, str | bool]] = {}
 
@@ -52,20 +93,7 @@ class Settings(BaseSettings):
             "detail": "database_url configurada" if database_ready else "database_url ausente",
         }
 
-        if self.environment == "development" and self.email_provider == "console":
-            checks["email"] = {"ready": True, "detail": "console permitido em development"}
-        else:
-            email_ready = (
-                self.email_provider == "smtp"
-                and bool(self.email_from)
-                and bool(self.smtp_host)
-                and bool(self.smtp_username)
-                and bool(self.smtp_password)
-            )
-            checks["email"] = {
-                "ready": email_ready,
-                "detail": "SMTP configurado" if email_ready else "SMTP incompleto",
-            }
+        checks["email"] = self._email_readiness()
 
         if self.ocr_provider == "none":
             ocr_ready = self.environment == "development"
