@@ -1,3 +1,4 @@
+import io
 import json
 
 import pytest
@@ -51,6 +52,7 @@ def test_mailtrap_sandbox_request(monkeypatch):
     assert captured["body"]["to"] == [{"email": "ana@example.com"}]
     assert "123456" in captured["body"]["text"] and "123456" in captured["body"]["html"]
     assert captured["timeout"] == 10
+    assert captured["headers"]["User-agent"].startswith("apetit-backend/")
 
 
 def test_mailtrap_live_url_without_sandbox(monkeypatch):
@@ -78,4 +80,16 @@ def test_mailtrap_requires_token(monkeypatch):
 def test_unknown_provider_rejected(monkeypatch):
     _use(monkeypatch, email_provider="sendgrid")
     with pytest.raises(email_delivery.EmailDeliveryError, match="não suportado"):
+        email_delivery.send_login_code(recipient="ana@example.com", code="1", expires_in_minutes=10)
+
+
+def test_mailtrap_error_reason_is_logged(monkeypatch):
+    _use(monkeypatch, email_provider="mailtrap_api", mailtrap_api_token="tok", mailtrap_sandbox_id="1")
+
+    def fake_urlopen(request, timeout):
+        body = io.BytesIO(b'{"errors":["Forbidden: token has no access to this inbox"]}')
+        raise email_delivery.urllib.error.HTTPError(request.full_url, 403, "Forbidden", {}, body)
+
+    monkeypatch.setattr(email_delivery.urllib.request, "urlopen", fake_urlopen)
+    with pytest.raises(email_delivery.EmailDeliveryError, match=r"HTTP 403\): Forbidden: token has no access"):
         email_delivery.send_login_code(recipient="ana@example.com", code="1", expires_in_minutes=10)
