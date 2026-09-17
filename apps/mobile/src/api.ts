@@ -68,6 +68,15 @@ export type PublishedMenu = {
   }>
 }
 
+export type MealSaveResult = {
+  status: string
+  meal_id: string
+  meal_date: string
+  meal_type: string
+  item_count: number
+  estimated_totals: NutritionTarget
+}
+
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://127.0.0.1:8000'
 
 async function parseResponse<T>(response: Response): Promise<T> {
@@ -95,10 +104,7 @@ export async function uploadPrescription(params: {
   } as never)
 
   return parseResponse<PrescriptionPreview>(
-    await fetch(`${API_URL}/api/prescriptions/preview`, {
-      method: 'POST',
-      body,
-    }),
+    await fetch(`${API_URL}/api/prescriptions/preview`, { method: 'POST', body }),
   )
 }
 
@@ -118,32 +124,65 @@ export async function confirmPrescription(preview: PrescriptionPreview): Promise
   )
 }
 
-export async function getRecommendation(params: {
-  personId: string
-  unitId: string
-  serviceDate: string
-}): Promise<Recommendation> {
+export async function getRecommendation(params: { personId: string; unitId: string; serviceDate: string }): Promise<Recommendation> {
   const query = new URLSearchParams({
     person_id: params.personId,
     unit_id: params.unitId,
     service_date: params.serviceDate,
     meal_type: 'almoco',
   })
-  return parseResponse<Recommendation>(
-    await fetch(`${API_URL}/api/nutrition/recommendation?${query.toString()}`),
+  return parseResponse<Recommendation>(await fetch(`${API_URL}/api/nutrition/recommendation?${query.toString()}`))
+}
+
+export async function getPublishedMenu(params: { unitId: string; serviceDate: string }): Promise<PublishedMenu> {
+  const query = new URLSearchParams({ unit_id: params.unitId, service_date: params.serviceDate, meal_type: 'almoco' })
+  return parseResponse<PublishedMenu>(await fetch(`${API_URL}/api/menu?${query.toString()}`))
+}
+
+export async function registerMeal(params: { personId: string; serviceDate: string; recommendation: Recommendation }): Promise<MealSaveResult> {
+  if (params.recommendation.status !== 'recommended') throw new Error('Não há uma recomendação válida para registrar.')
+  return parseResponse<MealSaveResult>(
+    await fetch(`${API_URL}/api/meals`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        person_id: params.personId,
+        meal_date: params.serviceDate,
+        meal_type: 'almoco',
+        items: params.recommendation.items.map((item) => ({
+          menu_item_id: item.menu_item_id,
+          quantity: 1,
+          unit: item.portion ?? 'porcao',
+        })),
+      }),
+    }),
   )
 }
 
-export async function getPublishedMenu(params: {
+export async function submitFeedback(params: {
+  personId: string
   unitId: string
-  serviceDate: string
-}): Promise<PublishedMenu> {
-  const query = new URLSearchParams({
-    unit_id: params.unitId,
-    service_date: params.serviceDate,
-    meal_type: 'almoco',
-  })
-  return parseResponse<PublishedMenu>(
-    await fetch(`${API_URL}/api/menu?${query.toString()}`),
+  restaurantId: string
+  mealDate: string
+  foodRating: number
+  serviceRating: number
+  tags: string[]
+  comment?: string
+}): Promise<{ status: string; feedback_id: string }> {
+  return parseResponse(
+    await fetch(`${API_URL}/api/feedback`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        person_id: params.personId,
+        unit_id: params.unitId,
+        restaurant_id: params.restaurantId,
+        meal_date: params.mealDate,
+        food_rating: params.foodRating,
+        service_rating: params.serviceRating,
+        tags: params.tags,
+        comment: params.comment?.trim() || null,
+      }),
+    }),
   )
 }
