@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
 
 import DemoApp from './DemoApp'
+import PrescriptionReview from './PrescriptionReview'
 import { AuthPerson, OnboardingOptions, updateProfile } from './authApi'
 
 export default function AuthenticatedApp({
@@ -18,6 +19,7 @@ export default function AuthenticatedApp({
   onLogout: () => Promise<void>
 }) {
   const [accountOpen, setAccountOpen] = useState(false)
+  const [prescriptionOpen, setPrescriptionOpen] = useState(false)
   const [name, setName] = useState(person.name ?? '')
   const [unitId, setUnitId] = useState(person.unit_id ?? '')
   const [sector, setSector] = useState(person.sector ?? '')
@@ -42,12 +44,21 @@ export default function AuthenticatedApp({
     } finally { setBusy(false) }
   }
 
+  if (prescriptionOpen) {
+    return <PrescriptionReview personId={person.id} onClose={() => setPrescriptionOpen(false)} />
+  }
+
   if (!accountOpen) {
     return <View style={styles.appWrap}>
       <DemoApp />
-      <Pressable style={styles.accountButton} onPress={() => setAccountOpen(true)}>
-        <Text style={styles.accountButtonText}>Perfil</Text>
-      </Pressable>
+      <View style={styles.quickActions}>
+        <Pressable style={styles.prescriptionButton} onPress={() => setPrescriptionOpen(true)}>
+          <Text style={styles.prescriptionButtonText}>Prescrição</Text>
+        </Pressable>
+        <Pressable style={styles.accountButton} onPress={() => setAccountOpen(true)}>
+          <Text style={styles.accountButtonText}>Perfil</Text>
+        </Pressable>
+      </View>
     </View>
   }
 
@@ -57,6 +68,10 @@ export default function AuthenticatedApp({
       <Text style={styles.eyebrow}>CONTA</Text>
       <Text style={styles.title}>Seu perfil</Text>
       <Text style={styles.email}>{person.email}</Text>
+
+      <Pressable style={styles.prescriptionCard} onPress={() => setPrescriptionOpen(true)}>
+        <View style={{ flex: 1 }}><Text style={styles.prescriptionTitle}>Minha prescrição nutricional</Text><Text style={styles.prescriptionText}>Enviar documento, revisar OCR e confirmar os dados usados nas recomendações.</Text></View><Text style={styles.arrow}>›</Text>
+      </Pressable>
 
       <Text style={styles.label}>Nome</Text>
       <TextInput style={styles.input} value={name} onChangeText={setName} />
@@ -88,5 +103,5 @@ export default function AuthenticatedApp({
 }
 
 const styles = StyleSheet.create({
-  appWrap:{flex:1},accountButton:{position:'absolute',right:18,top:54,zIndex:50,backgroundColor:'#D8B248',paddingHorizontal:13,paddingVertical:9,borderRadius:999,shadowColor:'#000',shadowOpacity:.08,shadowRadius:8,shadowOffset:{width:0,height:3}},accountButtonText:{fontSize:12,fontWeight:'900',color:'#171714'},safe:{flex:1,backgroundColor:'#F5F4F0'},content:{padding:22,paddingBottom:54},back:{fontSize:14,fontWeight:'800',color:'#706A60',marginBottom:24},eyebrow:{fontSize:11,letterSpacing:2,fontWeight:'900',color:'#9A792D'},title:{fontSize:34,fontWeight:'900',color:'#171714',marginTop:8},email:{fontSize:14,color:'#777168',marginTop:5,marginBottom:18},label:{fontSize:13,fontWeight:'900',color:'#4E4A43',marginTop:18,marginBottom:8},input:{backgroundColor:'#fff',borderWidth:1,borderColor:'#E1DCD1',borderRadius:17,paddingHorizontal:16,minHeight:54,fontSize:16,color:'#171714'},choiceList:{gap:9},choice:{backgroundColor:'#fff',borderWidth:1,borderColor:'#E1DCD1',borderRadius:18,padding:15},choiceActive:{backgroundColor:'#171714',borderColor:'#171714'},choiceTitle:{fontSize:14,fontWeight:'900',color:'#171714'},choiceTitleActive:{color:'#fff'},choiceText:{fontSize:12,color:'#777168',marginTop:3},choiceTextActive:{color:'#C8C2B6'},tags:{flexDirection:'row',flexWrap:'wrap',gap:8},tag:{paddingHorizontal:13,paddingVertical:10,borderRadius:999,backgroundColor:'#fff',borderWidth:1,borderColor:'#DED8CC'},tagActive:{backgroundColor:'#171714'},tagText:{fontSize:12,color:'#686258',textTransform:'capitalize'},tagTextActive:{color:'#fff'},primary:{backgroundColor:'#D8B248',minHeight:56,borderRadius:18,alignItems:'center',justifyContent:'center',marginTop:22},primaryText:{fontWeight:'900',color:'#171714'},message:{backgroundColor:'#EAF3EC',borderRadius:15,padding:12,marginTop:18},messageText:{fontSize:13,color:'#315039'},privateCard:{backgroundColor:'#EAF3EC',borderRadius:18,padding:16,marginTop:18},privateTitle:{fontSize:13,fontWeight:'900',color:'#314035'},privateText:{fontSize:12,lineHeight:18,color:'#657067',marginTop:5},logout:{minHeight:52,borderRadius:18,borderWidth:1,borderColor:'#D9B5B0',alignItems:'center',justifyContent:'center',marginTop:26},logoutText:{fontWeight:'900',color:'#8C2C22'}
+  appWrap:{flex:1},quickActions:{position:'absolute',right:18,top:54,zIndex:50,flexDirection:'row',gap:8},accountButton:{backgroundColor:'#D8B248',paddingHorizontal:13,paddingVertical:9,borderRadius:999,shadowColor:'#000',shadowOpacity:.08,shadowRadius:8,shadowOffset:{width:0,height:3}},accountButtonText:{fontSize:12,fontWeight:'900',color:'#171714'},prescriptionButton:{backgroundColor:'#171714',paddingHorizontal:13,paddingVertical:9,borderRadius:999},prescriptionButtonText:{fontSize:12,fontWeight:'900',color:'#D8B248'},safe:{flex:1,backgroundColor:'#F5F4F0'},content:{padding:22,paddingBottom:54},back:{fontSize:14,fontWeight:'800',color:'#706A60',marginBottom:24},eyebrow:{fontSize:11,letterSpacing:2,fontWeight:'900',color:'#9A792D'},title:{fontSize:34,fontWeight:'900',color:'#171714',marginTop:8},email:{fontSize:14,color:'#777168',marginTop:5,marginBottom:18},prescriptionCard:{flexDirection:'row',alignItems:'center',backgroundColor:'#171714',borderRadius:20,padding:17,marginBottom:6},prescriptionTitle:{fontSize:15,fontWeight:'900',color:'#fff'},prescriptionText:{fontSize:12,lineHeight:18,color:'#C8C2B6',marginTop:4},arrow:{fontSize:28,color:'#D8B248',marginLeft:12},label:{fontSize:13,fontWeight:'900',color:'#4E4A43',marginTop:18,marginBottom:8},input:{backgroundColor:'#fff',borderWidth:1,borderColor:'#E1DCD1',borderRadius:17,paddingHorizontal:16,minHeight:54,fontSize:16,color:'#171714'},choiceList:{gap:9},choice:{backgroundColor:'#fff',borderWidth:1,borderColor:'#E1DCD1',borderRadius:18,padding:15},choiceActive:{backgroundColor:'#171714',borderColor:'#171714'},choiceTitle:{fontSize:14,fontWeight:'900',color:'#171714'},choiceTitleActive:{color:'#fff'},choiceText:{fontSize:12,color:'#777168',marginTop:3},choiceTextActive:{color:'#C8C2B6'},tags:{flexDirection:'row',flexWrap:'wrap',gap:8},tag:{paddingHorizontal:13,paddingVertical:10,borderRadius:999,backgroundColor:'#fff',borderWidth:1,borderColor:'#DED8CC'},tagActive:{backgroundColor:'#171714'},tagText:{fontSize:12,color:'#686258',textTransform:'capitalize'},tagTextActive:{color:'#fff'},primary:{backgroundColor:'#D8B248',minHeight:56,borderRadius:18,alignItems:'center',justifyContent:'center',marginTop:22},primaryText:{fontWeight:'900',color:'#171714'},message:{backgroundColor:'#EAF3EC',borderRadius:15,padding:12,marginTop:18},messageText:{fontSize:13,color:'#315039'},privateCard:{backgroundColor:'#EAF3EC',borderRadius:18,padding:16,marginTop:18},privateTitle:{fontSize:13,fontWeight:'900',color:'#314035'},privateText:{fontSize:12,lineHeight:18,color:'#657067',marginTop:5},logout:{minHeight:52,borderRadius:18,borderWidth:1,borderColor:'#D9B5B0',alignItems:'center',justifyContent:'center',marginTop:26},logoutText:{fontWeight:'900',color:'#8C2C22'}
 })
