@@ -4,13 +4,18 @@
     "slug": "apetit-app",
     "version": "0.1.0",
     "orientation": "portrait",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#090B0E",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.apetit.app.demo"
     },
     "android": {
-      "package": "com.apetit.app.demo"
+      "package": "com.apetit.app.demo",
+      "navigationBar": {
+        "backgroundColor": "#090B0E",
+        "barStyle": "light-content"
+      }
     },
     "plugins": ["expo-document-picker"]
   }
