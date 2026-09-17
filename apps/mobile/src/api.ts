@@ -68,6 +68,30 @@ export type PublishedMenu = {
   }>
 }
 
+export type PlateEvaluation = {
+  status: 'within_target' | 'outside_target' | 'insufficient_data' | 'blocked'
+  message: string
+  target: NutritionTarget
+  estimated_totals: NutritionTarget
+  differences?: NutritionTarget
+  items: Array<{
+    menu_item_id: string
+    name: string
+    category: string
+    portion: string | null
+    quantity: number
+    kcal: number
+    protein_g: number
+    carbs_g: number
+    fat_g: number
+  }>
+  warnings: {
+    unsafe_items: string[]
+    uncertain_allergens: string[]
+    missing_nutrition: string[]
+  }
+}
+
 export type MealSaveResult = {
   status: string
   meal_id: string
@@ -176,8 +200,41 @@ export async function getPublishedMenu(params: { unitId: string; serviceDate: st
   return parseResponse<PublishedMenu>(await fetch(`${API_URL}/api/menu?${query.toString()}`))
 }
 
+export async function evaluatePlate(params: {
+  personId: string
+  unitId: string
+  serviceDate: string
+  selections: Array<{ menuItemId: string; quantity?: number }>
+}): Promise<PlateEvaluation> {
+  return parseResponse<PlateEvaluation>(
+    await fetch(`${API_URL}/api/nutrition/plate-evaluate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        person_id: params.personId,
+        unit_id: params.unitId,
+        service_date: params.serviceDate,
+        meal_type: 'almoco',
+        selections: params.selections.map((item) => ({ menu_item_id: item.menuItemId, quantity: item.quantity ?? 1 })),
+      }),
+    }),
+  )
+}
+
 export async function registerMeal(params: { personId: string; serviceDate: string; recommendation: Recommendation }): Promise<MealSaveResult> {
   if (params.recommendation.status !== 'recommended') throw new Error('Não há uma recomendação válida para registrar.')
+  return registerSelectedMeal({
+    personId: params.personId,
+    serviceDate: params.serviceDate,
+    selections: params.recommendation.items.map((item) => ({ menuItemId: item.menu_item_id, quantity: 1, unit: item.portion ?? 'porcao' })),
+  })
+}
+
+export async function registerSelectedMeal(params: {
+  personId: string
+  serviceDate: string
+  selections: Array<{ menuItemId: string; quantity?: number; unit?: string | null }>
+}): Promise<MealSaveResult> {
   return parseResponse<MealSaveResult>(
     await fetch(`${API_URL}/api/meals`, {
       method: 'POST',
@@ -186,10 +243,10 @@ export async function registerMeal(params: { personId: string; serviceDate: stri
         person_id: params.personId,
         meal_date: params.serviceDate,
         meal_type: 'almoco',
-        items: params.recommendation.items.map((item) => ({
-          menu_item_id: item.menu_item_id,
-          quantity: 1,
-          unit: item.portion ?? 'porcao',
+        items: params.selections.map((item) => ({
+          menu_item_id: item.menuItemId,
+          quantity: item.quantity ?? 1,
+          unit: item.unit ?? 'porcao',
         })),
       }),
     }),
