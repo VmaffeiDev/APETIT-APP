@@ -15,6 +15,11 @@ class Settings(BaseSettings):
     smtp_starttls: bool = True
     smtp_use_ssl: bool = False
 
+    ocr_provider: str = "none"
+    google_vision_api_key: str | None = None
+    ocr_timeout_seconds: int = 20
+    ocr_pdf_max_pages: int = 5
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_prefix="APETIT_",
