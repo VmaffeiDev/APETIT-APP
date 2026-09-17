@@ -16,6 +16,13 @@ const categoryLabel: Record<string, string> = {
   acompanhamento: 'Acompanhamento',
 }
 
+const sheetStatusLabel = {
+  complete: 'Ficha completa',
+  incomplete: 'Ficha incompleta',
+  missing: 'Ficha não cadastrada',
+  no_code: 'Sem código',
+}
+
 function App() {
   const fileInput = useRef<HTMLInputElement>(null)
   const [stage, setStage] = useState<Stage>('upload')
@@ -35,8 +42,8 @@ function App() {
 
   const summary = useMemo(() => {
     if (!preview) return null
-    const missingCodes = preview.days.flatMap((day) => day.items).filter((item) => !item.technical_sheet_code).length
-    return { missingCodes }
+    const fallbackMissing = preview.days.flatMap((day) => day.items).filter((item) => !item.technical_sheet_code).length
+    return preview.technical_sheet_coverage ?? { complete: 0, incomplete: 0, missing: 0, no_code: fallbackMissing }
   }, [preview])
 
   function chooseFile(selected: File | null) {
@@ -106,6 +113,7 @@ function App() {
           <button className="nav-item"><span>⌂</span>Visão geral</button>
           <button className="nav-item active"><span>▣</span>Cardápios</button>
           <button className="nav-item"><span>↥</span>Importações</button>
+          <button className="nav-item"><span>⌘</span>Fichas técnicas</button>
           <div className="nav-label">Experiência</div>
           <button className="nav-item"><span>♡</span>Feedbacks</button>
           <button className="nav-item"><span>⌁</span>Satisfação</button>
@@ -149,16 +157,17 @@ function App() {
           <>
             <section className="metrics-grid">
               <div className="metric"><small>Arquivo</small><strong>{preview.file_name}</strong><span>{preview.day_count} dias reconhecidos</span></div>
-              <div className="metric"><small>Itens publicáveis</small><strong>{preview.item_count}</strong><span>kits operacionais ignorados</span></div>
-              <div className="metric"><small>Sem ficha técnica</small><strong>{summary?.missingCodes ?? 0}</strong><span>podem ficar sem macros</span></div>
+              <div className="metric"><small>Ficha completa</small><strong>{summary?.complete ?? 0}</strong><span>prontos para recomendação</span></div>
+              <div className="metric"><small>Ficha incompleta</small><strong>{summary?.incomplete ?? 0}</strong><span>revisar macros</span></div>
+              <div className="metric"><small>Sem ficha</small><strong>{(summary?.missing ?? 0) + (summary?.no_code ?? 0)}</strong><span>sem base nutricional confiável</span></div>
             </section>
 
             {preview.warnings.length > 0 && <div className="alert warning"><strong>Revise antes de publicar</strong>{preview.warnings.map((warning) => <p key={warning}>{warning}</p>)}</div>}
 
             <section className="card period-card"><div><h2>Confirme o período</h2><p>A planilha informa o dia, mas mês e ano precisam ser confirmados pela operação.</p></div><div className="period-fields"><label><span>Mês</span><select value={month} onChange={(e) => setMonth(Number(e.target.value))}>{Array.from({length: 12}, (_, i) => <option key={i+1} value={i+1}>{String(i+1).padStart(2,'0')}</option>)}</select></label><label><span>Ano</span><input type="number" min="2020" max="2100" value={year} onChange={(e) => setYear(Number(e.target.value))} /></label></div></section>
 
-            <section className="card content-card"><div className="section-heading"><div><h2>Prévia do cardápio</h2><p>Confira o que aparecerá no aplicativo.</p></div><span className="badge soft">{preview.meal_type}</span></div>
-              <div className="days-list">{preview.days.map((day) => <details key={day.day} open><summary><div><strong>Dia {day.day}</strong><span>{day.items.length} itens</span></div><span className="chevron">⌄</span></summary><div className="items-table"><div className="table-row header"><span>Categoria</span><span>Prato</span><span>Porção</span><span>Ficha</span></div>{day.items.map((item, index) => <div className="table-row" key={`${day.day}-${item.name}-${index}`}><span><i className="category-dot" />{categoryLabel[item.category] ?? item.category}</span><strong>{item.name}</strong><span>{item.portion ?? '—'}</span><span className={item.technical_sheet_code ? '' : 'muted'}>{item.technical_sheet_code ?? 'Sem ficha'}</span></div>)}</div></details>)}</div>
+            <section className="card content-card"><div className="section-heading"><div><h2>Prévia do cardápio</h2><p>Confira o que aparecerá no aplicativo e a cobertura das fichas técnicas.</p></div><span className="badge soft">{preview.meal_type}</span></div>
+              <div className="days-list">{preview.days.map((day) => <details key={day.day} open><summary><div><strong>Dia {day.day}</strong><span>{day.items.length} itens</span></div><span className="chevron">⌄</span></summary><div className="items-table"><div className="table-row header"><span>Categoria</span><span>Prato</span><span>Porção</span><span>Ficha técnica</span></div>{day.items.map((item, index) => <div className="table-row" key={`${day.day}-${item.name}-${index}`}><span><i className="category-dot" />{categoryLabel[item.category] ?? item.category}</span><strong>{item.name}</strong><span>{item.portion ?? '—'}</span><span className={item.technical_sheet_status === 'complete' ? '' : 'muted'}>{item.technical_sheet_code ? `${item.technical_sheet_code} · ${sheetStatusLabel[item.technical_sheet_status ?? 'missing']}` : sheetStatusLabel.no_code}</span></div>)}</div></details>)}</div>
             </section>
             {error && <div className="alert error">{error}</div>}
             <div className="sticky-actions"><button className="secondary" onClick={() => setStage('upload')}>Voltar e trocar arquivo</button><div><small>Ao publicar, um cardápio existente no mesmo período será substituído.</small><button className="primary" disabled={busy} onClick={handlePublish}>{busy ? 'Publicando...' : 'Confirmar e publicar'}</button></div></div>
@@ -166,7 +175,7 @@ function App() {
         )}
 
         {stage === 'published' && publishResult && (
-          <section className="card success-card"><div className="success-icon">✓</div><span className="eyebrow">PUBLICAÇÃO CONCLUÍDA</span><h2>Cardápio disponível no aplicativo</h2><p>O período foi publicado e já pode ser consultado pelos funcionários da unidade.</p><div className="publish-summary"><div><small>Unidade</small><strong>{selectedUnit.company}</strong></div><div><small>Período</small><strong>{publishResult.period_start} → {publishResult.period_end}</strong></div><div><small>Itens</small><strong>{publishResult.item_count}</strong></div><div><small>ID da importação</small><strong>{publishResult.menu_import_id.slice(0, 8)}…</strong></div></div><button className="primary" onClick={restart}>Publicar outra semana</button></section>
+          <section className="card success-card"><div className="success-icon">✓</div><span className="eyebrow">PUBLICAÇÃO CONCLUÍDA</span><h2>Cardápio disponível no aplicativo</h2><p>O período foi publicado e já pode ser consultado pelos funcionários da unidade.</p><div className="publish-summary"><div><small>Unidade</small><strong>{selectedUnit.company}</strong></div><div><small>Período</small><strong>{publishResult.period_start} → {publishResult.period_end}</strong></div><div><small>Itens</small><strong>{publishResult.item_count}</strong></div><div><small>Com ficha</small><strong>{publishResult.enriched_items ?? 0}</strong></div></div><button className="primary" onClick={restart}>Publicar outra semana</button></section>
         )}
       </main>
     </div>
