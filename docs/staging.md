@@ -2,6 +2,8 @@
 
 Este ambiente existe para validar integrações reais sem usar dados de produção.
 
+Para a implantação no Railway, use também `docs/railway-staging.md`.
+
 ## Variáveis obrigatórias
 
 Use `.env.staging.example` como referência e configure os valores reais no provedor de hospedagem, nunca no Git.
