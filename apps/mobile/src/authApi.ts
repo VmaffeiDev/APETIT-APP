@@ -7,6 +7,7 @@ export type AuthPerson = {
   unit_id: string | null
   sector: string | null
   goal: string | null
+  restrictions?: string[]
   onboarding_completed: boolean
 }
 
@@ -55,6 +56,12 @@ export async function getOnboardingOptions(): Promise<OnboardingOptions> {
   return parse(await fetch(`${API_URL}/api/auth/options`))
 }
 
+export async function getMe(token: string): Promise<AuthPerson> {
+  return parse(await fetch(`${API_URL}/api/me`, {
+    headers: { Authorization: `Bearer ${token}` },
+  }))
+}
+
 export async function saveOnboarding(params: {
   token: string
   name: string
@@ -62,7 +69,7 @@ export async function saveOnboarding(params: {
   sector?: string
   goal?: string
   restrictions: string[]
-}): Promise<{ status: string; onboarding_completed: boolean }> {
+}): Promise<{ status: string; onboarding_completed: boolean; person_id: string }> {
   return parse(await fetch(`${API_URL}/api/me/onboarding`, {
     method: 'PUT',
     headers: {
@@ -76,5 +83,36 @@ export async function saveOnboarding(params: {
       goal: params.goal || null,
       restrictions: params.restrictions,
     }),
+  }))
+}
+
+export async function updateProfile(params: {
+  token: string
+  name: string
+  unitId: string
+  sector?: string
+  goal?: string
+  restrictions: string[]
+}): Promise<AuthPerson> {
+  return parse(await fetch(`${API_URL}/api/me`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${params.token}`,
+    },
+    body: JSON.stringify({
+      name: params.name,
+      unit_id: params.unitId,
+      sector: params.sector || null,
+      goal: params.goal || null,
+      restrictions: params.restrictions,
+    }),
+  }))
+}
+
+export async function logout(token: string): Promise<void> {
+  await parse(await fetch(`${API_URL}/api/auth/logout`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
   }))
 }
