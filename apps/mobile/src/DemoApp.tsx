@@ -11,8 +11,12 @@ import {
   View,
 } from 'react-native'
 import {
+  getMealHistory,
+  getMealProgress,
   getPublishedMenu,
   getRecommendation,
+  MealHistory,
+  MealProgress,
   PublishedMenu,
   Recommendation,
   registerMeal,
@@ -20,16 +24,19 @@ import {
 } from './api'
 import { DEMO_PERSON, DEMO_UNITS } from './demo'
 
-type Screen = 'home' | 'menu' | 'recommendation' | 'feedback' | 'done'
+type Screen = 'home' | 'menu' | 'recommendation' | 'feedback' | 'done' | 'progress'
 
 const today = () => new Date().toISOString().slice(0, 10)
 const fmt = (value: number | null | undefined, suffix = '') => value == null ? '—' : `${Math.round(value)}${suffix}`
+const shortDate = (value: string) => new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' }).format(new Date(`${value}T12:00:00`))
 
 export default function DemoApp() {
   const [screen, setScreen] = useState<Screen>('home')
   const [unitId, setUnitId] = useState(DEMO_UNITS[0].id)
   const [menu, setMenu] = useState<PublishedMenu | null>(null)
   const [recommendation, setRecommendation] = useState<Recommendation | null>(null)
+  const [history, setHistory] = useState<MealHistory | null>(null)
+  const [progress, setProgress] = useState<MealProgress | null>(null)
   const [foodRating, setFoodRating] = useState(5)
   const [serviceRating, setServiceRating] = useState(5)
   const [tags, setTags] = useState<string[]>([])
@@ -44,9 +51,8 @@ export default function DemoApp() {
     try {
       setMenu(await getPublishedMenu({ unitId, serviceDate: today() }))
       setScreen('menu')
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Não foi possível carregar o cardápio.')
-    } finally { setBusy(false) }
+    } catch (e) { setError(e instanceof Error ? e.message : 'Não foi possível carregar o cardápio.') }
+    finally { setBusy(false) }
   }
 
   async function openRecommendation() {
@@ -54,9 +60,22 @@ export default function DemoApp() {
     try {
       setRecommendation(await getRecommendation({ personId: DEMO_PERSON.id, unitId, serviceDate: today() }))
       setScreen('recommendation')
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Não foi possível montar sua recomendação.')
-    } finally { setBusy(false) }
+    } catch (e) { setError(e instanceof Error ? e.message : 'Não foi possível montar sua recomendação.') }
+    finally { setBusy(false) }
+  }
+
+  async function openProgress() {
+    setBusy(true); setError('')
+    try {
+      const [progressData, historyData] = await Promise.all([
+        getMealProgress(DEMO_PERSON.id),
+        getMealHistory(DEMO_PERSON.id),
+      ])
+      setProgress(progressData)
+      setHistory(historyData)
+      setScreen('progress')
+    } catch (e) { setError(e instanceof Error ? e.message : 'Não foi possível carregar seu progresso.') }
+    finally { setBusy(false) }
   }
 
   async function saveMeal() {
@@ -65,9 +84,8 @@ export default function DemoApp() {
     try {
       await registerMeal({ personId: DEMO_PERSON.id, serviceDate: today(), recommendation })
       setScreen('feedback')
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Não foi possível registrar a refeição.')
-    } finally { setBusy(false) }
+    } catch (e) { setError(e instanceof Error ? e.message : 'Não foi possível registrar a refeição.') }
+    finally { setBusy(false) }
   }
 
   function toggleTag(tag: string) {
@@ -88,9 +106,8 @@ export default function DemoApp() {
         comment,
       })
       setScreen('done')
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Não foi possível enviar sua avaliação.')
-    } finally { setBusy(false) }
+    } catch (e) { setError(e instanceof Error ? e.message : 'Não foi possível enviar sua avaliação.') }
+    finally { setBusy(false) }
   }
 
   return (
@@ -113,6 +130,7 @@ export default function DemoApp() {
           <Text style={styles.sectionTitle}>Unidade da demonstração</Text>
           <View style={styles.unitRow}>{DEMO_UNITS.map((item) => <Pressable key={item.id} style={[styles.chip, unitId === item.id && styles.chipActive]} onPress={() => setUnitId(item.id)}><Text style={[styles.chipText, unitId === item.id && styles.chipTextActive]}>{item.company}</Text></Pressable>)}</View>
           <Pressable style={styles.card} onPress={openMenu}><Text style={styles.cardTitle}>Cardápio de hoje</Text><Text style={styles.cardText}>Veja tudo o que está disponível no refeitório.</Text><Text style={styles.arrow}>›</Text></Pressable>
+          <Pressable style={styles.card} onPress={openProgress}><Text style={styles.cardTitle}>Meu progresso</Text><Text style={styles.cardText}>Acompanhe refeições, macros e aderência à sua meta.</Text><Text style={styles.arrow}>›</Text></Pressable>
           <View style={styles.privacy}><Text style={styles.privacyTitle}>Privacidade por padrão</Text><Text style={styles.privacyText}>Sua prescrição e seu histórico alimentar ficam privados. A empresa recebe apenas dados agregados.</Text></View>
         </>}
 
@@ -132,6 +150,24 @@ export default function DemoApp() {
           </>}
         </>}
 
+        {screen === 'progress' && <>
+          <Text style={styles.pageTitle}>Meu progresso</Text><Text style={styles.pageSub}>Últimos 7 dias · somente você vê estes dados</Text>
+          <View style={styles.progressHero}>
+            <Text style={styles.progressEyebrow}>ADERÊNCIA À META</Text>
+            <Text style={styles.progressNumber}>{progress?.adherence_percent == null ? '—' : `${progress.adherence_percent}%`}</Text>
+            <Text style={styles.progressText}>{progress?.meal_days ?? 0} refeição(ões) registrada(s) · {progress?.adherent_days ?? 0} dentro da faixa de referência</Text>
+          </View>
+          <View style={styles.targetRow}>
+            <MiniMetric label="Meta kcal" value={fmt(progress?.target.kcal)} />
+            <MiniMetric label="Meta proteína" value={fmt(progress?.target.protein_g, ' g')} />
+          </View>
+          <Text style={styles.sectionTitle}>Semana</Text>
+          <View style={styles.weekCard}>{progress?.series.length ? progress.series.map((day) => <View key={day.date} style={styles.weekRow}><View><Text style={styles.weekDate}>{shortDate(day.date)}</Text><Text style={styles.menuMeta}>{fmt(day.totals.kcal, ' kcal')} · {fmt(day.totals.protein_g, ' g proteína')}</Text></View><View style={[styles.statusPill, day.within_target ? styles.statusOk : styles.statusNeutral]}><Text style={[styles.statusText, day.within_target && styles.statusTextOk]}>{day.within_target ? 'Na meta' : 'Fora da faixa'}</Text></View></View>) : <Text style={styles.emptyText}>Registre refeições para começar a acompanhar sua evolução.</Text>}</View>
+          <Text style={styles.sectionTitle}>Histórico</Text>
+          <View style={styles.listCard}>{history?.meals.length ? history.meals.map((meal) => <View key={meal.meal_id} style={styles.historyBlock}><View style={styles.historyHeader}><Text style={styles.weekDate}>{shortDate(meal.meal_date)}</Text><Text style={styles.historyTotal}>{fmt(meal.totals.kcal, ' kcal')}</Text></View>{meal.items.map((item, index) => <Text key={`${meal.meal_id}-${index}`} style={styles.historyItem}>• {item.item_name} · {item.quantity} {item.unit ?? ''}</Text>)}<Text style={styles.historyMacros}>{fmt(meal.totals.protein_g, ' g prot')} · {fmt(meal.totals.carbs_g, ' g carb')} · {fmt(meal.totals.fat_g, ' g gord')}</Text></View>) : <Text style={styles.emptyText}>Ainda não há refeições registradas.</Text>}</View>
+          <View style={styles.privacy}><Text style={styles.privacyTitle}>Histórico pessoal</Text><Text style={styles.privacyText}>Estes dados não são exibidos no painel da empresa. A gestão recebe somente indicadores operacionais agregados.</Text></View>
+        </>}
+
         {screen === 'feedback' && <>
           <Text style={styles.pageTitle}>Como foi seu almoço?</Text><Text style={styles.pageSub}>Seu feedback ajuda a melhorar a experiência no refeitório.</Text>
           <Rating title="Comida" value={foodRating} onChange={setFoodRating} />
@@ -142,7 +178,7 @@ export default function DemoApp() {
           <Pressable style={styles.primary} onPress={sendFeedback}><Text style={styles.primaryText}>Enviar avaliação</Text></Pressable>
         </>}
 
-        {screen === 'done' && <View style={styles.done}><View style={styles.doneIcon}><Text style={styles.doneCheck}>✓</Text></View><Text style={styles.doneTitle}>Refeição registrada</Text><Text style={styles.doneText}>Obrigado pelo feedback. Sua refeição já entrou no seu histórico e a avaliação será usada apenas de forma agregada no painel da Apetit.</Text><Pressable style={styles.primary} onPress={() => setScreen('home')}><Text style={styles.primaryText}>Voltar ao início</Text></Pressable></View>}
+        {screen === 'done' && <View style={styles.done}><View style={styles.doneIcon}><Text style={styles.doneCheck}>✓</Text></View><Text style={styles.doneTitle}>Refeição registrada</Text><Text style={styles.doneText}>Obrigado pelo feedback. Sua refeição já entrou no seu histórico e a avaliação será usada apenas de forma agregada no painel da Apetit.</Text><Pressable style={styles.primary} onPress={openProgress}><Text style={styles.primaryText}>Ver meu progresso</Text></Pressable><Pressable style={styles.secondary} onPress={() => setScreen('home')}><Text style={styles.secondaryText}>Voltar ao início</Text></Pressable></View>}
 
         {!!error && <View style={styles.error}><Text style={styles.errorText}>{error}</Text></View>}
         {busy && <ActivityIndicator style={{ marginTop: 18 }} color="#151512" />}
@@ -152,8 +188,9 @@ export default function DemoApp() {
 }
 
 function Metric({ label, value }: { label: string; value: string }) { return <View style={styles.metric}><Text style={styles.metricValue}>{value}</Text><Text style={styles.metricLabel}>{label}</Text></View> }
+function MiniMetric({ label, value }: { label: string; value: string }) { return <View style={styles.miniMetric}><Text style={styles.metricLabel}>{label}</Text><Text style={styles.miniValue}>{value}</Text></View> }
 function Rating({ title, value, onChange }: { title: string; value: number; onChange: (value: number) => void }) { return <View style={styles.ratingCard}><Text style={styles.fieldTitle}>{title}</Text><View style={styles.ratingRow}>{[1,2,3,4,5].map((n) => <Pressable key={n} style={[styles.rating, value === n && styles.ratingActive]} onPress={() => onChange(n)}><Text style={[styles.ratingText, value === n && styles.ratingTextActive]}>{n}</Text></Pressable>)}</View></View> }
 
 const styles = StyleSheet.create({
-  safe:{flex:1,backgroundColor:'#F5F4F0'},header:{padding:20,flexDirection:'row',justifyContent:'space-between',alignItems:'center'},brand:{fontSize:12,letterSpacing:3,fontWeight:'900',color:'#78746B'},hello:{fontSize:24,fontWeight:'900',color:'#171714',marginTop:4},avatar:{width:42,height:42,borderRadius:21,backgroundColor:'#171714',alignItems:'center',justifyContent:'center'},avatarText:{color:'#fff',fontWeight:'900'},content:{padding:18,paddingBottom:44},hero:{backgroundColor:'#171714',borderRadius:28,padding:24},eyebrow:{color:'#D5D1C7',fontSize:11,fontWeight:'800',letterSpacing:1.7},heroTitle:{color:'#fff',fontSize:32,lineHeight:36,fontWeight:'900',marginTop:12},heroText:{color:'#CCC9C0',fontSize:15,lineHeight:22,marginTop:12,marginBottom:22},primary:{backgroundColor:'#D8B248',minHeight:54,borderRadius:18,alignItems:'center',justifyContent:'center',paddingHorizontal:18,marginTop:14},primaryText:{fontWeight:'900',color:'#171714'},sectionTitle:{fontSize:18,fontWeight:'900',marginTop:26,marginBottom:12,color:'#171714'},unitRow:{flexDirection:'row',gap:8,flexWrap:'wrap'},chip:{backgroundColor:'#fff',borderWidth:1,borderColor:'#DDD9CF',paddingHorizontal:14,paddingVertical:10,borderRadius:999},chipActive:{backgroundColor:'#171714'},chipText:{fontWeight:'800',color:'#6C675E'},chipTextActive:{color:'#fff'},card:{backgroundColor:'#fff',borderRadius:22,padding:18,marginTop:18,borderWidth:1,borderColor:'#E6E2D8'},cardTitle:{fontSize:17,fontWeight:'900',color:'#171714'},cardText:{fontSize:13,color:'#777168',marginTop:5},arrow:{position:'absolute',right:18,top:26,fontSize:28,color:'#A19A8D'},privacy:{backgroundColor:'#EAF3EC',borderRadius:20,padding:18,marginTop:14},privacyTitle:{fontWeight:'900',color:'#25432D'},privacyText:{fontSize:13,lineHeight:19,color:'#506755',marginTop:5},back:{fontSize:15,fontWeight:'800',color:'#6A655C',paddingVertical:8},pageTitle:{fontSize:30,fontWeight:'900',color:'#171714',marginTop:10},pageSub:{fontSize:14,color:'#777168',marginTop:7,marginBottom:18},listCard:{backgroundColor:'#fff',borderRadius:22,padding:16,borderWidth:1,borderColor:'#E6E2D8'},menuRow:{paddingVertical:13,borderBottomWidth:StyleSheet.hairlineWidth,borderBottomColor:'#E7E2D8'},menuName:{fontSize:16,fontWeight:'900',color:'#171714'},menuMeta:{fontSize:12,color:'#817B70',marginTop:3},category:{fontSize:11,color:'#A07E28',textTransform:'capitalize',marginTop:6,fontWeight:'800'},recoRow:{flexDirection:'row',alignItems:'center',paddingVertical:11},dot:{width:10,height:10,borderRadius:5,backgroundColor:'#D8B248',marginRight:12},metrics:{backgroundColor:'#fff',borderRadius:22,padding:18,marginTop:14,flexDirection:'row',flexWrap:'wrap'},metric:{width:'50%',marginBottom:14},metricValue:{fontSize:21,fontWeight:'900',color:'#171714'},metricLabel:{fontSize:12,color:'#817B70',marginTop:2},disclaimer:{fontSize:11,lineHeight:17,color:'#898379',textAlign:'center',margin:16},warning:{backgroundColor:'#FFF4D1',borderRadius:20,padding:18},warningTitle:{fontWeight:'900',color:'#5B4714'},warningText:{fontSize:13,lineHeight:19,color:'#766229',marginTop:6},ratingCard:{backgroundColor:'#fff',borderRadius:20,padding:18,marginBottom:12},fieldTitle:{fontSize:15,fontWeight:'900',color:'#171714',marginBottom:10},ratingRow:{flexDirection:'row',gap:9},rating:{width:45,height:45,borderRadius:14,backgroundColor:'#F0EEE8',alignItems:'center',justifyContent:'center'},ratingActive:{backgroundColor:'#171714'},ratingText:{fontWeight:'900',color:'#6C675E'},ratingTextActive:{color:'#fff'},tags:{flexDirection:'row',flexWrap:'wrap',gap:8,marginBottom:14},tag:{paddingHorizontal:12,paddingVertical:9,borderRadius:999,backgroundColor:'#fff',borderWidth:1,borderColor:'#DED9CE'},tagActive:{backgroundColor:'#171714'},tagText:{fontSize:12,color:'#6D675C'},tagTextActive:{color:'#fff'},input:{backgroundColor:'#fff',borderRadius:18,minHeight:100,padding:14,textAlignVertical:'top',borderWidth:1,borderColor:'#E3DED4'},done:{paddingTop:70,alignItems:'center'},doneIcon:{width:72,height:72,borderRadius:36,backgroundColor:'#D8B248',alignItems:'center',justifyContent:'center'},doneCheck:{fontSize:34,fontWeight:'900'},doneTitle:{fontSize:28,fontWeight:'900',color:'#171714',marginTop:18},doneText:{fontSize:14,lineHeight:21,color:'#706A61',textAlign:'center',marginTop:10,marginBottom:10},error:{backgroundColor:'#FFE6E3',padding:14,borderRadius:16,marginTop:16},errorText:{color:'#8C2C22',fontSize:13}
+  safe:{flex:1,backgroundColor:'#F5F4F0'},header:{padding:20,flexDirection:'row',justifyContent:'space-between',alignItems:'center'},brand:{fontSize:12,letterSpacing:3,fontWeight:'900',color:'#78746B'},hello:{fontSize:24,fontWeight:'900',color:'#171714',marginTop:4},avatar:{width:42,height:42,borderRadius:21,backgroundColor:'#171714',alignItems:'center',justifyContent:'center'},avatarText:{color:'#fff',fontWeight:'900'},content:{padding:18,paddingBottom:44},hero:{backgroundColor:'#171714',borderRadius:28,padding:24},eyebrow:{color:'#D5D1C7',fontSize:11,fontWeight:'800',letterSpacing:1.7},heroTitle:{color:'#fff',fontSize:32,lineHeight:36,fontWeight:'900',marginTop:12},heroText:{color:'#CCC9C0',fontSize:15,lineHeight:22,marginTop:12,marginBottom:22},primary:{backgroundColor:'#D8B248',minHeight:54,borderRadius:18,alignItems:'center',justifyContent:'center',paddingHorizontal:18,marginTop:14},primaryText:{fontWeight:'900',color:'#171714'},secondary:{minHeight:52,borderRadius:18,alignItems:'center',justifyContent:'center',paddingHorizontal:18,marginTop:10,borderWidth:1,borderColor:'#D9D4C9'},secondaryText:{fontWeight:'800',color:'#5E594F'},sectionTitle:{fontSize:18,fontWeight:'900',marginTop:26,marginBottom:12,color:'#171714'},unitRow:{flexDirection:'row',gap:8,flexWrap:'wrap'},chip:{backgroundColor:'#fff',borderWidth:1,borderColor:'#DDD9CF',paddingHorizontal:14,paddingVertical:10,borderRadius:999},chipActive:{backgroundColor:'#171714'},chipText:{fontWeight:'800',color:'#6C675E'},chipTextActive:{color:'#fff'},card:{backgroundColor:'#fff',borderRadius:22,padding:18,marginTop:18,borderWidth:1,borderColor:'#E6E2D8'},cardTitle:{fontSize:17,fontWeight:'900',color:'#171714'},cardText:{fontSize:13,color:'#777168',marginTop:5},arrow:{position:'absolute',right:18,top:26,fontSize:28,color:'#A19A8D'},privacy:{backgroundColor:'#EAF3EC',borderRadius:20,padding:18,marginTop:14},privacyTitle:{fontWeight:'900',color:'#25432D'},privacyText:{fontSize:13,lineHeight:19,color:'#506755',marginTop:5},back:{fontSize:15,fontWeight:'800',color:'#6A655C',paddingVertical:8},pageTitle:{fontSize:30,fontWeight:'900',color:'#171714',marginTop:10},pageSub:{fontSize:14,color:'#777168',marginTop:7,marginBottom:18},listCard:{backgroundColor:'#fff',borderRadius:22,padding:16,borderWidth:1,borderColor:'#E6E2D8'},menuRow:{paddingVertical:13,borderBottomWidth:StyleSheet.hairlineWidth,borderBottomColor:'#E7E2D8'},menuName:{fontSize:16,fontWeight:'900',color:'#171714'},menuMeta:{fontSize:12,color:'#817B70',marginTop:3},category:{fontSize:11,color:'#A07E28',textTransform:'capitalize',marginTop:6,fontWeight:'800'},recoRow:{flexDirection:'row',alignItems:'center',paddingVertical:11},dot:{width:10,height:10,borderRadius:5,backgroundColor:'#D8B248',marginRight:12},metrics:{backgroundColor:'#fff',borderRadius:22,padding:18,marginTop:14,flexDirection:'row',flexWrap:'wrap'},metric:{width:'50%',marginBottom:14},metricValue:{fontSize:21,fontWeight:'900',color:'#171714'},metricLabel:{fontSize:12,color:'#817B70',marginTop:2},disclaimer:{fontSize:11,lineHeight:17,color:'#898379',textAlign:'center',margin:16},warning:{backgroundColor:'#FFF4D1',borderRadius:20,padding:18},warningTitle:{fontWeight:'900',color:'#5B4714'},warningText:{fontSize:13,lineHeight:19,color:'#766229',marginTop:6},progressHero:{backgroundColor:'#171714',borderRadius:26,padding:22},progressEyebrow:{fontSize:11,letterSpacing:1.6,fontWeight:'900',color:'#D5D1C7'},progressNumber:{fontSize:52,fontWeight:'900',color:'#D8B248',marginTop:8},progressText:{fontSize:13,lineHeight:19,color:'#C9C5BC',marginTop:5},targetRow:{flexDirection:'row',gap:10,marginTop:12},miniMetric:{flex:1,backgroundColor:'#fff',borderRadius:18,padding:16,borderWidth:1,borderColor:'#E6E2D8'},miniValue:{fontSize:20,fontWeight:'900',color:'#171714',marginTop:4},weekCard:{backgroundColor:'#fff',borderRadius:22,paddingHorizontal:16,borderWidth:1,borderColor:'#E6E2D8'},weekRow:{minHeight:68,flexDirection:'row',alignItems:'center',justifyContent:'space-between',borderBottomWidth:StyleSheet.hairlineWidth,borderBottomColor:'#E7E2D8'},weekDate:{fontSize:15,fontWeight:'900',color:'#171714',textTransform:'capitalize'},statusPill:{paddingHorizontal:10,paddingVertical:7,borderRadius:999},statusOk:{backgroundColor:'#E4F2E7'},statusNeutral:{backgroundColor:'#F0EEE8'},statusText:{fontSize:11,fontWeight:'800',color:'#6D675D'},statusTextOk:{color:'#2F6640'},emptyText:{fontSize:13,lineHeight:19,color:'#817B70',paddingVertical:18},historyBlock:{paddingVertical:14,borderBottomWidth:StyleSheet.hairlineWidth,borderBottomColor:'#E7E2D8'},historyHeader:{flexDirection:'row',justifyContent:'space-between',alignItems:'center',marginBottom:8},historyTotal:{fontSize:14,fontWeight:'900',color:'#A07E28'},historyItem:{fontSize:13,color:'#575249',lineHeight:20},historyMacros:{fontSize:11,fontWeight:'800',color:'#8B857A',marginTop:8},ratingCard:{backgroundColor:'#fff',borderRadius:20,padding:18,marginBottom:12},fieldTitle:{fontSize:15,fontWeight:'900',color:'#171714',marginBottom:10},ratingRow:{flexDirection:'row',gap:9},rating:{width:45,height:45,borderRadius:14,backgroundColor:'#F0EEE8',alignItems:'center',justifyContent:'center'},ratingActive:{backgroundColor:'#171714'},ratingText:{fontWeight:'900',color:'#6C675E'},ratingTextActive:{color:'#fff'},tags:{flexDirection:'row',flexWrap:'wrap',gap:8,marginBottom:14},tag:{paddingHorizontal:12,paddingVertical:9,borderRadius:999,backgroundColor:'#fff',borderWidth:1,borderColor:'#DED9CE'},tagActive:{backgroundColor:'#171714'},tagText:{fontSize:12,color:'#6D675C'},tagTextActive:{color:'#fff'},input:{backgroundColor:'#fff',borderRadius:18,minHeight:100,padding:14,textAlignVertical:'top',borderWidth:1,borderColor:'#E3DED4'},done:{paddingTop:70,alignItems:'center'},doneIcon:{width:72,height:72,borderRadius:36,backgroundColor:'#D8B248',alignItems:'center',justifyContent:'center'},doneCheck:{fontSize:34,fontWeight:'900'},doneTitle:{fontSize:28,fontWeight:'900',color:'#171714',marginTop:18},doneText:{fontSize:14,lineHeight:21,color:'#706A61',textAlign:'center',marginTop:10,marginBottom:10},error:{backgroundColor:'#FFE6E3',padding:14,borderRadius:16,marginTop:16},errorText:{color:'#8C2C22',fontSize:13}
 })
