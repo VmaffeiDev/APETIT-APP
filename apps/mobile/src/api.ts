@@ -77,6 +77,43 @@ export type MealSaveResult = {
   estimated_totals: NutritionTarget
 }
 
+export type MealHistory = {
+  person_id: string
+  meals: Array<{
+    meal_id: string
+    meal_date: string
+    meal_type: string
+    totals: NutritionTarget
+    items: Array<{
+      item_name: string
+      category: string
+      quantity: number
+      unit: string | null
+      kcal: number | null
+      protein_g: number | null
+      carbs_g: number | null
+      fat_g: number | null
+    }>
+  }>
+}
+
+export type MealProgress = {
+  person_id: string
+  period_start: string
+  period_end: string
+  meal_type: string
+  target: NutritionTarget
+  meal_days: number
+  adherent_days: number
+  adherence_percent: number | null
+  series: Array<{
+    date: string
+    totals: NutritionTarget
+    ratios: NutritionTarget
+    within_target: boolean
+  }>
+}
+
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://127.0.0.1:8000'
 
 async function parseResponse<T>(response: Response): Promise<T> {
@@ -157,6 +194,16 @@ export async function registerMeal(params: { personId: string; serviceDate: stri
       }),
     }),
   )
+}
+
+export async function getMealHistory(personId: string): Promise<MealHistory> {
+  const query = new URLSearchParams({ person_id: personId, limit: '30' })
+  return parseResponse<MealHistory>(await fetch(`${API_URL}/api/meals/history?${query.toString()}`))
+}
+
+export async function getMealProgress(personId: string): Promise<MealProgress> {
+  const query = new URLSearchParams({ person_id: personId, days: '7', meal_type: 'almoco' })
+  return parseResponse<MealProgress>(await fetch(`${API_URL}/api/meals/progress?${query.toString()}`))
 }
 
 export async function submitFeedback(params: {
