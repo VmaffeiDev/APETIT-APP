@@ -27,11 +27,35 @@ export type OnboardingOptions = {
   goals: string[]
 }
 
+function readableDetail(detail: unknown): string {
+  if (typeof detail === 'string' && detail.trim()) return detail
+
+  if (Array.isArray(detail)) {
+    const messages = detail
+      .map((item) => {
+        if (!item || typeof item !== 'object') return null
+        if ('msg' in item && typeof item.msg === 'string') return item.msg
+        if ('message' in item && typeof item.message === 'string') return item.message
+        return null
+      })
+      .filter((message): message is string => Boolean(message))
+
+    if (messages.length) return messages.join(' ')
+  }
+
+  if (detail && typeof detail === 'object') {
+    if ('message' in detail && typeof detail.message === 'string') return detail.message
+    if ('msg' in detail && typeof detail.msg === 'string') return detail.msg
+  }
+
+  return 'Não foi possível concluir a operação.'
+}
+
 async function parse<T>(response: Response): Promise<T> {
   const body = await response.json().catch(() => null)
   if (!response.ok) {
-    const detail = body && typeof body === 'object' && 'detail' in body ? String(body.detail) : 'Não foi possível concluir a operação.'
-    throw new Error(detail)
+    const detail = body && typeof body === 'object' && 'detail' in body ? body.detail : null
+    throw new Error(readableDetail(detail))
   }
   return body as T
 }
