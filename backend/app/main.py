@@ -6,6 +6,7 @@ from app.api.feedback import router as feedback_router
 from app.api.meals import router as meals_router
 from app.api.menus import router as menus_router
 from app.api.prescriptions import router as prescriptions_router
+from app.api.profile import router as profile_router
 from app.settings import settings
 
 app = FastAPI(
@@ -26,6 +27,7 @@ app.add_middleware(
 )
 
 app.include_router(auth_router)
+app.include_router(profile_router)
 app.include_router(menus_router)
 app.include_router(feedback_router)
 app.include_router(prescriptions_router)
