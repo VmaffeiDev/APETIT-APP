@@ -1,3 +1,5 @@
+export type TechnicalSheetStatus = 'complete' | 'incomplete' | 'missing' | 'no_code'
+
 export type PreviewItem = {
   day: number
   source_column: string
@@ -5,11 +7,25 @@ export type PreviewItem = {
   name: string
   portion: string | null
   technical_sheet_code: string | null
+  technical_sheet_status?: TechnicalSheetStatus
   raw_value: string
 }
 
 export type PreviewDay = { day: number; items: PreviewItem[] }
-export type MenuPreview = { preview_id: string; file_name: string; unit_id: string; meal_type: string; suggested_month: number | null; suggested_year: number | null; item_count: number; day_count: number; days: PreviewDay[]; warnings: string[]; requires_period_confirmation: boolean }
+export type MenuPreview = {
+  preview_id: string
+  file_name: string
+  unit_id: string
+  meal_type: string
+  suggested_month: number | null
+  suggested_year: number | null
+  item_count: number
+  day_count: number
+  days: PreviewDay[]
+  warnings: string[]
+  technical_sheet_coverage?: Record<TechnicalSheetStatus, number>
+  requires_period_confirmation: boolean
+}
 export type PublishResult = { status: 'published'; menu_import_id: string; period_start: string; period_end: string; item_count: number; enriched_items?: number }
 export type FeedbackSummary = { unit_id: string; restaurant_id: string | null; period_start: string; period_end: string; responses: number; minimum_group: number; suppressed: boolean; message: string | null; ratings: null | { overall: number; food: number; service: number }; tags: Array<{ tag: string; count: number }>; trend: Array<{ date: string; responses: number; rating: number }>; comments: Array<{ date: string; comment: string }> }
 
@@ -30,6 +46,18 @@ export type TechnicalSheet = TechnicalSheetSummary & {
   ingredients: string[]
   allergens: Array<{ allergen: string; status: 'contains' | 'may_contain' | 'free_from' }>
 }
+
+export type TechnicalSheetImportItem = Omit<TechnicalSheet, 'updated_at'>
+export type TechnicalSheetImportPreview = {
+  preview_id: string
+  file_name: string
+  count: number
+  complete_count: number
+  incomplete_count: number
+  warnings: string[]
+  items: TechnicalSheetImportItem[]
+}
+export type TechnicalSheetImportResult = { status: 'published'; created: number; updated: number; count: number }
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
 
@@ -76,4 +104,13 @@ export async function saveTechnicalSheet(adminKey: string, code: string, payload
 
 export async function deleteTechnicalSheet(adminKey: string, code: string): Promise<void> {
   await read(await fetch(`${API_URL}/api/admin/technical-sheets/${encodeURIComponent(code)}`, { method: 'DELETE', headers: { 'X-Apetit-Admin-Key': adminKey } }), 'Não foi possível excluir a ficha técnica.')
+}
+
+export async function previewTechnicalSheetImport(adminKey: string, file: File): Promise<TechnicalSheetImportPreview> {
+  const body = new FormData(); body.set('file', file)
+  return read(await fetch(`${API_URL}/api/admin/technical-sheets/imports/preview`, { method: 'POST', headers: { 'X-Apetit-Admin-Key': adminKey }, body }), 'Não foi possível validar o arquivo de fichas técnicas.')
+}
+
+export async function publishTechnicalSheetImport(adminKey: string, previewId: string): Promise<TechnicalSheetImportResult> {
+  return read(await fetch(`${API_URL}/api/admin/technical-sheets/imports/${previewId}/publish`, { method: 'POST', headers: { 'X-Apetit-Admin-Key': adminKey } }), 'Não foi possível importar as fichas técnicas.')
 }
