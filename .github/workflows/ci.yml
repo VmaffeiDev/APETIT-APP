@@ -58,6 +58,10 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Typecheck
         run: npm run typecheck
+      - name: Build PWA
+        env:
+          EXPO_PUBLIC_API_URL: https://api-staging-v2-production.up.railway.app
+        run: npm run build:web
 
   admin:
     runs-on: ubuntu-latest
