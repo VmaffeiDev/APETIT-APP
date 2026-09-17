@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.feedback import router as feedback_router
+from app.api.meals import router as meals_router
 from app.api.menus import router as menus_router
 from app.api.prescriptions import router as prescriptions_router
 from app.settings import settings
@@ -26,6 +27,7 @@ app.add_middleware(
 app.include_router(menus_router)
 app.include_router(feedback_router)
 app.include_router(prescriptions_router)
+app.include_router(meals_router)
 
 
 @app.get("/api/health", tags=["system"])
