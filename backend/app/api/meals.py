@@ -4,10 +4,11 @@ from datetime import date, timedelta
 from decimal import Decimal
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 
+from app.api.auth import current_person
 from app.db import engine
 from app.services.prescription_workflow import current_prescription_meal
 
@@ -27,6 +28,13 @@ class MealCreate(BaseModel):
     items: list[MealItemCreate] = Field(min_length=1, max_length=20)
 
 
+def _require_self(person_id: UUID, authorization: str | None) -> dict:
+    person = current_person(authorization)
+    if person["id"] != person_id:
+        raise HTTPException(status_code=403, detail="você só pode acessar seus próprios dados")
+    return person
+
+
 def _totals(rows: list[dict]) -> dict[str, Decimal]:
     keys = ("kcal", "protein_g", "carbs_g", "fat_g")
     return {
@@ -42,18 +50,12 @@ def _target_ratio(value: Decimal, target: Decimal | None) -> float | None:
 
 
 @router.post("/api/meals", tags=["meals"])
-def register_meal(payload: MealCreate) -> dict:
+def register_meal(payload: MealCreate, authorization: str | None = Header(default=None)) -> dict:
+    _require_self(payload.person_id, authorization)
     meal_type = payload.meal_type.strip().lower()
     meal_id = uuid4()
 
     with engine.begin() as conn:
-        person_exists = conn.execute(
-            text("SELECT 1 FROM people WHERE id = :id AND deleted_at IS NULL"),
-            {"id": payload.person_id},
-        ).scalar_one_or_none()
-        if person_exists is None:
-            raise HTTPException(status_code=404, detail="funcionário não encontrado")
-
         menu_ids = [item.menu_item_id for item in payload.items]
         rows = conn.execute(
             text(
@@ -152,7 +154,8 @@ def register_meal(payload: MealCreate) -> dict:
 
 
 @router.get("/api/meals/history", tags=["meals"])
-def meal_history(person_id: UUID, limit: int = 30) -> dict:
+def meal_history(person_id: UUID, limit: int = 30, authorization: str | None = Header(default=None)) -> dict:
+    _require_self(person_id, authorization)
     limit = max(1, min(limit, 90))
     with engine.connect() as conn:
         meals = conn.execute(
@@ -195,7 +198,13 @@ def meal_history(person_id: UUID, limit: int = 30) -> dict:
 
 
 @router.get("/api/meals/progress", tags=["meals"])
-def meal_progress(person_id: UUID, days: int = 7, meal_type: str = "almoco") -> dict:
+def meal_progress(
+    person_id: UUID,
+    days: int = 7,
+    meal_type: str = "almoco",
+    authorization: str | None = Header(default=None),
+) -> dict:
+    _require_self(person_id, authorization)
     days = max(1, min(days, 31))
     meal_type = meal_type.strip().lower()
     end = date.today()
