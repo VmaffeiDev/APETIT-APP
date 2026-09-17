@@ -7,12 +7,15 @@ from decimal import Decimal
 from pathlib import Path
 
 import fitz
+from PIL import Image
+from pillow_heif import register_heif_opener
 from pypdf import PdfReader
 
 from app.domain.prescription import NutritionTarget, PortionInstruction, PrescriptionMeal
 from app.services.ocr import OcrError, extract_document_text
 from app.settings import settings
 
+register_heif_opener()
 
 _MEAL_ALIASES = {
     "almoco": "almoco",
@@ -42,6 +45,17 @@ def _ocr_image(content: bytes) -> tuple[str | None, str]:
     except OcrError:
         return None, "needs_ocr"
     return (text, "ocr_text") if text else (None, "needs_ocr")
+
+
+def _heic_to_png(content: bytes) -> bytes | None:
+    try:
+        with Image.open(io.BytesIO(content)) as image:
+            converted = image.convert("RGB")
+            output = io.BytesIO()
+            converted.save(output, format="PNG")
+            return output.getvalue()
+    except (OSError, ValueError):
+        return None
 
 
 def _ocr_pdf(content: bytes) -> tuple[str | None, str]:
@@ -82,8 +96,12 @@ def extract_text(file_name: str, content: bytes) -> tuple[str | None, str]:
         return _ocr_pdf(content)
     if extension in {".png", ".jpg", ".jpeg", ".webp"}:
         return _ocr_image(content)
-    if extension == ".heic":
-        return None, "needs_ocr"
+    if extension in {".heic", ".heif"}:
+        converted = _heic_to_png(content)
+        if not converted:
+            return None, "needs_ocr"
+        text, status = _ocr_image(converted)
+        return text, "ocr_heic" if text else status
     return None, "unsupported"
 
 
