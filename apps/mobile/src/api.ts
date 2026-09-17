@@ -139,6 +139,19 @@ export type MealProgress = {
 }
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://127.0.0.1:8000'
+let employeeAccessToken: string | null = null
+
+export function configureEmployeeAccessToken(token: string | null) {
+  employeeAccessToken = token
+}
+
+function privateHeaders(contentType = true): Record<string, string> {
+  if (!employeeAccessToken) throw new Error('Sua sessão expirou. Entre novamente.')
+  return {
+    ...(contentType ? { 'Content-Type': 'application/json' } : {}),
+    Authorization: `Bearer ${employeeAccessToken}`,
+  }
+}
 
 async function parseResponse<T>(response: Response): Promise<T> {
   const payload = await response.json().catch(() => null)
@@ -165,7 +178,11 @@ export async function uploadPrescription(params: {
   } as never)
 
   return parseResponse<PrescriptionPreview>(
-    await fetch(`${API_URL}/api/prescriptions/preview`, { method: 'POST', body }),
+    await fetch(`${API_URL}/api/prescriptions/preview`, {
+      method: 'POST',
+      headers: privateHeaders(false),
+      body,
+    }),
   )
 }
 
@@ -174,7 +191,7 @@ export async function confirmPrescription(preview: PrescriptionPreview): Promise
   return parseResponse(
     await fetch(`${API_URL}/api/prescriptions/${preview.preview_id}/confirm`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: privateHeaders(),
       body: JSON.stringify({
         meal_type: preview.meal.meal_type,
         target: preview.meal.target,
@@ -192,7 +209,7 @@ export async function getRecommendation(params: { personId: string; unitId: stri
     service_date: params.serviceDate,
     meal_type: 'almoco',
   })
-  return parseResponse<Recommendation>(await fetch(`${API_URL}/api/nutrition/recommendation?${query.toString()}`))
+  return parseResponse<Recommendation>(await fetch(`${API_URL}/api/nutrition/recommendation?${query.toString()}`, { headers: privateHeaders(false) }))
 }
 
 export async function getPublishedMenu(params: { unitId: string; serviceDate: string }): Promise<PublishedMenu> {
@@ -209,7 +226,7 @@ export async function evaluatePlate(params: {
   return parseResponse<PlateEvaluation>(
     await fetch(`${API_URL}/api/nutrition/plate-evaluate`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: privateHeaders(),
       body: JSON.stringify({
         person_id: params.personId,
         unit_id: params.unitId,
@@ -238,7 +255,7 @@ export async function registerSelectedMeal(params: {
   return parseResponse<MealSaveResult>(
     await fetch(`${API_URL}/api/meals`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: privateHeaders(),
       body: JSON.stringify({
         person_id: params.personId,
         meal_date: params.serviceDate,
@@ -255,12 +272,12 @@ export async function registerSelectedMeal(params: {
 
 export async function getMealHistory(personId: string): Promise<MealHistory> {
   const query = new URLSearchParams({ person_id: personId, limit: '30' })
-  return parseResponse<MealHistory>(await fetch(`${API_URL}/api/meals/history?${query.toString()}`))
+  return parseResponse<MealHistory>(await fetch(`${API_URL}/api/meals/history?${query.toString()}`, { headers: privateHeaders(false) }))
 }
 
 export async function getMealProgress(personId: string): Promise<MealProgress> {
   const query = new URLSearchParams({ person_id: personId, days: '7', meal_type: 'almoco' })
-  return parseResponse<MealProgress>(await fetch(`${API_URL}/api/meals/progress?${query.toString()}`))
+  return parseResponse<MealProgress>(await fetch(`${API_URL}/api/meals/progress?${query.toString()}`, { headers: privateHeaders(false) }))
 }
 
 export async function submitFeedback(params: {
@@ -276,7 +293,7 @@ export async function submitFeedback(params: {
   return parseResponse(
     await fetch(`${API_URL}/api/feedback`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: privateHeaders(),
       body: JSON.stringify({
         person_id: params.personId,
         unit_id: params.unitId,
