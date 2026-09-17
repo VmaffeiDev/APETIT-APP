@@ -1,18 +1,21 @@
 import { useEffect, useState } from 'react'
 import { ActivityIndicator, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
 
-import DemoApp from './DemoApp'
-import { AuthSession, getOnboardingOptions, OnboardingOptions, requestLoginCode, saveOnboarding, verifyLoginCode } from './authApi'
+import AuthenticatedApp from './AuthenticatedApp'
+import { configureEmployeeAccessToken } from './api'
+import { AuthPerson, AuthSession, getMe, getOnboardingOptions, logout, OnboardingOptions, requestLoginCode, saveOnboarding, verifyLoginCode } from './authApi'
 import { configureEmployeeContext } from './demo'
+import { clearStoredSession, loadStoredSession, saveStoredSession } from './sessionStore'
 
-type Step = 'email' | 'code' | 'onboarding' | 'app'
+type Step = 'restoring' | 'email' | 'code' | 'onboarding' | 'app'
 
 export default function EmployeeEntry() {
-  const [step, setStep] = useState<Step>('email')
+  const [step, setStep] = useState<Step>('restoring')
   const [email, setEmail] = useState('mariana.demo@apetit.local')
   const [code, setCode] = useState('')
   const [demoCode, setDemoCode] = useState<string | undefined>()
   const [session, setSession] = useState<AuthSession | null>(null)
+  const [person, setPerson] = useState<AuthPerson | null>(null)
   const [options, setOptions] = useState<OnboardingOptions | null>(null)
   const [name, setName] = useState('')
   const [unitId, setUnitId] = useState('')
@@ -24,7 +27,51 @@ export default function EmployeeEntry() {
 
   useEffect(() => {
     getOnboardingOptions().then(setOptions).catch(() => undefined)
+    restoreSession()
   }, [])
+
+  function applyPerson(authenticatedPerson: AuthPerson, token: string) {
+    setPerson(authenticatedPerson)
+    configureEmployeeAccessToken(token)
+    if (authenticatedPerson.name) {
+      configureEmployeeContext({
+        id: authenticatedPerson.id,
+        name: authenticatedPerson.name,
+        unitId: authenticatedPerson.unit_id,
+      })
+    }
+  }
+
+  async function restoreSession() {
+    try {
+      const stored = await loadStoredSession()
+      if (!stored) {
+        setStep('email')
+        return
+      }
+      const restoredPerson = await getMe(stored.access_token)
+      const restored: AuthSession = {
+        access_token: stored.access_token,
+        expires_at: stored.expires_at,
+        person: restoredPerson,
+      }
+      setSession(restored)
+      applyPerson(restoredPerson, stored.access_token)
+      if (restoredPerson.onboarding_completed && restoredPerson.name) setStep('app')
+      else {
+        setName(restoredPerson.name ?? '')
+        setUnitId(restoredPerson.unit_id ?? '')
+        setSector(restoredPerson.sector ?? '')
+        setGoal(restoredPerson.goal ?? 'seguir_prescricao')
+        setRestrictions(restoredPerson.restrictions ?? [])
+        setStep('onboarding')
+      }
+    } catch {
+      await clearStoredSession()
+      configureEmployeeAccessToken(null)
+      setStep('email')
+    }
+  }
 
   async function sendCode() {
     setBusy(true); setError('')
@@ -41,10 +88,16 @@ export default function EmployeeEntry() {
     try {
       const authenticated = await verifyLoginCode(email.trim(), code.trim())
       setSession(authenticated)
+      setPerson(authenticated.person)
+      configureEmployeeAccessToken(authenticated.access_token)
+      await saveStoredSession({ access_token: authenticated.access_token, expires_at: authenticated.expires_at })
       setName(authenticated.person.name ?? '')
       setUnitId(authenticated.person.unit_id ?? options?.units[0]?.unit_id ?? '')
+      setSector(authenticated.person.sector ?? '')
+      setGoal(authenticated.person.goal ?? 'seguir_prescricao')
+      setRestrictions(authenticated.person.restrictions ?? [])
       if (authenticated.person.onboarding_completed && authenticated.person.name) {
-        configureEmployeeContext({ id: authenticated.person.id, name: authenticated.person.name, unitId: authenticated.person.unit_id })
+        applyPerson(authenticated.person, authenticated.access_token)
         setStep('app')
       } else {
         setStep('onboarding')
@@ -58,17 +111,50 @@ export default function EmployeeEntry() {
     setBusy(true); setError('')
     try {
       await saveOnboarding({ token: session.access_token, name: name.trim(), unitId, sector, goal, restrictions })
-      configureEmployeeContext({ id: session.person.id, name: name.trim(), unitId })
+      const updated = await getMe(session.access_token)
+      applyPerson(updated, session.access_token)
+      setSession({ ...session, person: updated })
       setStep('app')
     } catch (e) { setError(e instanceof Error ? e.message : 'Não foi possível concluir o cadastro.') }
     finally { setBusy(false) }
+  }
+
+  async function signOut() {
+    const token = session?.access_token
+    try {
+      if (token) await logout(token)
+    } catch {
+      // A sessão local ainda precisa ser removida mesmo se a rede falhar.
+    }
+    await clearStoredSession()
+    configureEmployeeAccessToken(null)
+    setSession(null)
+    setPerson(null)
+    setCode('')
+    setStep('email')
+  }
+
+  function handlePersonChange(updated: AuthPerson) {
+    setPerson(updated)
+    if (session) setSession({ ...session, person: updated })
+    if (updated.name) configureEmployeeContext({ id: updated.id, name: updated.name, unitId: updated.unit_id })
   }
 
   function toggleRestriction(value: string) {
     setRestrictions((current) => current.includes(value) ? current.filter((item) => item !== value) : [...current, value])
   }
 
-  if (step === 'app') return <DemoApp />
+  if (step === 'restoring') return <SafeAreaView style={styles.loading}><ActivityIndicator color="#171714" /><Text style={styles.loadingText}>Abrindo sua conta…</Text></SafeAreaView>
+
+  if (step === 'app' && session && person) {
+    return <AuthenticatedApp
+      token={session.access_token}
+      person={person}
+      options={options}
+      onPersonChange={handlePersonChange}
+      onLogout={signOut}
+    />
+  }
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -129,5 +215,5 @@ export default function EmployeeEntry() {
 }
 
 const styles = StyleSheet.create({
-  safe:{flex:1,backgroundColor:'#F5F4F0'},content:{padding:24,paddingTop:48,paddingBottom:60},brand:{fontSize:13,letterSpacing:4,fontWeight:'900',color:'#9A792D',marginBottom:44},eyebrow:{fontSize:11,letterSpacing:2,fontWeight:'900',color:'#9A792D'},title:{fontSize:36,lineHeight:40,fontWeight:'900',color:'#171714',marginTop:10},subtitle:{fontSize:15,lineHeight:22,color:'#756F65',marginTop:14,marginBottom:28},label:{fontSize:13,fontWeight:'900',color:'#4E4A43',marginTop:18,marginBottom:8},input:{backgroundColor:'#fff',borderWidth:1,borderColor:'#E1DCD1',borderRadius:17,paddingHorizontal:16,minHeight:54,fontSize:16,color:'#171714'},codeInput:{fontSize:28,letterSpacing:9,textAlign:'center',fontWeight:'900'},primary:{backgroundColor:'#D8B248',minHeight:56,borderRadius:18,alignItems:'center',justifyContent:'center',marginTop:18,paddingHorizontal:16},primaryText:{fontWeight:'900',color:'#171714',fontSize:15},note:{backgroundColor:'#EEEAE2',borderRadius:18,padding:16,marginTop:18},privacy:{backgroundColor:'#EAF3EC',borderRadius:18,padding:16,marginTop:20},noteTitle:{fontSize:13,fontWeight:'900',color:'#314035'},noteText:{fontSize:12,lineHeight:18,color:'#657067',marginTop:5},back:{fontSize:15,fontWeight:'800',color:'#706A60',marginBottom:14},demoCode:{backgroundColor:'#171714',borderRadius:20,padding:20,alignItems:'center',marginBottom:18},demoCodeLabel:{fontSize:10,letterSpacing:2,fontWeight:'900',color:'#BDB7AA'},demoCodeValue:{fontSize:34,letterSpacing:8,fontWeight:'900',color:'#D8B248',marginTop:6},choiceList:{gap:9},choice:{backgroundColor:'#fff',borderWidth:1,borderColor:'#E1DCD1',borderRadius:18,padding:15},smallChoice:{backgroundColor:'#fff',borderWidth:1,borderColor:'#E1DCD1',borderRadius:16,padding:14},choiceActive:{backgroundColor:'#171714',borderColor:'#171714'},choiceTitle:{fontSize:14,fontWeight:'900',color:'#171714'},choiceTitleActive:{color:'#fff'},choiceText:{fontSize:12,color:'#777168',marginTop:3},choiceTextActive:{color:'#C8C2B6'},tags:{flexDirection:'row',flexWrap:'wrap',gap:8},tag:{paddingHorizontal:13,paddingVertical:10,borderRadius:999,backgroundColor:'#fff',borderWidth:1,borderColor:'#DED8CC'},tagActive:{backgroundColor:'#171714'},tagText:{fontSize:12,color:'#686258',textTransform:'capitalize'},tagTextActive:{color:'#fff'},error:{backgroundColor:'#FFE6E3',padding:14,borderRadius:16,marginTop:16},errorText:{color:'#8C2C22',fontSize:13}
+  loading:{flex:1,backgroundColor:'#F5F4F0',alignItems:'center',justifyContent:'center'},loadingText:{fontSize:13,color:'#756F65',marginTop:12},safe:{flex:1,backgroundColor:'#F5F4F0'},content:{padding:24,paddingTop:48,paddingBottom:60},brand:{fontSize:13,letterSpacing:4,fontWeight:'900',color:'#9A792D',marginBottom:44},eyebrow:{fontSize:11,letterSpacing:2,fontWeight:'900',color:'#9A792D'},title:{fontSize:36,lineHeight:40,fontWeight:'900',color:'#171714',marginTop:10},subtitle:{fontSize:15,lineHeight:22,color:'#756F65',marginTop:14,marginBottom:28},label:{fontSize:13,fontWeight:'900',color:'#4E4A43',marginTop:18,marginBottom:8},input:{backgroundColor:'#fff',borderWidth:1,borderColor:'#E1DCD1',borderRadius:17,paddingHorizontal:16,minHeight:54,fontSize:16,color:'#171714'},codeInput:{fontSize:28,letterSpacing:9,textAlign:'center',fontWeight:'900'},primary:{backgroundColor:'#D8B248',minHeight:56,borderRadius:18,alignItems:'center',justifyContent:'center',marginTop:18,paddingHorizontal:16},primaryText:{fontWeight:'900',color:'#171714',fontSize:15},note:{backgroundColor:'#EEEAE2',borderRadius:18,padding:16,marginTop:18},privacy:{backgroundColor:'#EAF3EC',borderRadius:18,padding:16,marginTop:20},noteTitle:{fontSize:13,fontWeight:'900',color:'#314035'},noteText:{fontSize:12,lineHeight:18,color:'#657067',marginTop:5},back:{fontSize:15,fontWeight:'800',color:'#706A60',marginBottom:14},demoCode:{backgroundColor:'#171714',borderRadius:20,padding:20,alignItems:'center',marginBottom:18},demoCodeLabel:{fontSize:10,letterSpacing:2,fontWeight:'900',color:'#BDB7AA'},demoCodeValue:{fontSize:34,letterSpacing:8,fontWeight:'900',color:'#D8B248',marginTop:6},choiceList:{gap:9},choice:{backgroundColor:'#fff',borderWidth:1,borderColor:'#E1DCD1',borderRadius:18,padding:15},smallChoice:{backgroundColor:'#fff',borderWidth:1,borderColor:'#E1DCD1',borderRadius:16,padding:14},choiceActive:{backgroundColor:'#171714',borderColor:'#171714'},choiceTitle:{fontSize:14,fontWeight:'900',color:'#171714'},choiceTitleActive:{color:'#fff'},choiceText:{fontSize:12,color:'#777168',marginTop:3},choiceTextActive:{color:'#C8C2B6'},tags:{flexDirection:'row',flexWrap:'wrap',gap:8},tag:{paddingHorizontal:13,paddingVertical:10,borderRadius:999,backgroundColor:'#fff',borderWidth:1,borderColor:'#DED8CC'},tagActive:{backgroundColor:'#171714'},tagText:{fontSize:12,color:'#686258',textTransform:'capitalize'},tagTextActive:{color:'#fff'},error:{backgroundColor:'#FFE6E3',padding:14,borderRadius:16,marginTop:16},errorText:{color:'#8C2C22',fontSize:13}
 })
