@@ -27,7 +27,12 @@ export default function EmployeeEntry() {
   const [error, setError] = useState('')
 
   useEffect(() => {
-    getOnboardingOptions().then(setOptions).catch(() => undefined)
+    getOnboardingOptions()
+      .then((loaded) => {
+        setOptions(loaded)
+        setUnitId((current) => current || loaded.units[0]?.unit_id || '')
+      })
+      .catch(() => undefined)
     restoreSession()
   }, [])
 
@@ -66,11 +71,11 @@ export default function EmployeeEntry() {
   async function sendCode() {
     const normalizedEmail = email.trim().toLowerCase()
     if (!normalizedEmail) {
-      setError('Digite seu e-mail corporativo para continuar.')
+      setError('Digite seu e-mail para continuar.')
       return
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
-      setError('Digite um e-mail válido, como nome@empresa.com.br.')
+      setError('Digite um e-mail válido, como voce@gmail.com.')
       return
     }
 
@@ -103,7 +108,19 @@ export default function EmployeeEntry() {
   }
 
   async function finishOnboarding() {
-    if (!session || !name.trim() || !unitId) return
+    if (!session) {
+      setError('Sua sessão expirou. Entre novamente para continuar.')
+      return
+    }
+    if (!name.trim()) {
+      setError('Informe seu nome para continuar.')
+      return
+    }
+    if (!unitId) {
+      setError('Selecione sua empresa / unidade para continuar.')
+      return
+    }
+
     setBusy(true); setError('')
     try {
       await saveOnboarding({ token: session.access_token, name: name.trim(), unitId, sector, goal, restrictions })
@@ -142,7 +159,7 @@ export default function EmployeeEntry() {
       {step === 'email' && <>
         <Text style={styles.title}>Sua alimentação no trabalho, do seu jeito.</Text>
         <Text style={styles.subtitle}>Entre com seu e-mail para acessar cardápio, recomendações e seu progresso.</Text>
-        <Text style={styles.label}>E-mail corporativo</Text>
+        <Text style={styles.label}>Seu e-mail</Text>
         <TextInput
           style={styles.input}
           value={email}
@@ -153,7 +170,7 @@ export default function EmployeeEntry() {
           textContentType="emailAddress"
           returnKeyType="go"
           onSubmitEditing={sendCode}
-          placeholder="voce@empresa.com.br"
+          placeholder="voce@gmail.com"
           placeholderTextColor={colors.muted2}
         />
         <Pressable style={[styles.primary, busy && styles.primaryDisabled]} onPress={sendCode} disabled={busy}>
@@ -165,8 +182,8 @@ export default function EmployeeEntry() {
       {step === 'code' && <>
         <Pressable onPress={() => { setError(''); setStep('email') }}><Text style={styles.back}>‹ Voltar</Text></Pressable>
         <Text style={styles.title}>Digite o código</Text>
-        <Text style={styles.subtitle}>Enviamos um código temporário para {email}.</Text>
-        {!!demoCode && <View style={styles.demoCode}><Text style={styles.demoCodeLabel}>CÓDIGO DA DEMO</Text><Text style={styles.demoCodeValue}>{demoCode}</Text></View>}
+        <Text style={styles.subtitle}>{demoCode ? `Modo apresentação ativo para ${email}.` : `Enviamos um código temporário para ${email}.`}</Text>
+        {!!demoCode && <View style={styles.demoCode}><Text style={styles.demoCodeLabel}>MODO APRESENTAÇÃO · CÓDIGO DE ACESSO</Text><Text style={styles.demoCodeValue}>{demoCode}</Text><Text style={styles.demoCodeHint}>Na versão final, este código chegará por e-mail.</Text></View>}
         <TextInput style={[styles.input, styles.codeInput]} value={code} onChangeText={(value) => { setCode(value); if (error) setError('') }} keyboardType="number-pad" maxLength={6} placeholder="000000" placeholderTextColor={colors.muted2}/>
         <Pressable style={[styles.primary, busy && styles.primaryDisabled]} onPress={verify} disabled={busy}><Text style={styles.primaryText}>{busy ? 'Validando…' : 'Entrar'}</Text></Pressable>
       </>}
@@ -175,16 +192,16 @@ export default function EmployeeEntry() {
         <Text style={styles.eyebrow}>PRIMEIRO ACESSO</Text>
         <Text style={styles.title}>Vamos configurar seu perfil.</Text>
         <Text style={styles.subtitle}>Esses dados ajudam a mostrar o cardápio certo e respeitar suas preferências e restrições.</Text>
-        <Text style={styles.label}>Como podemos te chamar?</Text><TextInput style={styles.input} value={name} onChangeText={setName} placeholder="Seu nome" placeholderTextColor={colors.muted2}/>
+        <Text style={styles.label}>Como podemos te chamar?</Text><TextInput style={styles.input} value={name} onChangeText={(value) => { setName(value); if (error) setError('') }} placeholder="Seu nome" placeholderTextColor={colors.muted2}/>
         <Text style={styles.label}>Empresa / unidade</Text>
-        <View style={styles.choiceList}>{options?.units.map((item) => <Pressable key={item.unit_id} style={[styles.choice, unitId === item.unit_id && styles.choiceActive]} onPress={() => setUnitId(item.unit_id)}><View style={{flex:1}}><Text style={styles.choiceTitle}>{item.company_name}</Text><Text style={styles.choiceText}>{item.unit_name}</Text></View><Text style={[styles.choiceCheck,unitId===item.unit_id&&styles.choiceCheckActive]}>{unitId===item.unit_id?'✓':'○'}</Text></Pressable>)}</View>
+        <View style={styles.choiceList}>{options?.units.map((item) => <Pressable key={item.unit_id} style={[styles.choice, unitId === item.unit_id && styles.choiceActive]} onPress={() => { setUnitId(item.unit_id); if (error) setError('') }}><View style={{flex:1}}><Text style={styles.choiceTitle}>{item.company_name}</Text><Text style={styles.choiceText}>{item.unit_name}</Text></View><Text style={[styles.choiceCheck,unitId===item.unit_id&&styles.choiceCheckActive]}>{unitId===item.unit_id?'✓':'○'}</Text></Pressable>)}</View>
         <Text style={styles.label}>Setor</Text><TextInput style={styles.input} value={sector} onChangeText={setSector} placeholder="Ex.: Administrativo" placeholderTextColor={colors.muted2}/>
         <Text style={styles.label}>Seu objetivo</Text>
         <View style={styles.choiceList}>{[['seguir_prescricao','Seguir minha prescrição'],['alimentacao_equilibrada','Manter o equilíbrio'],['melhorar_habitos','Melhorar meus hábitos']].map(([value,label])=><Pressable key={value} style={[styles.choice,goal===value&&styles.choiceActive]} onPress={()=>setGoal(value)}><Text style={styles.choiceTitle}>{label}</Text><Text style={[styles.choiceCheck,goal===value&&styles.choiceCheckActive]}>{goal===value?'✓':'○'}</Text></Pressable>)}</View>
         <Text style={styles.label}>Restrições ou alergias</Text>
         <View style={styles.tags}>{['gluten','lactose','amendoim','castanhas','ovo','soja'].map(item=><Pressable key={item} style={[styles.tag,restrictions.includes(item)&&styles.tagActive]} onPress={()=>toggleRestriction(item)}><Text style={[styles.tagText,restrictions.includes(item)&&styles.tagTextActive]}>{restrictions.includes(item)?'⚠ ':''}{item}</Text></Pressable>)}</View>
         <View style={styles.privacy}><Text style={styles.noteTitle}>🔒 Privacidade</Text><Text style={styles.noteText}>Restrições, prescrições e histórico alimentar são privados. A empresa recebe apenas dados agregados.</Text></View>
-        <Pressable style={styles.primary} onPress={finishOnboarding}><Text style={styles.primaryText}>Concluir e entrar no app</Text></Pressable>
+        <Pressable style={[styles.primary, busy && styles.primaryDisabled]} onPress={finishOnboarding} disabled={busy}><Text style={styles.primaryText}>{busy ? 'Salvando…' : 'Concluir e entrar no app'}</Text></Pressable>
       </>}
 
       {!!error && <View style={styles.error}><Text style={styles.errorText}>{error}</Text></View>}
@@ -217,8 +234,9 @@ const styles = StyleSheet.create({
   noteText:{fontSize:10,lineHeight:16,color:colors.muted,marginTop:4},
   back:{fontSize:13,fontWeight:'800',color:colors.muted,marginBottom:10},
   demoCode:{backgroundColor:colors.surface,borderRadius:radius.lg,padding:18,alignItems:'center',marginBottom:16,borderWidth:1,borderColor:colors.border},
-  demoCodeLabel:{fontSize:9,letterSpacing:1.8,fontWeight:'900',color:colors.muted},
+  demoCodeLabel:{fontSize:9,letterSpacing:1.4,fontWeight:'900',color:colors.muted,textAlign:'center'},
   demoCodeValue:{fontSize:32,letterSpacing:8,fontWeight:'900',color:colors.yellow,marginTop:5},
+  demoCodeHint:{fontSize:10,lineHeight:15,color:colors.muted,marginTop:7,textAlign:'center'},
   choiceList:{gap:8},
   choice:{backgroundColor:colors.surface,borderWidth:1,borderColor:colors.border,borderRadius:radius.md,padding:13,minHeight:58,flexDirection:'row',alignItems:'center'},
   choiceActive:{borderColor:colors.red,backgroundColor:'#1A1115'},
