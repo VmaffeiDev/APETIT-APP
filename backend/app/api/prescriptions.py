@@ -5,14 +5,15 @@ from decimal import Decimal
 from pathlib import Path
 from uuid import UUID
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, Header, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
+from app.api.auth import current_person
 from app.domain.prescription import NutritionTarget, PortionInstruction
 from app.services.nutrition_engine import recommend_meal
 from app.services.plate_evaluation import evaluate_plate
 from app.services.prescription_document import extract_text, meal_to_payload, parse_prescription_text
-from app.services.prescription_workflow import confirm_prescription, stage_prescription
+from app.services.prescription_workflow import confirm_prescription, get_staged, stage_prescription
 
 
 router = APIRouter()
@@ -52,12 +53,21 @@ class PlateEvaluationRequest(BaseModel):
     selections: list[PlateSelectionPayload] = Field(min_length=1, max_length=20)
 
 
+def _require_self(person_id: UUID, authorization: str | None) -> dict:
+    person = current_person(authorization)
+    if person["id"] != person_id:
+        raise HTTPException(status_code=403, detail="você só pode acessar seus próprios dados")
+    return person
+
+
 @router.post("/api/prescriptions/preview", tags=["prescriptions"])
 async def preview_prescription(
     person_id: UUID = Form(...),
     default_meal_type: str = Form("almoco"),
     file: UploadFile = File(...),
+    authorization: str | None = Header(default=None),
 ) -> dict:
+    _require_self(person_id, authorization)
     file_name = file.filename or "prescricao"
     content = await file.read()
     extracted_text, extraction_status = extract_text(file_name, content)
@@ -94,7 +104,17 @@ async def preview_prescription(
 
 
 @router.post("/api/prescriptions/{preview_id}/confirm", tags=["prescriptions"])
-def confirm_prescription_preview(preview_id: str, payload: ConfirmPrescriptionRequest) -> dict:
+def confirm_prescription_preview(
+    preview_id: str,
+    payload: ConfirmPrescriptionRequest,
+    authorization: str | None = Header(default=None),
+) -> dict:
+    person = current_person(authorization)
+    staged = get_staged(preview_id)
+    if staged is None:
+        raise HTTPException(status_code=404, detail="preview da prescrição não encontrado ou expirado")
+    if staged.person_id != str(person["id"]):
+        raise HTTPException(status_code=403, detail="esta prescrição pertence a outro funcionário")
     if not payload.confirm:
         raise HTTPException(status_code=409, detail="a prescrição precisa ser confirmada pelo funcionário")
     try:
@@ -129,7 +149,9 @@ def get_nutrition_recommendation(
     unit_id: UUID,
     service_date: date,
     meal_type: str = "almoco",
+    authorization: str | None = Header(default=None),
 ) -> dict:
+    _require_self(person_id, authorization)
     try:
         return recommend_meal(
             person_id=str(person_id),
@@ -144,7 +166,11 @@ def get_nutrition_recommendation(
 
 
 @router.post("/api/nutrition/plate-evaluate", tags=["nutrition"])
-def evaluate_manual_plate(payload: PlateEvaluationRequest) -> dict:
+def evaluate_manual_plate(
+    payload: PlateEvaluationRequest,
+    authorization: str | None = Header(default=None),
+) -> dict:
+    _require_self(payload.person_id, authorization)
     try:
         return evaluate_plate(
             person_id=str(payload.person_id),
