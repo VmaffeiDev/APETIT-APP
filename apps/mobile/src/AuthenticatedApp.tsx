@@ -41,7 +41,7 @@ export default function AuthenticatedApp({ token, person, options, onPersonChang
   }
 
   if (prescriptionOpen) return <PrescriptionReview personId={person.id} onClose={() => setPrescriptionOpen(false)} />
-  if (!accountOpen) return <DemoApp onProfile={() => setAccountOpen(true)} />
+  if (!accountOpen) return <DemoApp goal={person.goal} onProfile={() => setAccountOpen(true)} />
 
   return <SafeAreaView style={styles.safe}>
     <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
