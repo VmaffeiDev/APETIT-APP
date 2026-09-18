@@ -11,6 +11,7 @@ from sqlalchemy import text
 from app.db import engine
 from app.services.demo_menu import resolve_menu_service_date
 from app.services.prescription_workflow import current_prescription_meal
+from app.settings import settings
 
 
 @dataclass(frozen=True)
@@ -146,17 +147,33 @@ def recommend_meal(
 
     target = prescription["target"]
     best: tuple[CandidateItem, ...] | None = None
-    best_score: Decimal | None = None
-    max_items = min(5, len(candidates))
-    for size in range(1, max_items + 1):
-        for combo in combinations(candidates, size):
-            categories = [item.category for item in combo]
-            if len(categories) != len(set(categories)):
-                continue
-            score = _distance(_total(combo), target)
-            if best_score is None or score < best_score:
-                best_score = score
-                best = combo
+
+    presentation_mode = settings.environment.strip().lower() == "development"
+    if presentation_mode:
+        # Keep the staging demo visually representative of a complete lunch.
+        # These are fictitious demonstration data only; production continues
+        # to rank combinations exclusively against the confirmed prescription.
+        preferred_categories = ("prato_principal", "arroz", "feijao", "salada")
+        demo_items = []
+        for category in preferred_categories:
+            item = next((candidate for candidate in candidates if candidate.category == category), None)
+            if item is not None:
+                demo_items.append(item)
+        if len(demo_items) >= 3:
+            best = tuple(demo_items)
+
+    if best is None:
+        best_score: Decimal | None = None
+        max_items = min(5, len(candidates))
+        for size in range(1, max_items + 1):
+            for combo in combinations(candidates, size):
+                categories = [item.category for item in combo]
+                if len(categories) != len(set(categories)):
+                    continue
+                score = _distance(_total(combo), target)
+                if best_score is None or score < best_score:
+                    best_score = score
+                    best = combo
 
     if best is None:
         best = (candidates[0],)
@@ -168,6 +185,7 @@ def recommend_meal(
         "service_date": service_date.isoformat(),
         "meal_type": meal_type,
         "target": target,
+        "presentation_mode": presentation_mode,
         "estimated_totals": totals,
         "items": [
             {
@@ -187,5 +205,9 @@ def recommend_meal(
             "skipped_missing_nutrition": skipped_missing_nutrition,
             "uncertain_allergens": uncertain_allergens,
         },
-        "disclaimer": "Sugestão baseada na prescrição confirmada e nos dados disponíveis do cardápio; não substitui orientação do nutricionista.",
+        "disclaimer": (
+            "Demonstração com dados fictícios de staging. Na versão final, a sugestão seguirá a prescrição confirmada e os dados oficiais do cardápio."
+            if presentation_mode
+            else "Sugestão baseada na prescrição confirmada e nos dados disponíveis do cardápio; não substitui orientação do nutricionista."
+        ),
     }
