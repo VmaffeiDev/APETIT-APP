@@ -303,12 +303,86 @@ function RecommendationScreen({ recommendation, goal, onSave, onCustomize }: { r
 }
 
 function BuilderScreen({ menu, selected, selectedCount, setQuantity, onEvaluate, plate, onSave }: { menu:PublishedMenu|null; selected:SelectedMap; selectedCount:number; setQuantity:(id:string,q:number)=>void; onEvaluate:()=>void; plate:PlateEvaluation|null; onSave:()=>void }) {
+  const items = menu?.items ?? []
+
   return <>
-    <Text style={styles.pageTitle}>Montar meu prato</Text><Text style={styles.pageSub}>Ajuste suas porções e confira como o prato se aproxima da sua meta.</Text>
-    <View style={styles.builderSummary}><View><Text style={styles.builderCount}>{selectedCount}</Text><Text style={styles.builderLabel}>itens selecionados</Text></View><Ionicons name="restaurant-outline" size={32} color={colors.yellow}/></View>
-    {(menu?.items.length ?? 0) > 0 ? <View style={styles.listCard}>{menu?.items.map((item) => { const quantity=selected[item.id]??0; return <View key={item.id} style={styles.builderRow}><View style={styles.flex}><Text style={styles.menuName}>{item.name}</Text><Text style={styles.menuMeta}>{item.standard_portion ?? 'Porção padrão'} · {fmt(item.kcal,' kcal')}</Text></View><View style={styles.stepper}><Pressable style={styles.stepButton} onPress={()=>setQuantity(item.id,quantity-1)}><Ionicons name="remove" size={18} color={colors.text}/></Pressable><Text style={styles.quantity}>{quantity}</Text><Pressable style={styles.stepButton} onPress={()=>setQuantity(item.id,quantity+1)}><Ionicons name="add" size={18} color={colors.text}/></Pressable></View></View> })}</View>
-    <Pressable style={styles.primary} onPress={onEvaluate}><Text style={styles.primaryText}>Avaliar meu prato</Text></Pressable>
-    {plate && <View style={[styles.resultCard,plate.status==='blocked'&&styles.resultBlocked,plate.status==='within_target'&&styles.resultGood]}><View style={styles.resultTitleRow}><Ionicons name={plate.status==='within_target'?'checkmark-circle':'alert-circle'} size={20} color={plate.status==='within_target'?colors.green:colors.yellow}/><Text style={styles.resultTitle}>{plate.status==='within_target'?'Próximo da sua meta':plate.status==='blocked'?'Atenção à segurança':plate.status==='insufficient_data'?'Dados insuficientes':'Seu prato pode melhorar'}</Text></View><Text style={styles.resultText}>{plate.message}</Text><MacroGrid totals={plate.estimated_totals}/>{plate.status!=='blocked'&&plate.status!=='insufficient_data'&&<Pressable style={styles.primary} onPress={onSave}><Text style={styles.primaryText}>Registrar este prato</Text></Pressable>}</View>}
+    <Text style={styles.pageTitle}>Montar meu prato</Text>
+    <Text style={styles.pageSub}>Ajuste suas porções e confira como o prato se aproxima da sua meta.</Text>
+
+    <View style={styles.builderSummary}>
+      <View>
+        <Text style={styles.builderCount}>{selectedCount}</Text>
+        <Text style={styles.builderLabel}>itens selecionados</Text>
+      </View>
+      <Ionicons name="restaurant-outline" size={32} color={colors.yellow}/>
+    </View>
+
+    {items.length > 0 ? (
+      <View style={styles.listCard}>
+        {items.map((item) => {
+          const quantity = selected[item.id] ?? 0
+          return (
+            <View key={item.id} style={styles.builderRow}>
+              <View style={styles.flex}>
+                <Text style={styles.menuName}>{item.name}</Text>
+                <Text style={styles.menuMeta}>{item.standard_portion ?? 'Porção padrão'} · {fmt(item.kcal,' kcal')}</Text>
+              </View>
+              <View style={styles.stepper}>
+                <Pressable style={styles.stepButton} onPress={()=>setQuantity(item.id,quantity-1)}>
+                  <Ionicons name="remove" size={18} color={colors.text}/>
+                </Pressable>
+                <Text style={styles.quantity}>{quantity}</Text>
+                <Pressable style={styles.stepButton} onPress={()=>setQuantity(item.id,quantity+1)}>
+                  <Ionicons name="add" size={18} color={colors.text}/>
+                </Pressable>
+              </View>
+            </View>
+          )
+        })}
+      </View>
+    ) : (
+      <View style={styles.emptyState}>
+        <Ionicons name="restaurant-outline" size={28} color={colors.muted2}/>
+        <Text style={styles.emptyStateTitle}>Cardápio ainda não disponível</Text>
+        <Text style={styles.emptyStateText}>Assim que o cardápio do dia for publicado, os itens aparecem aqui para montar seu prato.</Text>
+      </View>
+    )}
+
+    <Pressable style={styles.primary} onPress={onEvaluate}>
+      <Text style={styles.primaryText}>Avaliar meu prato</Text>
+    </Pressable>
+
+    {plate && (
+      <View style={[
+        styles.resultCard,
+        plate.status==='blocked' && styles.resultBlocked,
+        plate.status==='within_target' && styles.resultGood,
+      ]}>
+        <View style={styles.resultTitleRow}>
+          <Ionicons
+            name={plate.status==='within_target' ? 'checkmark-circle' : 'alert-circle'}
+            size={20}
+            color={plate.status==='within_target' ? colors.green : colors.yellow}
+          />
+          <Text style={styles.resultTitle}>
+            {plate.status==='within_target'
+              ? 'Próximo da sua meta'
+              : plate.status==='blocked'
+                ? 'Atenção à segurança'
+                : plate.status==='insufficient_data'
+                  ? 'Dados insuficientes'
+                  : 'Seu prato pode melhorar'}
+          </Text>
+        </View>
+        <Text style={styles.resultText}>{plate.message}</Text>
+        <MacroGrid totals={plate.estimated_totals}/>
+        {plate.status!=='blocked' && plate.status!=='insufficient_data' && (
+          <Pressable style={styles.primary} onPress={onSave}>
+            <Text style={styles.primaryText}>Registrar este prato</Text>
+          </Pressable>
+        )}
+      </View>
+    )}
   </>
 }
 
