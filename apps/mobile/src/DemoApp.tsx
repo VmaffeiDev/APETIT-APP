@@ -34,7 +34,7 @@ import { colors, radius, shadow } from './theme'
 type Screen = 'home' | 'menu' | 'recommendation' | 'builder' | 'feedback' | 'done' | 'progress'
 type SelectedMap = Record<string, number>
 
-type DemoAppProps = { onProfile?: () => void }
+type DemoAppProps = { goal?: string | null; onProfile?: () => void }
 
 const today = () => { const now = new Date(); const y = now.getFullYear(); const m = String(now.getMonth()+1).padStart(2,'0'); const d = String(now.getDate()).padStart(2,'0'); return `${y}-${m}-${d}` }
 const fmt = (value: number | null | undefined, suffix = '') => value == null ? '—' : `${Math.round(value)}${suffix}`
@@ -49,9 +49,9 @@ const foodPhotos = [
   'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=240&q=80',
   'https://images.unsplash.com/photo-1607532941433-304659e8198a?auto=format&fit=crop&w=240&q=80',
 ]
-const platePhoto = 'https://images.unsplash.com/photo-1543362906-acfc16c67564?auto=format&fit=crop&w=520&q=85'
+const platePhoto = 'https://images.unsplash.com/photo-1547592180-85f173990554?auto=format&fit=crop&w=520&q=85'
 
-export default function DemoApp({ onProfile }: DemoAppProps) {
+export default function DemoApp({ goal, onProfile }: DemoAppProps) {
   const [screen, setScreen] = useState<Screen>('home')
   const [unitId, setUnitId] = useState(DEMO_UNITS[0].id)
   const [menu, setMenu] = useState<PublishedMenu | null>(null)
@@ -209,7 +209,7 @@ export default function DemoApp({ onProfile }: DemoAppProps) {
 
         {screen === 'menu' && <MenuScreen menu={menu} unitName={unit.company} onBuilder={() => openBuilder(false)} onRecommendation={openRecommendation}/>} 
 
-        {screen === 'recommendation' && recommendation && <RecommendationScreen recommendation={recommendation} onSave={saveRecommendedMeal} onCustomize={() => openBuilder(true)}/>} 
+        {screen === 'recommendation' && recommendation && <RecommendationScreen recommendation={recommendation} goal={goal} onSave={saveRecommendedMeal} onCustomize={() => openBuilder(true)}/>} 
 
         {screen === 'builder' && <BuilderScreen menu={menu} selected={selected} selectedCount={selectedCount} setQuantity={setQuantity} onEvaluate={evaluateCurrentPlate} plate={plate} onSave={saveManualPlate}/>} 
 
@@ -283,13 +283,14 @@ function MenuScreen({ menu, unitName, onBuilder, onRecommendation }: { menu:Publ
     <Pressable style={styles.secondary} onPress={onRecommendation}><Text style={styles.secondaryText}>Ver recomendação automática</Text></Pressable>
   </>
 }
-function RecommendationScreen({ recommendation, onSave, onCustomize }: { recommendation:Recommendation; onSave:()=>void; onCustomize:()=>void }) {
+function RecommendationScreen({ recommendation, goal, onSave, onCustomize }: { recommendation:Recommendation; goal?:string|null; onSave:()=>void; onCustomize:()=>void }) {
+  const goalLabel = goal === 'seguir_prescricao' ? 'seguir minha prescrição' : goal === 'melhorar_habitos' ? 'melhorar meus hábitos' : 'manter o equilíbrio'
   return <>
     <Text style={styles.pageTitle}>Quanto pegar hoje</Text><Text style={styles.pageSub}>{recommendation.presentation_mode ? 'Simulação de como a Apetit combina sua prescrição com o cardápio disponível.' : 'Sugestão baseada na sua prescrição e no cardápio disponível.'}</Text>
     {recommendation.status === 'insufficient_data' ? <View style={styles.warning}><Text style={styles.warningTitle}>Ainda não dá para calcular com segurança</Text><Text style={styles.warningText}>{recommendation.message}</Text></View> : <>
       <View style={styles.suggestionCard}>
         <Text style={styles.suggestionLabel}>{recommendation.presentation_mode ? 'DEMONSTRAÇÃO · PRATO SUGERIDO' : 'SEU PRATO SUGERIDO HOJE'}</Text>
-        <View style={styles.suggestionMain}><Image source={{uri:platePhoto}} style={styles.platePhoto}/><View style={styles.flex}><Text style={styles.suggestionKcal}>{fmt(recommendation.estimated_totals?.kcal, ' kcal')}</Text><Text style={styles.suggestionProtein}>{fmt(recommendation.estimated_totals?.protein_g, ' g de proteína')}</Text><View style={styles.goalRow}><Ionicons name="radio-button-on" size={14} color={colors.yellow}/><Text style={styles.goal}>Objetivo · manter o equilíbrio</Text></View></View></View>
+        <View style={styles.suggestionMain}><Image source={{uri:platePhoto}} style={styles.platePhoto}/><View style={styles.flex}><Text style={styles.suggestionKcal}>{fmt(recommendation.estimated_totals?.kcal, ' kcal')}</Text><Text style={styles.suggestionProtein}>{fmt(recommendation.estimated_totals?.protein_g, ' g de proteína')}</Text><View style={styles.goalRow}><Ionicons name="radio-button-on" size={14} color={colors.yellow}/><Text style={styles.goal}>Objetivo · {goalLabel}</Text></View></View></View>
       </View>
       <Text style={styles.sectionLabel}>SUAS PORÇÕES</Text>
       <View style={styles.listCard}>{recommendation.items.map((item, index) => <View key={item.menu_item_id} style={styles.portionRow}><Text style={styles.portionName}>{item.name}</Text><View style={[styles.portionPill,index===recommendation.items.length-1&&styles.greenPill]}><Text style={styles.portionPillText}>{item.portion ?? '1 porção'}</Text></View></View>)}</View>
