@@ -7,6 +7,7 @@ from uuid import UUID
 from sqlalchemy import text
 
 from app.db import engine
+from app.services.demo_menu import resolve_menu_service_date
 from app.services.prescription_workflow import current_prescription_meal
 
 
@@ -23,6 +24,12 @@ def evaluate_plate(*, person_id: str, unit_id: str, service_date: date, meal_typ
         raise ValueError("as quantidades precisam ser maiores que zero")
 
     with engine.connect() as conn:
+        effective_date = resolve_menu_service_date(
+            conn,
+            unit_id=unit_id,
+            requested_date=service_date,
+            meal_type=meal_type,
+        )
         restrictions = {
             str(row["value"]).casefold()
             for row in conn.execute(
@@ -50,7 +57,7 @@ def evaluate_plate(*, person_id: str, unit_id: str, service_date: date, meal_typ
             ),
             {
                 "unit_id": UUID(unit_id),
-                "service_date": service_date,
+                "service_date": effective_date,
                 "meal_type": meal_type,
                 "ids": selected_ids,
             },
