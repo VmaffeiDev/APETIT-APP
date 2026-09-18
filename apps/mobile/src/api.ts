@@ -35,6 +35,7 @@ export type Recommendation = {
   meal_type?: string
   target: NutritionTarget
   estimated_totals?: NutritionTarget
+  presentation_mode?: boolean
   items: Array<{
     menu_item_id: string
     name: string
