@@ -38,6 +38,7 @@ type DemoAppProps = { goal?: string | null; onProfile?: () => void }
 
 const today = () => { const now = new Date(); const y = now.getFullYear(); const m = String(now.getMonth()+1).padStart(2,'0'); const d = String(now.getDate()).padStart(2,'0'); return `${y}-${m}-${d}` }
 const fmt = (value: number | null | undefined, suffix = '') => value == null ? '—' : `${Math.round(value)}${suffix}`
+const fmtPortion = (quantity: number, unit?: string | null) => { const q = Number(quantity); const cleanUnit = unit?.trim() || 'porção'; return q === 1 ? cleanUnit : `${Number.isInteger(q) ? q : q.toFixed(1)}× ${cleanUnit}` }
 const shortDate = (value: string) => new Intl.DateTimeFormat('pt-BR', { weekday: 'short' }).format(new Date(`${value}T12:00:00`)).replace('.', '')
 const weekday = () => new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date())
 
@@ -397,14 +398,15 @@ function BuilderScreen({ menu, selected, selectedCount, setQuantity, onEvaluate,
 function ProgressScreen({ progress, history }: { progress:MealProgress|null; history:MealHistory|null }) {
   const series=(progress?.series??[]).slice(-5)
   const maxKcal=Math.max(...series.map((d)=>d.totals.kcal??0),1)
+  const demoPoints=(progress?.meal_days ?? 0)*5
   return <>
     <Text style={styles.pageTitle}>Meu progresso</Text><Text style={styles.pageSub}>Pequenas escolhas, grandes resultados.</Text>
-    <View style={styles.pointsCard}><View style={styles.pointsRing}><Text style={styles.pointsNumber}>{progress?.adherent_days ?? 0}</Text></View><View style={styles.flex}><Text style={styles.pointsTitle}>pontos acumulados</Text><Text style={styles.pointsText}>Você está no caminho certo. Continue assim.</Text></View></View>
+    <View style={styles.pointsCard}><View style={styles.pointsRing}><Text style={styles.pointsNumber}>{demoPoints}</Text></View><View style={styles.flex}><Text style={styles.pointsTitle}>pontos acumulados</Text><Text style={styles.pointsText}>{demoPoints ? 'Você ganhou pontos ao registrar sua refeição. Continue assim.' : 'Registre sua primeira refeição para começar a pontuar.'}</Text></View></View>
     <View style={styles.segment}><View style={styles.segmentActive}><Text style={styles.segmentActiveText}>Semana</Text></View><Text style={styles.segmentText}>Mês</Text><Text style={styles.segmentText}>Ano</Text></View>
     <View style={styles.chart}>{series.length?series.map((day,i)=>{const height=32+Math.round(((day.totals.kcal??0)/maxKcal)*78);return <View key={day.date} style={styles.barWrap}><Text style={styles.barValue}>{fmt(day.totals.kcal)}</Text><View style={styles.barTrack}><View style={[styles.bar,{height},i===series.length-2&&styles.barYellow]}/></View><Text style={styles.barLabel}>{shortDate(day.date)}</Text></View>}):<Text style={styles.emptyText}>Registre refeições para visualizar o gráfico semanal.</Text>}</View>
-    <View style={styles.statGrid}><Stat icon="fitness-outline" value={`${progress?.adherent_days ?? 0}/${progress?.meal_days ?? 0}`} label="Dias na meta"/><Stat icon="restaurant-outline" value={`${progress?.meal_days ?? 0}`} label="Refeições registradas"/></View>
-    <Text style={styles.sectionLabel}>CONQUISTAS RECENTES</Text>
-    <View style={styles.listCard}>{history?.meals.length?history.meals.slice(0,4).map((meal)=><View key={meal.meal_id} style={styles.historyBlock}><View style={styles.historyHeader}><Text style={styles.weekDate}>{new Intl.DateTimeFormat('pt-BR',{day:'2-digit',month:'short'}).format(new Date(`${meal.meal_date}T12:00:00`))}</Text><Text style={styles.historyTotal}>{fmt(meal.totals.kcal,' kcal')}</Text></View>{meal.items.slice(0,3).map((item,index)=><View key={`${meal.meal_id}-${index}`} style={styles.historyItemRow}><Ionicons name="checkmark-circle" size={13} color={colors.green}/><Text style={styles.historyItem}>{item.item_name} · {item.quantity} {item.unit ?? ''}</Text></View>)}</View>):<Text style={styles.emptyText}>Ainda não há refeições registradas.</Text>}</View>
+    <View style={styles.statGrid}><Stat icon="fitness-outline" value={`${progress?.adherent_days ?? 0}/${progress?.meal_days ?? 0}`} label="Dias dentro da faixa"/><Stat icon="restaurant-outline" value={`${progress?.meal_days ?? 0}`} label="Refeições registradas"/></View>
+    <Text style={styles.sectionLabel}>REFEIÇÕES RECENTES</Text>
+    <View style={styles.listCard}>{history?.meals.length?history.meals.slice(0,4).map((meal)=><View key={meal.meal_id} style={styles.historyBlock}><View style={styles.historyHeader}><Text style={styles.weekDate}>{new Intl.DateTimeFormat('pt-BR',{day:'2-digit',month:'short'}).format(new Date(`${meal.meal_date}T12:00:00`))}</Text><Text style={styles.historyTotal}>{fmt(meal.totals.kcal,' kcal')}</Text></View>{meal.items.map((item,index)=><View key={`${meal.meal_id}-${index}`} style={styles.historyItemRow}><Ionicons name="checkmark-circle" size={13} color={colors.green}/><Text style={styles.historyItem}>{item.item_name} · {fmtPortion(item.quantity,item.unit)}</Text></View>)}</View>):<Text style={styles.emptyText}>Ainda não há refeições registradas.</Text>}</View>
   </>
 }
 
