@@ -285,10 +285,10 @@ function MenuScreen({ menu, unitName, onBuilder, onRecommendation }: { menu:Publ
 }
 function RecommendationScreen({ recommendation, onSave, onCustomize }: { recommendation:Recommendation; onSave:()=>void; onCustomize:()=>void }) {
   return <>
-    <Text style={styles.pageTitle}>Quanto pegar hoje</Text><Text style={styles.pageSub}>Sugestão baseada na sua prescrição e no cardápio disponível.</Text>
+    <Text style={styles.pageTitle}>Quanto pegar hoje</Text><Text style={styles.pageSub}>{recommendation.presentation_mode ? 'Simulação de como a Apetit combina sua prescrição com o cardápio disponível.' : 'Sugestão baseada na sua prescrição e no cardápio disponível.'}</Text>
     {recommendation.status === 'insufficient_data' ? <View style={styles.warning}><Text style={styles.warningTitle}>Ainda não dá para calcular com segurança</Text><Text style={styles.warningText}>{recommendation.message}</Text></View> : <>
       <View style={styles.suggestionCard}>
-        <Text style={styles.suggestionLabel}>SEU PRATO SUGERIDO HOJE</Text>
+        <Text style={styles.suggestionLabel}>{recommendation.presentation_mode ? 'DEMONSTRAÇÃO · PRATO SUGERIDO' : 'SEU PRATO SUGERIDO HOJE'}</Text>
         <View style={styles.suggestionMain}><Image source={{uri:platePhoto}} style={styles.platePhoto}/><View style={styles.flex}><Text style={styles.suggestionKcal}>{fmt(recommendation.estimated_totals?.kcal, ' kcal')}</Text><Text style={styles.suggestionProtein}>{fmt(recommendation.estimated_totals?.protein_g, ' g de proteína')}</Text><View style={styles.goalRow}><Ionicons name="radio-button-on" size={14} color={colors.yellow}/><Text style={styles.goal}>Objetivo · manter o equilíbrio</Text></View></View></View>
       </View>
       <Text style={styles.sectionLabel}>SUAS PORÇÕES</Text>
