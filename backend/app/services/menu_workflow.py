@@ -10,6 +10,7 @@ from uuid import UUID, uuid4
 from sqlalchemy import text
 
 from app.db import engine
+from app.services.demo_menu import resolve_menu_service_date
 from app.services.menu_import import ImportedMenuItem
 
 
@@ -295,6 +296,12 @@ def publish_staged_menu(*, preview_id: str, month: int, year: int) -> dict:
 
 def published_menu_for_day(*, unit_id: str, service_date: date, meal_type: str) -> dict:
     with engine.connect() as conn:
+        effective_date = resolve_menu_service_date(
+            conn,
+            unit_id=unit_id,
+            requested_date=service_date,
+            meal_type=meal_type,
+        )
         rows = conn.execute(
             text(
                 """
@@ -311,7 +318,7 @@ def published_menu_for_day(*, unit_id: str, service_date: date, meal_type: str) 
             ),
             {
                 "unit_id": UUID(unit_id),
-                "service_date": service_date,
+                "service_date": effective_date,
                 "meal_type": meal_type,
             },
         ).mappings().all()
