@@ -3,14 +3,14 @@ from __future__ import annotations
 from datetime import date
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 
 from app.api.auth import current_person
 from app.db import engine
 from app.services.feedback_reporting import feedback_summary
-from app.api.admin_auth import require_admin_key
+from app.api.admin_auth import AdminPrincipal, require_admin, require_admin_key, require_permission
 
 router = APIRouter()
 
