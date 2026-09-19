@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { getTechnicalSheet, listTechnicalSheets, saveTechnicalSheet, TechnicalSheet, TechnicalSheetSummary } from './api'
+import { getTechnicalSheet, isPresentationMode, listTechnicalSheets, presentationAdminKey, saveTechnicalSheet, TechnicalSheet, TechnicalSheetSummary } from './api'
 
 const emptySheet: Omit<TechnicalSheet, 'code' | 'updated_at'> = {
   name: '', category: '', portion_quantity: null, portion_unit: 'g', kcal: null,
@@ -9,7 +9,7 @@ const emptySheet: Omit<TechnicalSheet, 'code' | 'updated_at'> = {
 const n = (value: string) => value.trim() === '' ? null : Number(value)
 
 export function TechnicalSheetsPage() {
-  const [adminKey, setAdminKey] = useState('')
+  const [adminKey, setAdminKey] = useState(presentationAdminKey)
   const [search, setSearch] = useState('')
   const [items, setItems] = useState<TechnicalSheetSummary[]>([])
   const [code, setCode] = useState('')
@@ -82,7 +82,7 @@ export function TechnicalSheetsPage() {
 
       <section className="card content-card">
         <div className="form-grid">
-          <label className="full"><span>Chave administrativa</span><input type="password" value={adminKey} onChange={(e) => setAdminKey(e.target.value)} placeholder="Chave de acesso da operação" /></label>
+          {isPresentationMode ? <div className="full presentation-access"><strong>Modo apresentação</strong><span>Acesso administrativo liberado automaticamente neste ambiente.</span></div> : <label className="full"><span>Chave administrativa</span><input type="password" value={adminKey} onChange={(e) => setAdminKey(e.target.value)} placeholder="Chave de acesso da operação" /></label>}
           <label className="full"><span>Buscar</span><div style={{display:'flex', gap:8}}><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Código ou nome" /><button className="secondary" onClick={load}>Buscar</button></div></label>
         </div>
       </section>
