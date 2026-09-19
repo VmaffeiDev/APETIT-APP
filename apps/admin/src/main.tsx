@@ -10,9 +10,13 @@ import { ExecutiveReportPage } from './ExecutiveReportPage'
 import { UnitDetailPage } from './UnitDetailPage'
 import { WeeklyMenuPage } from './WeeklyMenuPage'
 import { MenuHistoryPage } from './MenuHistoryPage'
+import { AdminLoginPage } from './AdminLoginPage'
+import { AdminUsersPage } from './AdminUsersPage'
+import { getAdminToken, isPresentationMode } from './api'
 import './styles.css'
 
 function Root() {
+  const [authRevision,setAuthRevision]=useState(0)
   const [hash, setHash] = useState(window.location.hash.replace('#', '') || 'visao-geral')
 
   useEffect(() => {
@@ -45,6 +49,8 @@ function Root() {
     }
   }, [])
 
+  if (!isPresentationMode && !getAdminToken()) return <AdminLoginPage onSuccess={()=>setAuthRevision(v=>v+1)} />
+  if (hash === 'usuarios') return <AdminUsersPage />
   if (hash === 'visao-geral') return <OverviewPage />
   if (hash === 'historico-cardapios') return <MenuHistoryPage />
   if (hash.startsWith('historico-cardapios/')) return <MenuHistoryPage initialUnitId={hash.slice('historico-cardapios/'.length)} />
