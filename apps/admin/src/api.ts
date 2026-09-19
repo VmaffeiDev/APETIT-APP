@@ -132,3 +132,21 @@ export async function getExecutiveReportPdf(adminKey: string): Promise<Blob> {
   }
   return response.blob()
 }
+
+export type WeeklyMenuItem = {
+  id:string; name:string; category:string; portion:string|null;
+  technical_sheet_code:string|null;
+  sheet_status:'complete'|'incomplete'|'missing'|'no_code';
+  kcal:number|null; protein_g:number|null; carbs_g:number|null; fat_g:number|null
+}
+export type WeeklyMenu = {
+  unit_id:string; week_start:string; week_end:string; meal_type:string;
+  days:Array<{date:string;items:WeeklyMenuItem[]}>;
+  summary:{total_items:number;days_with_menu:number;complete:number;incomplete:number;missing:number}
+}
+export async function getWeeklyMenu(params:{unitId:string;weekStart:string;mealType:string;adminKey:string}):Promise<WeeklyMenu>{
+  const query=new URLSearchParams({unit_id:params.unitId,week_start:params.weekStart,meal_type:params.mealType})
+  return read(await fetch(`${API_URL}/api/admin/menus/week?${query}`,{
+    headers:{'X-Apetit-Admin-Key':params.adminKey}
+  }),'Não foi possível consultar o cardápio semanal.')
+}
