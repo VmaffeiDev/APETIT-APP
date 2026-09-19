@@ -1,9 +1,9 @@
 import { useRef, useState } from 'react'
-import { previewTechnicalSheetImport, publishTechnicalSheetImport, TechnicalSheetImportPreview } from './api'
+import { isPresentationMode, presentationAdminKey, previewTechnicalSheetImport, publishTechnicalSheetImport, TechnicalSheetImportPreview } from './api'
 
 export function TechnicalSheetImportPage() {
   const inputRef = useRef<HTMLInputElement>(null)
-  const [adminKey, setAdminKey] = useState('')
+  const [adminKey, setAdminKey] = useState(presentationAdminKey)
   const [file, setFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<TechnicalSheetImportPreview | null>(null)
   const [busy, setBusy] = useState(false)
@@ -49,7 +49,7 @@ export function TechnicalSheetImportPage() {
 
       <section className="card content-card">
         <div className="form-grid">
-          <label className="full"><span>Chave administrativa</span><input type="password" value={adminKey} onChange={(e) => setAdminKey(e.target.value)} placeholder="Chave de acesso da operação" /></label>
+          {isPresentationMode ? <div className="full presentation-access"><strong>Modo apresentação</strong><span>Acesso administrativo liberado automaticamente neste ambiente.</span></div> : <label className="full"><span>Chave administrativa</span><input type="password" value={adminKey} onChange={(e) => setAdminKey(e.target.value)} placeholder="Chave de acesso da operação" /></label>}
         </div>
         <div className={`dropzone ${file ? 'has-file' : ''}`} onClick={() => inputRef.current?.click()}>
           <input ref={inputRef} hidden type="file" accept=".xlsx,.csv" onChange={(e) => { setFile(e.target.files?.[0] ?? null); setPreview(null); setMessage('') }} />
