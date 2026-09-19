@@ -124,3 +124,75 @@ def bootstrap_demo(payload: UserRequest, x_apetit_admin_key: str | None = Header
                "password": hash_password(payload.password)}).mappings().one()
     token, expires = create_session(row["id"])
     return {"token": token, "expires_at": expires.isoformat(), "user": public_user(row)}
+
+
+class UserStatusRequest(BaseModel):
+    active: bool
+
+
+class PasswordResetRequest(BaseModel):
+    password: str = Field(min_length=8, max_length=128)
+
+
+@router.patch("/api/admin/users/{user_id}/status", tags=["admin-users"])
+def update_user_status(user_id: UUID, payload: UserStatusRequest,
+                       principal: AdminPrincipal = Depends(require_admin)) -> dict:
+    require_permission(principal, "manage_users")
+    if principal.id is None:
+        raise HTTPException(status_code=403, detail="Use uma conta individual de administrador")
+    if user_id == principal.id and not payload.active:
+        raise HTTPException(status_code=409, detail="Você não pode desativar sua própria conta")
+    with engine.begin() as conn:
+        row = conn.execute(text("""
+            UPDATE admin_users SET active=:active WHERE id=:id
+            RETURNING id,name,email,role,active,last_login_at
+        """), {"id": user_id, "active": payload.active}).mappings().one_or_none()
+        if row is None:
+            raise HTTPException(status_code=404, detail="Usuário não encontrado")
+        if not payload.active:
+            conn.execute(text("UPDATE admin_sessions SET revoked_at=now() WHERE user_id=:id AND revoked_at IS NULL"), {"id": user_id})
+        conn.execute(text("""
+            INSERT INTO admin_audit_events(user_id,action,resource_type,resource_id,metadata)
+            VALUES (:actor,:action,'admin_user',:target,jsonb_build_object('active',:active))
+        """), {"actor": principal.id, "action": "admin_user.activated" if payload.active else "admin_user.deactivated",
+               "target": str(user_id), "active": payload.active})
+    return public_user(row)
+
+
+@router.post("/api/admin/users/{user_id}/reset-password", tags=["admin-users"])
+def reset_user_password(user_id: UUID, payload: PasswordResetRequest,
+                        principal: AdminPrincipal = Depends(require_admin)) -> dict:
+    require_permission(principal, "manage_users")
+    if principal.id is None:
+        raise HTTPException(status_code=403, detail="Use uma conta individual de administrador")
+    with engine.begin() as conn:
+        result = conn.execute(text("""
+            UPDATE admin_users SET password_hash=:password WHERE id=:id
+        """), {"id": user_id, "password": hash_password(payload.password)})
+        if result.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Usuário não encontrado")
+        conn.execute(text("UPDATE admin_sessions SET revoked_at=now() WHERE user_id=:id AND revoked_at IS NULL"), {"id": user_id})
+        conn.execute(text("""
+            INSERT INTO admin_audit_events(user_id,action,resource_type,resource_id)
+            VALUES (:actor,'admin_user.password_reset','admin_user',:target)
+        """), {"actor": principal.id, "target": str(user_id)})
+    return {"status": "password_reset", "sessions_revoked": True}
+
+
+@router.get("/api/admin/audit", tags=["admin-audit"])
+def admin_audit(limit: int = 50, principal: AdminPrincipal = Depends(require_admin)) -> dict:
+    require_permission(principal, "manage_users")
+    if not 1 <= limit <= 100:
+        raise HTTPException(status_code=422, detail="Limite inválido")
+    with engine.connect() as conn:
+        rows = conn.execute(text("""
+            SELECT e.id,e.action,e.resource_type,e.resource_id,e.metadata,e.created_at,
+                   u.name AS actor_name,u.email AS actor_email
+            FROM admin_audit_events e LEFT JOIN admin_users u ON u.id=e.user_id
+            ORDER BY e.created_at DESC,e.id DESC LIMIT :limit
+        """), {"limit": limit}).mappings().all()
+    return {"events": [{"id": str(row["id"]), "action": row["action"],
+                        "resource_type": row["resource_type"], "resource_id": row["resource_id"],
+                        "metadata": row["metadata"], "created_at": row["created_at"].isoformat(),
+                        "actor_name": row["actor_name"], "actor_email": str(row["actor_email"]) if row["actor_email"] else None}
+                       for row in rows]}
