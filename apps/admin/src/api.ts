@@ -65,7 +65,7 @@ const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
 const SESSION_KEY='apetit_admin_session'
 export const getAdminToken=()=>localStorage.getItem(SESSION_KEY)??''
 export const setAdminToken=(token:string)=>token?localStorage.setItem(SESSION_KEY,token):localStorage.removeItem(SESSION_KEY)
-function adminHeaders(adminKey:string,extra:Record<string,string>={}):Record<string,string>{const token=getAdminToken();return {...extra,...(token?{Authorization:`Bearer ${token}`}:adminHeaders(adminKey))}}
+function adminHeaders(adminKey:string,extra:Record<string,string>={}):Record<string,string>{const token=getAdminToken();return {...extra,...(token?{Authorization:`Bearer ${token}`}:(adminKey?{'X-Apetit-Admin-Key':adminKey}:{}))}}
 export const isPresentationMode = import.meta.env.VITE_PRESENTATION_MODE === 'true'
 export const presentationAdminKey = isPresentationMode ? 'presentation' : ''
 
@@ -217,4 +217,8 @@ export async function listAdminUsers():Promise<{users:AdminUser[]}>{
 }
 export async function createAdminUser(payload:{name:string;email:string;password:string;role:string;unit_ids:string[]}):Promise<AdminUser>{
  return read(await fetch(`${API_URL}/api/admin/users`,{method:'POST',headers:adminHeaders(presentationAdminKey,{'Content-Type':'application/json'}),body:JSON.stringify(payload)}),'Não foi possível criar o usuário.')
+}
+
+export async function bootstrapDemoAdmin(payload:{name:string;email:string;password:string}):Promise<{token:string;expires_at:string;user:AdminUser}>{
+ return read(await fetch(`${API_URL}/api/admin/auth/bootstrap-demo`,{method:'POST',headers:{'Content-Type':'application/json','X-Apetit-Admin-Key':'presentation'},body:JSON.stringify({...payload,role:'admin',unit_ids:[]})}),'Não foi possível criar o primeiro administrador.')
 }
