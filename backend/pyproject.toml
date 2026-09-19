@@ -17,7 +17,8 @@ dependencies = [
   "pypdf>=6,<7",
   "pymupdf>=1.24,<2",
   "pillow>=11,<13",
-  "pillow-heif>=1,<2"
+  "pillow-heif>=1,<2",
+  "reportlab>=4.2,<5"
 ]
 
 [project.optional-dependencies]
