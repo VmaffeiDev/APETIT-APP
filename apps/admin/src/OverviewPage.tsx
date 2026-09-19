@@ -105,7 +105,7 @@ export function OverviewPage() {
             <h1>Operação em um só lugar</h1>
             <p>Indicadores agregados da demonstração: operação, nutrição, experiência e qualidade da base.</p>
           </div>
-          <div className="status-pill"><span className="status-dot" />Ambiente de demonstração</div>
+          <div className="topbar-actions"><button className="secondary" onClick={() => go('relatorio-executivo')}>Relatório executivo</button><div className="status-pill"><span className="status-dot" />Ambiente de demonstração</div></div>
         </header>
 
         {error && <div className="alert error">{error}</div>}
