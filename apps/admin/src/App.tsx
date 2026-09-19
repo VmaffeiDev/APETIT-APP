@@ -42,6 +42,7 @@ function App() {
   const [statusBusy,setStatusBusy]=useState(false)
   const [replaceExisting,setReplaceExisting]=useState(false)
   const [statusRevision,setStatusRevision]=useState(0)
+  const [operatorLabel,setOperatorLabel]=useState('')
 
   const selectedUnit = DEMO_UNITS.find((unit) => unit.unitId === unitId) ?? DEMO_UNITS[0]
 
@@ -120,11 +121,12 @@ function App() {
 
   async function handlePublish() {
     if (!preview) return
+    if(operatorLabel.trim().length<2){setError('Informe seu nome para registrar quem declarou a publicação.');return}
     if(overlappingDates.length && !replaceExisting){setError('Este período já possui cardápio publicado. Confira as datas e confirme a substituição somente se for uma correção.');return}
     setBusy(true)
     setError('')
     try {
-      const result = await publishMenu({ previewId: preview.preview_id, month, year, adminKey: adminKey.trim(),replaceExisting })
+      const result = await publishMenu({ previewId: preview.preview_id, month, year, adminKey: adminKey.trim(),replaceExisting,operatorLabel:operatorLabel.trim() })
       setPublishResult(result)
       setStage('published')
       setStatusRevision(value=>value+1)
@@ -151,6 +153,7 @@ function App() {
         <nav>
           <button className="nav-item" onClick={() => { window.location.hash = 'visao-geral' }}><span>⌂</span>Visão geral</button>
           <button className="nav-item active"><span>▣</span>Cardápios</button>
+          <button className="nav-item" onClick={() => {window.location.hash=`historico-cardapios/${unitId}`}}>◷ Histórico de publicações</button>
           <button className="nav-item" onClick={() => { window.location.hash = `calendario-cardapios/${unitId}` }}>▦ Calendário semanal</button>
           <button className="nav-item" onClick={() => { window.location.hash = 'importar-fichas' }}><span>↥</span>Importações</button>
           <button className="nav-item" onClick={() => { window.location.hash = 'fichas-tecnicas' }}><span>⌘</span>Fichas técnicas</button>
@@ -168,7 +171,7 @@ function App() {
       <main className="main">
         <header className="topbar"><div><span className="eyebrow">OPERAÇÃO · CARDÁPIOS</span><h1>Publicar cardápio semanal</h1><p>Valide a planilha antes de disponibilizar o cardápio para os funcionários.</p></div><div className="status-pill"><span className="status-dot" />API conectada</div></header>
 
-        <div className="weekly-entry"><button className="secondary" onClick={() => { window.location.hash = `calendario-cardapios/${unitId}` }}>Ver cardápio semanal publicado →</button></div>
+        <div className="weekly-entry"><button className="secondary" onClick={() => { window.location.hash = `calendario-cardapios/${unitId}` }}>Ver cardápio semanal publicado →</button><button className="secondary" onClick={() => { window.location.hash = `historico-cardapios/${unitId}` }}>Histórico de publicações →</button></div>
         <div className="stepper">
           <div className={`step ${stage !== 'upload' ? 'done' : 'current'}`}><span>1</span><div><strong>Enviar arquivo</strong><small>XLSX ou CSV</small></div></div>
           <div className={`step ${stage === 'preview' ? 'current' : stage === 'published' ? 'done' : ''}`}><span>2</span><div><strong>Conferir</strong><small>Itens e período</small></div></div>
@@ -215,8 +218,9 @@ function App() {
               <div className="days-list">{preview.days.map((day) => <details key={day.day} open><summary><div><strong>Dia {day.day}</strong><span>{day.items.length} itens</span></div><span className="chevron">⌄</span></summary><div className="items-table"><div className="table-row header"><span>Categoria</span><span>Prato</span><span>Porção</span><span>Ficha técnica</span></div>{day.items.map((item, index) => <div className="table-row" key={`${day.day}-${item.name}-${index}`}><span><i className="category-dot" />{categoryLabel[item.category] ?? item.category}</span><strong>{item.name}</strong><span>{item.portion ?? '—'}</span><span className={item.technical_sheet_status === 'complete' ? '' : 'muted'}>{item.technical_sheet_code ? `${item.technical_sheet_code} · ${sheetStatusLabel[item.technical_sheet_status ?? 'missing']}` : sheetStatusLabel.no_code}</span></div>)}</div></details>)}</div>
             </section>
             {error && <div className="alert error">{error}</div>}
+            <label className="operator-field"><span>Funcionário responsável (nome informado pelo operador)</span><input value={operatorLabel} onChange={e=>setOperatorLabel(e.target.value)} maxLength={100} placeholder="Informe seu nome para registrar esta ação"/><small>O modo demonstração não possui login individual: este nome não é identidade verificada.</small></label>
             {overlappingDates.length>0 && <label className="replacement-confirm"><input type="checkbox" checked={replaceExisting} onChange={e=>setReplaceExisting(e.target.checked)}/><span>Estou corrigindo uma publicação existente e autorizo substituir os cardápios das datas indicadas.</span></label>}
-            <div className="sticky-actions"><button className="secondary" onClick={() => setStage('upload')}>Voltar e trocar arquivo</button><div><small>Uma publicação já existente só será substituída mediante confirmação explícita.</small><button className="primary" disabled={busy||statusBusy||(overlappingDates.length>0&&!replaceExisting)} onClick={handlePublish}>{busy ? 'Publicando...' : 'Confirmar e publicar'}</button></div></div>
+            <div className="sticky-actions"><button className="secondary" onClick={() => setStage('upload')}>Voltar e trocar arquivo</button><div><small>Uma publicação já existente só será substituída mediante confirmação explícita.</small><button className="primary" disabled={busy||statusBusy||operatorLabel.trim().length<2||(overlappingDates.length>0&&!replaceExisting)} onClick={handlePublish}>{busy ? 'Publicando...' : 'Confirmar e publicar'}</button></div></div>
           </>
         )}
 
