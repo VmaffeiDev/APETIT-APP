@@ -121,3 +121,14 @@ export async function publishTechnicalSheetImport(adminKey: string, previewId: s
 export async function getAdminOverview(adminKey: string): Promise<AdminOverview> {
   return read(await fetch(`${API_URL}/api/admin/overview`, { headers: { 'X-Apetit-Admin-Key': adminKey } }), 'Não foi possível carregar a visão geral.')
 }
+
+export async function getExecutiveReportPdf(adminKey: string): Promise<Blob> {
+  const response = await fetch(`${API_URL}/api/admin/overview.pdf`, {
+    headers: { 'X-Apetit-Admin-Key': adminKey },
+  })
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null)
+    throw new Error(readError(payload, 'Não foi possível gerar o PDF.'))
+  }
+  return response.blob()
+}
