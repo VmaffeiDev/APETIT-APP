@@ -11,14 +11,14 @@ export function FeedbackPage() {
       <aside className="sidebar">
         <div className="brand"><span className="brand-mark">A</span><div><strong>APETIT</strong><small>Admin</small></div></div>
         <nav>
-          <button className="nav-item" onClick={() => go('cardapios')}><span>⌂</span>Visão geral</button>
+          <button className="nav-item" onClick={() => go('visao-geral')}><span>⌂</span>Visão geral</button>
           <button className="nav-item" onClick={() => go('cardapios')}><span>▣</span>Cardápios</button>
-          <button className="nav-item" onClick={() => go('cardapios')}><span>↥</span>Importações</button>
+          <button className="nav-item" onClick={() => go('importar-fichas')}><span>↥</span>Importações</button>
           <div className="nav-label">Experiência</div>
           <button className="nav-item active"><span>♡</span>Feedbacks</button>
-          <button className="nav-item active"><span>⌁</span>Satisfação</button>
+          <button className="nav-item"><span>⌁</span>Satisfação</button>
           <div className="nav-label">Gestão</div>
-          <button className="nav-item"><span>□</span>Unidades</button>
+          <button className="nav-item" onClick={() => go('unidades')}><span>□</span>Unidades</button>
           <button className="nav-item"><span>◫</span>Empresas</button>
           <button className="nav-item"><span>⚙</span>Configurações</button>
         </nav>
