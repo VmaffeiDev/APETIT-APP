@@ -95,6 +95,62 @@ def upgrade() -> None:
       ('DEMO-205','gluten','free_from'),
       ('DEMO-206','gluten','free_from')
     ON CONFLICT (technical_sheet_code, allergen) DO UPDATE SET status = EXCLUDED.status;
+
+    -- Enrich already-published presentation menus by preparation name.
+    -- This is intentionally development-only and exists only to make the demo
+    -- usable before Apetit provides the official technical-sheet catalogue.
+    UPDATE menu_items mi
+    SET technical_sheet_code = ts.code,
+        kcal = ts.kcal,
+        protein_g = ts.protein_g,
+        carbs_g = ts.carbs_g,
+        fat_g = ts.fat_g,
+        standard_portion = COALESCE(
+          mi.standard_portion,
+          concat_ws(' ', ts.portion_quantity::text, ts.portion_unit)
+        )
+    FROM technical_sheets ts
+    WHERE mi.name ILIKE ts.name
+      AND ts.code LIKE 'DEMO-%';
+
+    UPDATE menu_items
+    SET technical_sheet_code = 'DEMO-102', kcal = 168, protein_g = 3, carbs_g = 36, fat_g = 1
+    WHERE technical_sheet_code IS NULL AND lower(name) LIKE 'arroz%';
+
+    UPDATE menu_items
+    SET technical_sheet_code = 'DEMO-203', kcal = 92, protein_g = 6, carbs_g = 16, fat_g = 1
+    WHERE technical_sheet_code IS NULL AND lower(name) LIKE 'feij%';
+
+    UPDATE menu_items
+    SET technical_sheet_code = 'DEMO-004', kcal = 48, protein_g = 2, carbs_g = 7, fat_g = 2
+    WHERE technical_sheet_code IS NULL
+      AND (lower(name) LIKE '%salada%' OR lower(name) LIKE '%folhas%');
+
+    UPDATE menu_items
+    SET technical_sheet_code = 'DEMO-001', kcal = 198, protein_g = 37, carbs_g = 1, fat_g = 5
+    WHERE technical_sheet_code IS NULL AND lower(name) LIKE '%frango%';
+
+    UPDATE menu_items
+    SET technical_sheet_code = 'DEMO-101', kcal = 184, protein_g = 30, carbs_g = 2, fat_g = 6
+    WHERE technical_sheet_code IS NULL
+      AND (lower(name) LIKE '%peixe%' OR lower(name) LIKE '%pescada%' OR lower(name) LIKE '%tilápia%');
+
+    UPDATE menu_items
+    SET technical_sheet_code = 'DEMO-201', kcal = 228, protein_g = 31, carbs_g = 1, fat_g = 11
+    WHERE technical_sheet_code IS NULL
+      AND (lower(name) LIKE '%carne%' OR lower(name) LIKE '%bovina%');
+
+    UPDATE menu_items
+    SET technical_sheet_code = 'DEMO-206', kcal = 54, protein_g = 1, carbs_g = 13, fat_g = 0
+    WHERE technical_sheet_code IS NULL AND lower(name) LIKE '%mamão%';
+
+    UPDATE menu_items
+    SET technical_sheet_code = 'DEMO-106', kcal = 62, protein_g = 1, carbs_g = 15, fat_g = 0
+    WHERE technical_sheet_code IS NULL AND lower(name) LIKE '%laranja%';
+
+    UPDATE menu_items
+    SET technical_sheet_code = 'DEMO-006', kcal = 45, protein_g = 1, carbs_g = 11, fat_g = 0
+    WHERE technical_sheet_code IS NULL AND lower(name) LIKE '%melancia%';
     """)
 
 
