@@ -62,6 +62,10 @@ export type TechnicalSheetImportPreview = {
 export type TechnicalSheetImportResult = { status: 'published'; created: number; updated: number; count: number }
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
+const SESSION_KEY='apetit_admin_session'
+export const getAdminToken=()=>localStorage.getItem(SESSION_KEY)??''
+export const setAdminToken=(token:string)=>token?localStorage.setItem(SESSION_KEY,token):localStorage.removeItem(SESSION_KEY)
+function adminHeaders(adminKey:string,extra:Record<string,string>={}){const token=getAdminToken();return {...extra,...(token?{Authorization:`Bearer ${token}`}:adminHeaders(adminKey))}}
 export const isPresentationMode = import.meta.env.VITE_PRESENTATION_MODE === 'true'
 export const presentationAdminKey = isPresentationMode ? 'presentation' : ''
 
@@ -81,51 +85,51 @@ async function read<T>(response: Response, fallback: string): Promise<T> {
 
 export async function previewMenu(params: { unitId: string; mealType: string; adminKey: string; file: File }): Promise<MenuPreview> {
   const body = new FormData(); body.set('unit_id', params.unitId); body.set('meal_type', params.mealType); body.set('file', params.file)
-  return read(await fetch(`${API_URL}/api/admin/menu-imports/preview`, { method: 'POST', headers: { 'X-Apetit-Admin-Key': params.adminKey }, body }), 'Não foi possível validar o cardápio.')
+  return read(await fetch(`${API_URL}/api/admin/menu-imports/preview`, { method: 'POST', headers: adminHeaders(params.adminKey), body }), 'Não foi possível validar o cardápio.')
 }
 
 export async function publishMenu(params: { previewId: string; month: number; year: number; adminKey: string; replaceExisting?:boolean; operatorLabel:string }): Promise<PublishResult> {
-  return read(await fetch(`${API_URL}/api/admin/menu-imports/${params.previewId}/publish`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Apetit-Admin-Key': params.adminKey }, body: JSON.stringify({ month: params.month, year: params.year, confirm_period: true, replace_existing: params.replaceExisting ?? false, operator_label:params.operatorLabel }) }), 'Não foi possível publicar o cardápio.')
+  return read(await fetch(`${API_URL}/api/admin/menu-imports/${params.previewId}/publish`, { method: 'POST', headers: adminHeaders(params.adminKey,{'Content-Type':'application/json'}), body: JSON.stringify({ month: params.month, year: params.year, confirm_period: true, replace_existing: params.replaceExisting ?? false, operator_label:params.operatorLabel }) }), 'Não foi possível publicar o cardápio.')
 }
 
 export async function getFeedbackSummary(params: { unitId: string; restaurantId?: string; start: string; end: string; adminKey: string }): Promise<FeedbackSummary> {
   const query = new URLSearchParams({ unit_id: params.unitId, start: params.start, end: params.end }); if (params.restaurantId?.trim()) query.set('restaurant_id', params.restaurantId.trim())
-  return read(await fetch(`${API_URL}/api/admin/feedback/summary?${query.toString()}`, { headers: { 'X-Apetit-Admin-Key': params.adminKey } }), 'Não foi possível carregar os feedbacks.')
+  return read(await fetch(`${API_URL}/api/admin/feedback/summary?${query.toString()}`, { headers: adminHeaders(params.adminKey) }), 'Não foi possível carregar os feedbacks.')
 }
 
 export async function listTechnicalSheets(adminKey: string, search = ''): Promise<{ items: TechnicalSheetSummary[]; count: number }> {
   const query = new URLSearchParams({ search })
-  return read(await fetch(`${API_URL}/api/admin/technical-sheets?${query.toString()}`, { headers: { 'X-Apetit-Admin-Key': adminKey } }), 'Não foi possível carregar as fichas técnicas.')
+  return read(await fetch(`${API_URL}/api/admin/technical-sheets?${query.toString()}`, { headers: adminHeaders(adminKey) }), 'Não foi possível carregar as fichas técnicas.')
 }
 
 export async function getTechnicalSheet(adminKey: string, code: string): Promise<TechnicalSheet> {
-  return read(await fetch(`${API_URL}/api/admin/technical-sheets/${encodeURIComponent(code)}`, { headers: { 'X-Apetit-Admin-Key': adminKey } }), 'Não foi possível carregar a ficha técnica.')
+  return read(await fetch(`${API_URL}/api/admin/technical-sheets/${encodeURIComponent(code)}`, { headers: adminHeaders(adminKey) }), 'Não foi possível carregar a ficha técnica.')
 }
 
 export async function saveTechnicalSheet(adminKey: string, code: string, payload: Omit<TechnicalSheet, 'code' | 'updated_at'>): Promise<TechnicalSheet> {
-  return read(await fetch(`${API_URL}/api/admin/technical-sheets/${encodeURIComponent(code)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'X-Apetit-Admin-Key': adminKey }, body: JSON.stringify(payload) }), 'Não foi possível salvar a ficha técnica.')
+  return read(await fetch(`${API_URL}/api/admin/technical-sheets/${encodeURIComponent(code)}`, { method: 'PUT', headers: adminHeaders(adminKey,{'Content-Type':'application/json'}), body: JSON.stringify(payload) }), 'Não foi possível salvar a ficha técnica.')
 }
 
 export async function deleteTechnicalSheet(adminKey: string, code: string): Promise<void> {
-  await read(await fetch(`${API_URL}/api/admin/technical-sheets/${encodeURIComponent(code)}`, { method: 'DELETE', headers: { 'X-Apetit-Admin-Key': adminKey } }), 'Não foi possível excluir a ficha técnica.')
+  await read(await fetch(`${API_URL}/api/admin/technical-sheets/${encodeURIComponent(code)}`, { method: 'DELETE', headers: adminHeaders(adminKey) }), 'Não foi possível excluir a ficha técnica.')
 }
 
 export async function previewTechnicalSheetImport(adminKey: string, file: File): Promise<TechnicalSheetImportPreview> {
   const body = new FormData(); body.set('file', file)
-  return read(await fetch(`${API_URL}/api/admin/technical-sheets/imports/preview`, { method: 'POST', headers: { 'X-Apetit-Admin-Key': adminKey }, body }), 'Não foi possível validar o arquivo de fichas técnicas.')
+  return read(await fetch(`${API_URL}/api/admin/technical-sheets/imports/preview`, { method: 'POST', headers: adminHeaders(adminKey), body }), 'Não foi possível validar o arquivo de fichas técnicas.')
 }
 
 export async function publishTechnicalSheetImport(adminKey: string, previewId: string): Promise<TechnicalSheetImportResult> {
-  return read(await fetch(`${API_URL}/api/admin/technical-sheets/imports/${previewId}/publish`, { method: 'POST', headers: { 'X-Apetit-Admin-Key': adminKey } }), 'Não foi possível importar as fichas técnicas.')
+  return read(await fetch(`${API_URL}/api/admin/technical-sheets/imports/${previewId}/publish`, { method: 'POST', headers: adminHeaders(adminKey) }), 'Não foi possível importar as fichas técnicas.')
 }
 
 export async function getAdminOverview(adminKey: string): Promise<AdminOverview> {
-  return read(await fetch(`${API_URL}/api/admin/overview`, { headers: { 'X-Apetit-Admin-Key': adminKey } }), 'Não foi possível carregar a visão geral.')
+  return read(await fetch(`${API_URL}/api/admin/overview`, { headers: adminHeaders(adminKey) }), 'Não foi possível carregar a visão geral.')
 }
 
 export async function getExecutiveReportPdf(adminKey: string): Promise<Blob> {
   const response = await fetch(`${API_URL}/api/admin/overview.pdf`, {
-    headers: { 'X-Apetit-Admin-Key': adminKey },
+    headers: adminHeaders(adminKey),
   })
   if (!response.ok) {
     const payload = await response.json().catch(() => null)
@@ -148,13 +152,13 @@ export type WeeklyMenu = {
 export async function getWeeklyMenu(params:{unitId:string;weekStart:string;mealType:string;adminKey:string}):Promise<WeeklyMenu>{
   const query=new URLSearchParams({unit_id:params.unitId,week_start:params.weekStart,meal_type:params.mealType})
   return read(await fetch(`${API_URL}/api/admin/menus/week?${query}`,{
-    headers:{'X-Apetit-Admin-Key':params.adminKey}
+    headers:adminHeaders(params.adminKey)
   }),'Não foi possível consultar o cardápio semanal.')
 }
 
 export async function getPublicationStatus(params:{unitId:string;mealType:string;start:string;end:string;adminKey:string}):Promise<PublicationStatus>{
  const query=new URLSearchParams({unit_id:params.unitId,meal_type:params.mealType,start:params.start,end:params.end})
- return read(await fetch(`${API_URL}/api/admin/menus/publication-status?${query}`,{headers:{'X-Apetit-Admin-Key':params.adminKey}}),'Não foi possível verificar publicações.')
+ return read(await fetch(`${API_URL}/api/admin/menus/publication-status?${query}`,{headers:adminHeaders(params.adminKey)}),'Não foi possível verificar publicações.')
 }
 
 export type MenuHistoryEvent={
@@ -166,7 +170,7 @@ export type MenuHistoryEvent={
 export async function getMenuHistory(params:{unitId:string;adminKey:string}):Promise<{unit_id:string;events:MenuHistoryEvent[]}>{
  const query=new URLSearchParams({unit_id:params.unitId})
  return read(await fetch(`${API_URL}/api/admin/menus/publication-history?${query}`,{
- headers:{'X-Apetit-Admin-Key':params.adminKey}
+ headers:adminHeaders(params.adminKey)
  }),'Não foi possível carregar o histórico de publicações.')
 }
 
@@ -185,14 +189,32 @@ export type MenuVersion={
 export async function getMenuVersion(params:{unitId:string;versionId:string;adminKey:string}):Promise<MenuVersion>{
  const query=new URLSearchParams({unit_id:params.unitId})
  return read(await fetch(`${API_URL}/api/admin/menus/versions/${encodeURIComponent(params.versionId)}?${query}`,{
- headers:{'X-Apetit-Admin-Key':params.adminKey}
+ headers:adminHeaders(params.adminKey)
  }),'Não foi possível abrir esta versão.')
 }
 export async function restoreMenuVersion(params:{unitId:string;version:MenuVersion;operatorLabel:string;adminKey:string}):Promise<{status:string;menu_import_id:string;days:number}>{
  return read(await fetch(`${API_URL}/api/admin/menus/versions/${encodeURIComponent(params.version.id)}/restore`,{
  method:'POST',
- headers:{'Content-Type':'application/json','X-Apetit-Admin-Key':params.adminKey},
+ headers:adminHeaders(params.adminKey,{'Content-Type':'application/json'}),
  body:JSON.stringify({unit_id:params.unitId,operator_label:params.operatorLabel,confirm_restore:true,
  expected_current:params.version.expected_current})
  }),'Não foi possível restaurar o cardápio.')
+}
+
+export type AdminUser={id:string|null;name:string;email:string|null;role:'admin'|'operacao'|'nutricao'|'visualizacao';presentation?:boolean;active?:boolean;last_login_at?:string|null}
+export async function adminLogin(email:string,password:string):Promise<{token:string;expires_at:string;user:AdminUser}>{
+ return read(await fetch(`${API_URL}/api/admin/auth/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})}),'Não foi possível entrar.')
+}
+export async function adminMe():Promise<AdminUser>{
+ return read(await fetch(`${API_URL}/api/admin/auth/me`,{headers:adminHeaders('')}),'Sessão inválida.')
+}
+export async function adminLogout():Promise<void>{
+ await read(await fetch(`${API_URL}/api/admin/auth/logout`,{method:'POST',headers:adminHeaders('')}),'Não foi possível sair.')
+ setAdminToken('')
+}
+export async function listAdminUsers():Promise<{users:AdminUser[]}>{
+ return read(await fetch(`${API_URL}/api/admin/users`,{headers:adminHeaders(presentationAdminKey)}),'Não foi possível carregar usuários.')
+}
+export async function createAdminUser(payload:{name:string;email:string;password:string;role:string;unit_ids:string[]}):Promise<AdminUser>{
+ return read(await fetch(`${API_URL}/api/admin/users`,{method:'POST',headers:adminHeaders(presentationAdminKey,{'Content-Type':'application/json'}),body:JSON.stringify(payload)}),'Não foi possível criar o usuário.')
 }
