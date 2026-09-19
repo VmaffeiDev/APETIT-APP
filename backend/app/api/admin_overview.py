@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date, timedelta
 from io import BytesIO
 
-from fastapi import APIRouter, Header
+from fastapi import APIRouter, Depends, Header
 from fastapi.responses import StreamingResponse
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER
@@ -13,7 +13,7 @@ from reportlab.lib.units import mm
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 from sqlalchemy import text
 
-from app.api.admin_auth import require_admin_key
+from app.api.admin_auth import AdminPrincipal, require_admin, require_admin_key, require_permission
 from app.db import engine
 
 router = APIRouter()
@@ -21,9 +21,9 @@ router = APIRouter()
 
 @router.get("/api/admin/overview", tags=["admin-overview"])
 def admin_overview(
-    x_apetit_admin_key: str | None = Header(default=None),
+    principal: AdminPrincipal = Depends(require_admin),
 ) -> dict:
-    require_admin_key(x_apetit_admin_key)
+    require_permission(principal, "read")
 
     start = date.today() - timedelta(days=4)
     end = date.today()
