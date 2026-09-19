@@ -246,11 +246,14 @@ def admin_publication_history(
         raise HTTPException(status_code=422, detail="limite inválido")
     with engine.connect() as conn:
         rows = conn.execute(text("""
-            SELECT id, unit_id, file_name, meal_type, operator_label, operation_kind,
-                   period_start, period_end, item_count, replaced_dates, published_at,
-                   restored_from
-            FROM menu_imports
-            WHERE unit_id = :unit_id AND status IN ('published', 'archived')
+            SELECT mi.id, mi.unit_id, mi.file_name, mi.meal_type,
+                   COALESCE(au.name, mi.operator_label) AS operator_label,
+                   mi.operation_kind, mi.period_start, mi.period_end, mi.item_count,
+                   mi.replaced_dates, mi.published_at, mi.restored_from,
+                   au.id AS verified_actor_id
+            FROM menu_imports mi
+            LEFT JOIN admin_users au ON au.id = mi.actor_user_id
+            WHERE mi.unit_id = :unit_id AND status IN ('published', 'archived')
             ORDER BY published_at DESC NULLS LAST, created_at DESC, id DESC
             LIMIT :limit
         """), {"unit_id": unit_id, "limit": limit}).mappings().all()
@@ -261,7 +264,7 @@ def admin_publication_history(
             "file_name": row["file_name"],
             "meal_type": row["meal_type"],
             "operator_label": row["operator_label"],
-            "operator_verified": False,
+            "operator_verified": row["verified_actor_id"] is not None,
             "operation_kind": row["operation_kind"] or "legacy_publication",
             "period_start": row["period_start"].isoformat() if row["period_start"] else None,
             "period_end": row["period_end"].isoformat() if row["period_end"] else None,
