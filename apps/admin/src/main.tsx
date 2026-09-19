@@ -7,6 +7,7 @@ import { TechnicalSheetsPage } from './TechnicalSheetsPage'
 import { UnitsPage } from './UnitsPage'
 import { OverviewPage } from './OverviewPage'
 import { ExecutiveReportPage } from './ExecutiveReportPage'
+import { UnitDetailPage } from './UnitDetailPage'
 import './styles.css'
 
 function Root() {
@@ -43,6 +44,7 @@ function Root() {
   }, [])
 
   if (hash === 'visao-geral') return <OverviewPage />
+  if (hash.startsWith('unidade/')) return <UnitDetailPage unitId={hash.slice('unidade/'.length)} />
   if (hash === 'relatorio-executivo') return <ExecutiveReportPage />
   if (hash === 'feedbacks') return <FeedbackPage />
   if (hash === 'unidades') return <UnitsPage />
