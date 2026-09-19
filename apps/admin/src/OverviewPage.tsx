@@ -1,10 +1,36 @@
-import { DEMO_UNITS } from './demoUnits'
+import { useEffect, useState } from 'react'
+import { AdminOverview, getAdminOverview, presentationAdminKey } from './api'
 
 function go(hash: string) {
   window.location.hash = hash
 }
 
+const TAG_LABELS: Record<string,string> = {
+  sabor: 'Sabor',
+  atendimento: 'Atendimento',
+  temperatura: 'Temperatura',
+  variedade: 'Variedade',
+}
+
+function periodLabel(start?: string | null, end?: string | null) {
+  if (!start || !end) return '—'
+  const fmt = (value:string) => new Intl.DateTimeFormat('pt-BR',{day:'2-digit',month:'2-digit'}).format(new Date(`${value}T12:00:00`))
+  return `${fmt(start)} → ${fmt(end)}`
+}
+
 export function OverviewPage() {
+  const [data,setData] = useState<AdminOverview|null>(null)
+  const [error,setError] = useState('')
+
+  useEffect(() => {
+    getAdminOverview(presentationAdminKey)
+      .then(setData)
+      .catch((e) => setError(e instanceof Error ? e.message : 'Não foi possível carregar a visão geral.'))
+  }, [])
+
+  const coverage = data?.technical_coverage_percent ?? 0
+  const satisfaction = data?.satisfaction_overall
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -25,75 +51,60 @@ export function OverviewPage() {
       <main className="main">
         <header className="topbar">
           <div>
-            <span className="eyebrow">APETIT · VISÃO GERAL</span>
+            <span className="eyebrow">APETIT · VISÃO EXECUTIVA</span>
             <h1>Operação em um só lugar</h1>
-            <p>Acompanhe cardápios, fichas técnicas, experiência dos colaboradores e unidades atendidas.</p>
+            <p>Indicadores agregados da demonstração: operação, nutrição, experiência e qualidade da base.</p>
           </div>
           <div className="status-pill"><span className="status-dot" />Ambiente de demonstração</div>
         </header>
 
+        {error && <div className="alert error">{error}</div>}
+
         <section className="overview-hero card">
           <div>
             <span className="badge">DEMO V1</span>
-            <h2>Produto pronto para apresentação</h2>
-            <p>Os fluxos principais estão conectados ao app do colaborador. Os dados abaixo são fictícios e serão substituídos pela base oficial da Apetit.</p>
+            <h2>Resumo executivo da operação</h2>
+            <p>Dados fictícios controlados para demonstrar como a gestão acompanhará o serviço quando a base oficial da Apetit estiver conectada.</p>
           </div>
-          <button className="primary" onClick={() => go('cardapios')}>Publicar cardápio</button>
+          <button className="primary" onClick={() => go('cardapios')}>Gerenciar cardápios</button>
         </section>
 
-        <section className="overview-metrics">
-          <article className="metric"><small>Unidades demo</small><strong>{DEMO_UNITS.length}</strong><span>Copel, Sanepar e Coca-Cola</span></article>
-          <article className="metric"><small>Cardápio</small><strong>Ativo</strong><span>fluxo disponível no app</span></article>
-          <article className="metric"><small>Feedback</small><strong>Conectado</strong><span>avaliações agregadas</span></article>
-          <article className="metric"><small>Privacidade</small><strong>Protegida</strong><span>sem saúde individual no admin</span></article>
+        <section className="executive-kpis">
+          <article className="kpi-card"><span className="kpi-icon">□</span><small>Unidades</small><strong>{data?.units ?? '—'}</strong><p>{data?.restaurants ?? '—'} refeitórios cadastrados</p></article>
+          <article className="kpi-card"><span className="kpi-icon">▣</span><small>Cardápios publicados</small><strong>{data?.published_menus ?? '—'}</strong><p>{data?.menu_items ?? '—'} itens disponíveis</p></article>
+          <article className="kpi-card"><span className="kpi-icon">⌘</span><small>Fichas técnicas</small><strong>{data?.technical_sheets ?? '—'}</strong><p>{data?.complete_sheets ?? '—'} completas</p></article>
+          <article className="kpi-card"><span className="kpi-icon">♡</span><small>Satisfação geral</small><strong>{satisfaction == null ? '—' : satisfaction.toFixed(1)}</strong><p>{data?.feedback_responses ?? '—'} respostas em 5 dias</p></article>
+        </section>
+
+        <section className="executive-grid">
+          <article className="card executive-panel">
+            <div className="panel-head"><div><span className="eyebrow">QUALIDADE DA BASE</span><h2>Cobertura de fichas técnicas</h2></div><strong className="coverage-number">{coverage}%</strong></div>
+            <div className="coverage-track"><div style={{width:`${coverage}%`}} /></div>
+            <p>{data?.enriched_menu_items ?? 0} de {data?.menu_items ?? 0} itens do cardápio possuem ficha técnica associada.</p>
+            <div className="panel-actions"><button className="secondary" onClick={() => go('fichas-tecnicas')}>Ver fichas técnicas</button><button className="secondary" onClick={() => go('importar-fichas')}>Importar fichas</button></div>
+          </article>
+
+          <article className="card executive-panel">
+            <div className="panel-head"><div><span className="eyebrow">EXPERIÊNCIA</span><h2>Satisfação dos funcionários</h2></div><strong className="coverage-number">{satisfaction == null ? '—' : satisfaction.toFixed(1)}</strong></div>
+            <p>{data?.feedback_responses ?? 0} respostas agregadas entre {periodLabel(data?.feedback_period_start,data?.feedback_period_end)}.</p>
+            <div className="insight-box"><small>Motivo mais citado</small><strong>{data?.top_feedback_tag ? TAG_LABELS[data.top_feedback_tag.tag] ?? data.top_feedback_tag.tag : '—'}</strong><span>{data?.top_feedback_tag?.count ?? 0} marcações</span></div>
+            <div className="panel-actions"><button className="secondary" onClick={() => go('feedbacks')}>Abrir satisfação</button></div>
+          </article>
+        </section>
+
+        <section className="card operations-card">
+          <div className="section-heading"><div><span className="eyebrow">OPERAÇÃO</span><h2>Status e próximos cuidados</h2><p>Leitura rápida do que merece atenção na demonstração.</p></div></div>
+          <div className="operations-grid">
+            <div className="operation-row good"><span>✓</span><div><strong>Feedbacks ativos</strong><small>Relatórios agregados disponíveis com proteção de grupos pequenos.</small></div></div>
+            <div className="operation-row good"><span>✓</span><div><strong>Fluxo do colaborador conectado</strong><small>Cardápio, recomendação, registro, avaliação e progresso estão integrados.</small></div></div>
+            <div className={coverage >= 80 ? 'operation-row good' : 'operation-row warning'}><span>{coverage >= 80 ? '✓' : '!'}</span><div><strong>Cobertura técnica {coverage}%</strong><small>{coverage >= 80 ? 'Base demo com boa cobertura nutricional.' : 'Parte do cardápio ainda está sem ficha técnica associada.'}</small></div></div>
+            <div className="operation-row info"><span>i</span><div><strong>Dados oficiais pendentes</strong><small>Empresas, fichas, cardápios e integrações reais serão substituídos na etapa final.</small></div></div>
+          </div>
         </section>
 
         <section className="overview-grid">
-          <article className="card overview-card">
-            <div className="overview-icon">▣</div>
-            <span className="eyebrow">OPERAÇÃO</span>
-            <h2>Cardápios</h2>
-            <p>Importe XLSX/CSV, confira os itens e publique o período para as unidades.</p>
-            <button className="secondary" onClick={() => go('cardapios')}>Abrir cardápios</button>
-          </article>
-          <article className="card overview-card">
-            <div className="overview-icon">⌘</div>
-            <span className="eyebrow">NUTRIÇÃO</span>
-            <h2>Fichas técnicas</h2>
-            <p>Centralize porções, macros, ingredientes e alergênicos usados nas recomendações.</p>
-            <button className="secondary" onClick={() => go('fichas-tecnicas')}>Abrir biblioteca</button>
-          </article>
-          <article className="card overview-card">
-            <div className="overview-icon">♡</div>
-            <span className="eyebrow">EXPERIÊNCIA</span>
-            <h2>Feedbacks</h2>
-            <p>Acompanhe satisfação e pontos de melhoria com recortes agregados e protegidos.</p>
-            <button className="secondary" onClick={() => go('feedbacks')}>Ver feedbacks</button>
-          </article>
-          <article className="card overview-card">
-            <div className="overview-icon">□</div>
-            <span className="eyebrow">GESTÃO</span>
-            <h2>Unidades</h2>
-            <p>Visualize empresas, refeitórios e a estrutura temporária usada na demonstração.</p>
-            <button className="secondary" onClick={() => go('unidades')}>Ver unidades</button>
-          </article>
-        </section>
-
-        <section className="card readiness-card">
-          <div>
-            <span className="eyebrow">STATUS DA DEMO</span>
-            <h2>Fluxos disponíveis para apresentação</h2>
-            <p>Os módulos abaixo já podem ser demonstrados mesmo sem a base oficial da Apetit.</p>
-          </div>
-          <div className="readiness-list">
-            {[
-              ['App do colaborador', 'Login, cardápio, prato, feedback e progresso'],
-              ['Cardápios', 'Importação, prévia e publicação'],
-              ['Fichas técnicas', 'Cadastro e importação em lote'],
-              ['Feedbacks', 'Resumo agregado com proteção de privacidade'],
-              ['Unidades', 'Base fictícia controlada para demonstração'],
-            ].map(([title, desc]) => <div className="readiness-row" key={title}><span className="readiness-check">✓</span><div><strong>{title}</strong><small>{desc}</small></div></div>)}
-          </div>
+          <article className="card overview-card"><div className="overview-icon">▣</div><span className="eyebrow">ÚLTIMA PUBLICAÇÃO</span><h2>{data?.latest_menu?.unit_name ?? 'Nenhuma publicação'}</h2><p>{data?.latest_menu ? `Período ${periodLabel(data.latest_menu.period_start,data.latest_menu.period_end)}` : 'Publique um cardápio para iniciar a operação.'}</p><button className="secondary" onClick={() => go('cardapios')}>Abrir cardápios</button></article>
+          <article className="card overview-card"><div className="overview-icon">♡</div><span className="eyebrow">EXPERIÊNCIA</span><h2>Feedbacks e satisfação</h2><p>Veja tendências, motivos mais citados e comentários anonimizados.</p><button className="secondary" onClick={() => go('feedbacks')}>Ver relatório</button></article>
         </section>
       </main>
     </div>
