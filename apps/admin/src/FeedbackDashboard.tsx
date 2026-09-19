@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { FeedbackSummary, getFeedbackSummary, isPresentationMode, presentationAdminKey } from './api'
 import { DEMO_UNITS } from './demoUnits'
 
@@ -30,11 +30,12 @@ export function FeedbackDashboard() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
+  const selectedUnit = useMemo(() => DEMO_UNITS.find((unit) => unit.unitId === unitId) ?? DEMO_UNITS[0], [unitId])
   const maxTag = useMemo(() => Math.max(1, ...(summary?.tags.map((tag) => tag.count) ?? [1])), [summary])
 
   async function load() {
     if (!unitId.trim() || !adminKey.trim()) {
-      setError('Informe a unidade e a chave administrativa.')
+      setError(isPresentationMode ? 'Não foi possível iniciar o relatório de demonstração.' : 'Informe a unidade e a chave administrativa.')
       return
     }
     setBusy(true)
@@ -54,6 +55,10 @@ export function FeedbackDashboard() {
     }
   }
 
+  useEffect(() => {
+    if (isPresentationMode) void load()
+  }, [])
+
   return (
     <>
       <header className="topbar">
@@ -71,14 +76,14 @@ export function FeedbackDashboard() {
           <span className="badge soft">mín. 5 respostas</span>
         </div>
         <div className="form-grid feedback-filter-grid">
-          <label><span>Unidade</span><input value={unitId} onChange={(e) => setUnitId(e.target.value)} placeholder="UUID da unidade" /></label>
-          <label><span>Refeitório</span><input value={restaurantId} onChange={(e) => setRestaurantId(e.target.value)} placeholder="Opcional" /></label>
+          <label><span>Unidade</span><select value={unitId} onChange={(e) => { const next = DEMO_UNITS.find((unit) => unit.unitId === e.target.value) ?? DEMO_UNITS[0]; setUnitId(next.unitId); setRestaurantId(next.restaurantId); setSummary(null) }}>{DEMO_UNITS.map((unit) => <option key={unit.unitId} value={unit.unitId}>{unit.company} · {unit.unitName.replace(' — Demonstração','')}</option>)}</select></label>
+          <label><span>Refeitório</span><input value={selectedUnit.restaurantName} readOnly /></label>
           <label><span>De</span><input type="date" value={start} onChange={(e) => setStart(e.target.value)} /></label>
           <label><span>Até</span><input type="date" value={end} onChange={(e) => setEnd(e.target.value)} /></label>
           {isPresentationMode ? <div className="full presentation-access"><strong>Modo apresentação</strong><span>Acesso administrativo liberado automaticamente neste ambiente.</span></div> : <label className="full"><span>Chave administrativa</span><input type="password" value={adminKey} onChange={(e) => setAdminKey(e.target.value)} placeholder="Chave de acesso da operação" /></label>}
         </div>
         {error && <div className="alert error">{error}</div>}
-        <div className="action-row"><span className="helper">Nenhum identificador de funcionário é retornado neste relatório.</span><button className="primary" disabled={busy} onClick={load}>{busy ? 'Carregando...' : 'Atualizar relatório'}</button></div>
+        <div className="action-row"><span className="helper">{isPresentationMode ? 'Dados fictícios para demonstração · nenhum funcionário real é usado.' : 'Nenhum identificador de funcionário é retornado neste relatório.'}</span><button className="primary" disabled={busy} onClick={load}>{busy ? 'Carregando...' : 'Atualizar relatório'}</button></div>
       </section>
 
       {summary?.suppressed && (
