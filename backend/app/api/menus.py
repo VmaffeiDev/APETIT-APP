@@ -249,7 +249,7 @@ def admin_publication_history(
                    period_start, period_end, item_count, replaced_dates, published_at,
                    restored_from
             FROM menu_imports
-            WHERE unit_id = :unit_id AND status = 'published'
+            WHERE unit_id = :unit_id AND status IN ('published', 'archived')
             ORDER BY published_at DESC NULLS LAST, created_at DESC, id DESC
             LIMIT :limit
         """), {"unit_id": unit_id, "limit": limit}).mappings().all()
