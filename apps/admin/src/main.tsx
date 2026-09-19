@@ -59,6 +59,7 @@ function Root() {
 
   if (!authChecked) return <main className="admin-login"><section className="login-card"><h1>Validando acesso...</h1></section></main>
   if (hash === 'configurar-admin' && isPresentationMode) return <AdminSetupPage />
+  if (hash === 'usuarios' && !getAdminToken()) return <AdminLoginPage onSuccess={()=>setAuthRevision(v=>v+1)} />
   if (!isPresentationMode && !getAdminToken()) return <AdminLoginPage onSuccess={()=>setAuthRevision(v=>v+1)} />
   if (hash === 'usuarios') return <AdminUsersPage />
   if (hash === 'visao-geral') return <OverviewPage />
