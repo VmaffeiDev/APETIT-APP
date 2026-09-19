@@ -93,7 +93,7 @@ export function OverviewPage() {
           <div className="nav-label">Experiência</div>
           <button className="nav-item" onClick={() => go('feedbacks')}><span>♡</span>Feedbacks</button>
           <div className="nav-label">Gestão</div>
-          <button className="nav-item" onClick={() => go('unidades')}><span>□</span>Unidades</button>
+          <button className="nav-item" onClick={() => go('unidades')}><span>□</span>Unidades</button>\n          <button className="nav-item" onClick={() => go('usuarios')}><span>♙</span>Usuários e acessos</button>
         </nav>
         <div className="privacy-note"><strong>Privacidade por padrão</strong><p>Prescrições, restrições e histórico alimentar individual não aparecem neste painel.</p></div>
       </aside>
