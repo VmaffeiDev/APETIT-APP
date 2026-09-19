@@ -159,13 +159,13 @@ export function OverviewPage() {
             {(data?.unit_comparison ?? []).map((unit) => {
               const satisfactionWarning = unit.satisfaction != null && unit.satisfaction < 4
               const coverageWarning = unit.technical_coverage_percent < 80
-              return <div className="comparison-row" key={unit.unit_id}>
+              return <button className="comparison-row comparison-link" key={unit.unit_id} onClick={() => go(`unidade/${unit.unit_id}`)}>
                 <div><strong>{unit.company_name}</strong><small>{unit.unit_name.replace(' — Demonstração','')}</small></div>
                 <span className={satisfactionWarning ? 'metric-warning' : 'metric-good'}>{unit.satisfaction == null ? '—' : unit.satisfaction.toFixed(1)}</span>
                 <span>{unit.feedback_responses}</span>
                 <span>{unit.published_menus}</span>
                 <span className={coverageWarning ? 'metric-warning' : 'metric-good'}>{unit.technical_coverage_percent}%</span>
-              </div>
+              </button>
             })}
           </div>
           <div className="comparison-actions">
