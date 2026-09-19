@@ -222,3 +222,14 @@ export async function createAdminUser(payload:{name:string;email:string;password
 export async function bootstrapDemoAdmin(payload:{name:string;email:string;password:string}):Promise<{token:string;expires_at:string;user:AdminUser}>{
  return read(await fetch(`${API_URL}/api/admin/auth/bootstrap-demo`,{method:'POST',headers:{'Content-Type':'application/json','X-Apetit-Admin-Key':'presentation'},body:JSON.stringify({...payload,role:'admin',unit_ids:[]})}),'Não foi possível criar o primeiro administrador.')
 }
+
+export async function setAdminUserActive(userId:string,active:boolean):Promise<AdminUser>{
+ return read(await fetch(`${API_URL}/api/admin/users/${encodeURIComponent(userId)}/status`,{method:'PATCH',headers:adminHeaders(presentationAdminKey,{'Content-Type':'application/json'}),body:JSON.stringify({active})}),'Não foi possível alterar o acesso.')
+}
+export async function resetAdminUserPassword(userId:string,password:string):Promise<void>{
+ await read(await fetch(`${API_URL}/api/admin/users/${encodeURIComponent(userId)}/reset-password`,{method:'POST',headers:adminHeaders(presentationAdminKey,{'Content-Type':'application/json'}),body:JSON.stringify({password})}),'Não foi possível redefinir a senha.')
+}
+export type AdminAuditEvent={id:string;action:string;resource_type:string;resource_id:string|null;metadata:Record<string,unknown>;created_at:string;actor_name:string|null;actor_email:string|null}
+export async function getAdminAudit():Promise<{events:AdminAuditEvent[]}>{
+ return read(await fetch(`${API_URL}/api/admin/audit`,{headers:adminHeaders(presentationAdminKey)}),'Não foi possível consultar auditoria.')
+}
