@@ -30,6 +30,56 @@ export function OverviewPage() {
 
   const coverage = data?.technical_coverage_percent ?? 0
   const satisfaction = data?.satisfaction_overall
+  const alerts = (data?.unit_comparison ?? []).flatMap((unit) => {
+    const items: Array<{level:'high'|'medium'|'info'; title:string; detail:string; action:string; hash:string}> = []
+    if (unit.technical_coverage_percent < 80) {
+      items.push({
+        level: unit.technical_coverage_percent < 50 ? 'high' : 'medium',
+        title: `${unit.company_name} · cobertura técnica baixa`,
+        detail: `${unit.technical_coverage_percent}% dos itens possuem ficha técnica associada.`,
+        action: 'Revisar fichas',
+        hash: 'fichas-tecnicas',
+      })
+    }
+    if (unit.satisfaction != null && unit.satisfaction < 4) {
+      items.push({
+        level: 'high',
+        title: `${unit.company_name} · satisfação requer atenção`,
+        detail: `Média ${unit.satisfaction.toFixed(1)} nos últimos 5 dias.`,
+        action: 'Ver feedbacks',
+        hash: 'feedbacks',
+      })
+    }
+    if (unit.feedback_responses < 5) {
+      items.push({
+        level: 'medium',
+        title: `${unit.company_name} · baixo volume de feedback`,
+        detail: `Apenas ${unit.feedback_responses} respostas no período.`,
+        action: 'Abrir satisfação',
+        hash: 'feedbacks',
+      })
+    }
+    if (unit.published_menus === 0) {
+      items.push({
+        level: 'high',
+        title: `${unit.company_name} · sem cardápio publicado`,
+        detail: 'Nenhum cardápio publicado para esta unidade.',
+        action: 'Publicar cardápio',
+        hash: 'cardapios',
+      })
+    }
+    return items
+  })
+
+  if (data && data.technical_sheets > data.complete_sheets) {
+    alerts.push({
+      level: 'medium',
+      title: 'Fichas técnicas incompletas',
+      detail: `${data.technical_sheets - data.complete_sheets} ficha(s) ainda têm macros incompletos.`,
+      action: 'Revisar biblioteca',
+      hash: 'fichas-tecnicas',
+    })
+  }
 
   return (
     <div className="app-shell">
@@ -123,6 +173,37 @@ export function OverviewPage() {
             <button className="secondary" onClick={() => go('fichas-tecnicas')}>Revisar cobertura técnica</button>
             <button className="primary" onClick={() => go('cardapios')}>Gerenciar cardápios</button>
           </div>
+        </section>
+
+        <section className="card alerts-card">
+          <div className="section-heading">
+            <div>
+              <span className="eyebrow">CENTRAL DE ALERTAS</span>
+              <h2>O que precisa de atenção agora</h2>
+              <p>Alertas automáticos gerados a partir dos indicadores agregados da operação.</p>
+            </div>
+            <span className={alerts.length ? "badge" : "badge soft"}>{alerts.length ? `${alerts.length} alerta(s)` : 'Tudo em ordem'}</span>
+          </div>
+
+          {alerts.length ? (
+            <div className="alerts-list">
+              {alerts.map((alert,index) => (
+                <article className={`alert-item ${alert.level}`} key={`${alert.title}-${index}`}>
+                  <span className="alert-signal">{alert.level === 'high' ? '!' : alert.level === 'medium' ? '•' : 'i'}</span>
+                  <div className="alert-copy">
+                    <strong>{alert.title}</strong>
+                    <p>{alert.detail}</p>
+                  </div>
+                  <button className="secondary" onClick={() => go(alert.hash)}>{alert.action}</button>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="alerts-empty">
+              <span>✓</span>
+              <div><strong>Nenhum alerta operacional no momento</strong><p>Os indicadores da demonstração estão dentro dos parâmetros configurados.</p></div>
+            </div>
+          )}
         </section>
 
         <section className="card operations-card">
