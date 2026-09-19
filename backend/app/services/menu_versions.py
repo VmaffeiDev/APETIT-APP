@@ -53,6 +53,28 @@ def archive_snapshot(conn, import_id: UUID, days: list[dict]) -> None:
     """), {"id": import_id, "snapshot": json.dumps({"days": days}, ensure_ascii=False)})
 
 
+
+def backup_current_days(conn, *, unit_id: UUID, meal_type: str,
+                        dates: list[date]) -> str | None:
+    days = snapshot_days(conn, unit_id=unit_id, meal_type=meal_type, dates=dates)
+    if not days:
+        return None
+    backup_id = uuid4()
+    conn.execute(text("""
+        INSERT INTO menu_imports
+          (id, unit_id, file_name, status, period_start, period_end,
+           published_at, meal_type, replaced_dates, item_count, operation_kind)
+        VALUES (:id, :unit_id, 'Backup automático antes da substituição',
+                'archived', :start, :end, now(), :meal, :dates, :count, 'backup')
+    """), {"id": backup_id, "unit_id": unit_id,
+           "start": min(date.fromisoformat(d["date"]) for d in days),
+           "end": max(date.fromisoformat(d["date"]) for d in days),
+           "meal": meal_type,
+           "dates": [date.fromisoformat(d["date"]) for d in days],
+           "count": sum(len(d["items"]) for d in days)})
+    archive_snapshot(conn, backup_id, days)
+    return str(backup_id)
+
 def _signature(item: dict) -> str:
     return json.dumps(item, sort_keys=True, ensure_ascii=False, default=str)
 
@@ -84,7 +106,8 @@ def get_version(unit_id: UUID, version_id: UUID) -> dict:
                    vs.snapshot, vs.restorable, vs.provenance
             FROM menu_imports mi LEFT JOIN menu_version_snapshots vs
               ON vs.menu_import_id=mi.id
-            WHERE mi.id=:id AND mi.unit_id=:unit_id AND mi.status='published'
+            WHERE mi.id=:id AND mi.unit_id=:unit_id
+              AND mi.status IN ('published', 'archived')
         """), {"id": version_id, "unit_id": unit_id}).mappings().one_or_none()
         if row is None:
             raise LookupError("versão não encontrada nesta unidade")
@@ -151,6 +174,8 @@ def restore_version(*, unit_id: UUID, version_id: UUID,
                    "menu_import_id": str(r["menu_import_id"])} for r in active]
         if actual != expected_current:
             raise FileExistsError("O cardápio mudou após a prévia. Atualize a versão antes de restaurar.")
+        backup_current_days(conn, unit_id=unit_id, meal_type=meal_type,
+                            dates=[r["service_date"] for r in active])
         new_id = uuid4()
         conn.execute(text("""
             INSERT INTO menu_imports
