@@ -13,12 +13,19 @@ import { MenuHistoryPage } from './MenuHistoryPage'
 import { AdminLoginPage } from './AdminLoginPage'
 import { AdminUsersPage } from './AdminUsersPage'
 import { AdminSetupPage } from './AdminSetupPage'
-import { getAdminToken, isPresentationMode } from './api'
+import { adminMe, getAdminToken, isPresentationMode, setAdminToken } from './api'
 import './styles.css'
 
 function Root() {
   const [authRevision,setAuthRevision]=useState(0)
+  const [authChecked,setAuthChecked]=useState(isPresentationMode || !getAdminToken())
   const [hash, setHash] = useState(window.location.hash.replace('#', '') || 'visao-geral')
+
+  useEffect(() => {
+    if (!isPresentationMode && getAdminToken()) {
+      adminMe().then(()=>setAuthChecked(true)).catch(()=>{setAdminToken('');setAuthChecked(true);setAuthRevision(v=>v+1)})
+    }
+  }, [authRevision])
 
   useEffect(() => {
     const onHash = () => setHash(window.location.hash.replace('#', '') || 'visao-geral')
@@ -50,6 +57,7 @@ function Root() {
     }
   }, [])
 
+  if (!authChecked) return <main className="admin-login"><section className="login-card"><h1>Validando acesso...</h1></section></main>
   if (hash === 'configurar-admin' && isPresentationMode) return <AdminSetupPage />
   if (!isPresentationMode && !getAdminToken()) return <AdminLoginPage onSuccess={()=>setAuthRevision(v=>v+1)} />
   if (hash === 'usuarios') return <AdminUsersPage />
