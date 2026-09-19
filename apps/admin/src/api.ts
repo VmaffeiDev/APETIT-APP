@@ -159,13 +159,40 @@ export async function getPublicationStatus(params:{unitId:string;mealType:string
 
 export type MenuHistoryEvent={
  id:string;file_name:string;meal_type:string|null;operator_label:string|null;operator_verified:boolean;
- operation_kind:'publication'|'correction'|'legacy_publication';
+ operation_kind:'publication'|'correction'|'legacy_publication'|'restore';
  period_start:string|null;period_end:string|null;item_count:number|null;
- replaced_dates:string[];published_at:string|null
+ replaced_dates:string[];published_at:string|null;restored_from:string|null
 }
 export async function getMenuHistory(params:{unitId:string;adminKey:string}):Promise<{unit_id:string;events:MenuHistoryEvent[]}>{
  const query=new URLSearchParams({unit_id:params.unitId})
  return read(await fetch(`${API_URL}/api/admin/menus/publication-history?${query}`,{
  headers:{'X-Apetit-Admin-Key':params.adminKey}
  }),'Não foi possível carregar o histórico de publicações.')
+}
+
+export type VersionDish={name:string;category:string;standard_portion:string|null;technical_sheet_code:string|null;
+ kcal:string|null;protein_g:string|null;carbs_g:string|null;fat_g:string|null;
+ allergens:Array<{allergen:string;status:string}>}
+export type MenuVersion={
+ id:string;unit_id:string;meal_type:string|null;file_name:string;
+ published_at:string|null;operation_kind:string|null;operator_label:string|null;
+ restorable:boolean;provenance:string|null;
+ expected_current:Array<{date:string;menu_import_id:string}>;
+ days:Array<{date:string;meal_type:string;items:VersionDish[]}>;
+ comparison:Array<{date:string;current_published:boolean;same:boolean;
+ only_in_version:VersionDish[];only_in_current:VersionDish[]}>
+}
+export async function getMenuVersion(params:{unitId:string;versionId:string;adminKey:string}):Promise<MenuVersion>{
+ const query=new URLSearchParams({unit_id:params.unitId})
+ return read(await fetch(`${API_URL}/api/admin/menus/versions/${encodeURIComponent(params.versionId)}?${query}`,{
+ headers:{'X-Apetit-Admin-Key':params.adminKey}
+ }),'Não foi possível abrir esta versão.')
+}
+export async function restoreMenuVersion(params:{unitId:string;version:MenuVersion;operatorLabel:string;adminKey:string}):Promise<{status:string;menu_import_id:string;days:number}>{
+ return read(await fetch(`${API_URL}/api/admin/menus/versions/${encodeURIComponent(params.version.id)}/restore`,{
+ method:'POST',
+ headers:{'Content-Type':'application/json','X-Apetit-Admin-Key':params.adminKey},
+ body:JSON.stringify({unit_id:params.unitId,operator_label:params.operatorLabel,confirm_restore:true,
+ expected_current:params.version.expected_current})
+ }),'Não foi possível restaurar o cardápio.')
 }
