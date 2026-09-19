@@ -26,6 +26,7 @@ export type MenuPreview = {
   technical_sheet_coverage?: Record<TechnicalSheetStatus, number>
   requires_period_confirmation: boolean
 }
+export type PublicationStatus = {unit_id:string;meal_type:string;start:string;end:string;published_days:Array<{date:string;file_name:string;published_at:string|null}>}
 export type PublishResult = { status: 'published'; menu_import_id: string; period_start: string; period_end: string; item_count: number; enriched_items?: number }
 export type FeedbackSummary = { unit_id: string; restaurant_id: string | null; period_start: string; period_end: string; responses: number; minimum_group: number; suppressed: boolean; message: string | null; ratings: null | { overall: number; food: number; service: number }; tags: Array<{ tag: string; count: number }>; trend: Array<{ date: string; responses: number; rating: number }>; comments: Array<{ date: string; comment: string }> }
 export type AdminOverview = { units:number; restaurants:number; published_menus:number; technical_sheets:number; complete_sheets:number; menu_items:number; enriched_menu_items:number; technical_coverage_percent:number; feedback_period_start:string; feedback_period_end:string; feedback_responses:number; satisfaction_overall:number|null; top_feedback_tag:null|{tag:string;count:number}; unit_comparison:Array<{unit_id:string;unit_name:string;company_name:string;published_menus:number;menu_days:number;menu_items:number;enriched_items:number;technical_coverage_percent:number;feedback_responses:number;satisfaction:number|null}>; latest_menu:null|{unit_name:string;period_start:string|null;period_end:string|null;published_at:string|null} }
@@ -83,8 +84,8 @@ export async function previewMenu(params: { unitId: string; mealType: string; ad
   return read(await fetch(`${API_URL}/api/admin/menu-imports/preview`, { method: 'POST', headers: { 'X-Apetit-Admin-Key': params.adminKey }, body }), 'Não foi possível validar o cardápio.')
 }
 
-export async function publishMenu(params: { previewId: string; month: number; year: number; adminKey: string }): Promise<PublishResult> {
-  return read(await fetch(`${API_URL}/api/admin/menu-imports/${params.previewId}/publish`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Apetit-Admin-Key': params.adminKey }, body: JSON.stringify({ month: params.month, year: params.year, confirm_period: true }) }), 'Não foi possível publicar o cardápio.')
+export async function publishMenu(params: { previewId: string; month: number; year: number; adminKey: string; replaceExisting?:boolean }): Promise<PublishResult> {
+  return read(await fetch(`${API_URL}/api/admin/menu-imports/${params.previewId}/publish`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Apetit-Admin-Key': params.adminKey }, body: JSON.stringify({ month: params.month, year: params.year, confirm_period: true, replace_existing: params.replaceExisting ?? false }) }), 'Não foi possível publicar o cardápio.')
 }
 
 export async function getFeedbackSummary(params: { unitId: string; restaurantId?: string; start: string; end: string; adminKey: string }): Promise<FeedbackSummary> {
@@ -149,4 +150,9 @@ export async function getWeeklyMenu(params:{unitId:string;weekStart:string;mealT
   return read(await fetch(`${API_URL}/api/admin/menus/week?${query}`,{
     headers:{'X-Apetit-Admin-Key':params.adminKey}
   }),'Não foi possível consultar o cardápio semanal.')
+}
+
+export async function getPublicationStatus(params:{unitId:string;mealType:string;start:string;end:string;adminKey:string}):Promise<PublicationStatus>{
+ const query=new URLSearchParams({unit_id:params.unitId,meal_type:params.mealType,start:params.start,end:params.end})
+ return read(await fetch(`${API_URL}/api/admin/menus/publication-status?${query}`,{headers:{'X-Apetit-Admin-Key':params.adminKey}}),'Não foi possível verificar publicações.')
 }
