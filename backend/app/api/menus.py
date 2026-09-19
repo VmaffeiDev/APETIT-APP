@@ -121,9 +121,9 @@ def admin_menu_week(
     unit_id: UUID,
     week_start: date,
     meal_type: str = "almoco",
-    x_apetit_admin_key: str | None = Header(default=None),
+    principal: AdminPrincipal = Depends(require_admin),
 ) -> dict:
-    require_admin_key(x_apetit_admin_key)
+    require_permission(principal, "read")
     if week_start.weekday() != 0:
         raise HTTPException(status_code=422, detail="week_start deve ser uma segunda-feira")
     if meal_type not in {"almoco", "jantar", "cafe"}:
@@ -208,9 +208,9 @@ def admin_publication_status(
     start: date,
     end: date,
     meal_type: str = "almoco",
-    x_apetit_admin_key: str | None = Header(default=None),
+    principal: AdminPrincipal = Depends(require_admin),
 ) -> dict:
-    require_admin_key(x_apetit_admin_key)
+    require_permission(principal, "read")
     if end < start or (end - start).days > 31:
         raise HTTPException(status_code=422, detail="informe um período válido de até 32 dias")
     if meal_type not in {"almoco", "jantar", "cafe"}:
@@ -238,10 +238,10 @@ def admin_publication_status(
 @router.get("/api/admin/menus/publication-history", tags=["admin-menu"])
 def admin_publication_history(
     unit_id: UUID,
-    x_apetit_admin_key: str | None = Header(default=None),
+    principal: AdminPrincipal = Depends(require_admin),
     limit: int = 50,
 ) -> dict:
-    require_admin_key(x_apetit_admin_key)
+    require_permission(principal, "read")
     if not 1 <= limit <= 100:
         raise HTTPException(status_code=422, detail="limite inválido")
     with engine.connect() as conn:
@@ -284,9 +284,9 @@ class RestoreVersionRequest(BaseModel):
 def admin_menu_version(
     version_id: UUID,
     unit_id: UUID,
-    x_apetit_admin_key: str | None = Header(default=None),
+    principal: AdminPrincipal = Depends(require_admin),
 ) -> dict:
-    require_admin_key(x_apetit_admin_key)
+    require_permission(principal, "read")
     try:
         return get_version(unit_id, version_id)
     except LookupError as exc:
@@ -297,9 +297,9 @@ def admin_menu_version(
 def admin_restore_menu_version(
     version_id: UUID,
     payload: RestoreVersionRequest,
-    x_apetit_admin_key: str | None = Header(default=None),
+    principal: AdminPrincipal = Depends(require_admin),
 ) -> dict:
-    require_admin_key(x_apetit_admin_key)
+    require_permission(principal, "restore_menu")
     if not payload.confirm_restore:
         raise HTTPException(status_code=409, detail="Confirme explicitamente a restauração")
     if any(set(item) != {"date", "menu_import_id"} for item in payload.expected_current):
