@@ -110,15 +110,15 @@ function App() {
       <aside className="sidebar">
         <div className="brand"><span className="brand-mark">A</span><div><strong>APETIT</strong><small>Admin</small></div></div>
         <nav>
-          <button className="nav-item"><span>⌂</span>Visão geral</button>
+          <button className="nav-item" onClick={() => { window.location.hash = 'visao-geral' }}><span>⌂</span>Visão geral</button>
           <button className="nav-item active"><span>▣</span>Cardápios</button>
-          <button className="nav-item"><span>↥</span>Importações</button>
-          <button className="nav-item"><span>⌘</span>Fichas técnicas</button>
+          <button className="nav-item" onClick={() => { window.location.hash = 'importar-fichas' }}><span>↥</span>Importações</button>
+          <button className="nav-item" onClick={() => { window.location.hash = 'fichas-tecnicas' }}><span>⌘</span>Fichas técnicas</button>
           <div className="nav-label">Experiência</div>
-          <button className="nav-item"><span>♡</span>Feedbacks</button>
-          <button className="nav-item"><span>⌁</span>Satisfação</button>
+          <button className="nav-item" onClick={() => { window.location.hash = 'feedbacks' }}><span>♡</span>Feedbacks</button>
+          <button className="nav-item" onClick={() => { window.location.hash = 'feedbacks' }}><span>⌁</span>Satisfação</button>
           <div className="nav-label">Gestão</div>
-          <button className="nav-item"><span>□</span>Unidades</button>
+          <button className="nav-item" onClick={() => { window.location.hash = 'unidades' }}><span>□</span>Unidades</button>
           <button className="nav-item"><span>◫</span>Empresas</button>
           <button className="nav-item"><span>⚙</span>Configurações</button>
         </nav>
