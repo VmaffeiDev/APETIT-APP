@@ -12,6 +12,7 @@ import { WeeklyMenuPage } from './WeeklyMenuPage'
 import { MenuHistoryPage } from './MenuHistoryPage'
 import { AdminLoginPage } from './AdminLoginPage'
 import { AdminUsersPage } from './AdminUsersPage'
+import { AdminSetupPage } from './AdminSetupPage'
 import { getAdminToken, isPresentationMode } from './api'
 import './styles.css'
 
@@ -49,6 +50,7 @@ function Root() {
     }
   }, [])
 
+  if (hash === 'configurar-admin' && isPresentationMode) return <AdminSetupPage />
   if (!isPresentationMode && !getAdminToken()) return <AdminLoginPage onSuccess={()=>setAuthRevision(v=>v+1)} />
   if (hash === 'usuarios') return <AdminUsersPage />
   if (hash === 'visao-geral') return <OverviewPage />
