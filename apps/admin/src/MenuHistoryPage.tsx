@@ -5,7 +5,7 @@ import { DEMO_UNITS } from './demoUnits'
 const formatDate=(value:string|null)=>value?new Intl.DateTimeFormat('pt-BR',{dateStyle:'short'}).format(new Date(value+'T12:00:00')):'—'
 const formatTime=(value:string|null)=>value?new Intl.DateTimeFormat('pt-BR',{dateStyle:'short',timeStyle:'short',timeZone:'America/Sao_Paulo'}).format(new Date(value)):'Data indisponível'
 const mealLabel:Record<string,string>={almoco:'Almoço',jantar:'Jantar',cafe:'Café'}
-const title=(event:MenuHistoryEvent)=>event.operation_kind==='restore'?'Restauração de cardápio':event.operation_kind==='correction'?'Correção de cardápio':event.operation_kind==='legacy_publication'?'Publicação anterior ao histórico':'Publicação de cardápio'
+const title=(event:MenuHistoryEvent)=>event.operation_kind==='backup'?'Backup anterior à substituição':event.operation_kind==='restore'?'Restauração de cardápio':event.operation_kind==='correction'?'Correção de cardápio':event.operation_kind==='legacy_publication'?'Publicação anterior ao histórico':'Publicação de cardápio'
 
 export function MenuHistoryPage({initialUnitId}:{initialUnitId?:string}){
   const [unitId,setUnitId]=useState(DEMO_UNITS.some(u=>u.unitId===initialUnitId)?initialUnitId!:DEMO_UNITS[0].unitId)
@@ -79,6 +79,7 @@ export function MenuHistoryPage({initialUnitId}:{initialUnitId?:string}){
           <strong>{mealLabel[event.meal_type??'']??'Refeição não registrada'} · {formatDate(event.period_start)} a {formatDate(event.period_end)}</strong>
           <div className="history-details"><span>Arquivo: {event.file_name}</span><span>Itens: {event.item_count??'Não registrado'}</span><span>Operador: {event.operator_label?event.operator_label+' (nome declarado)':'Não registrado'}</span></div>
           {event.replaced_dates.length>0&&<p className="history-correction">Datas substituídas: {event.replaced_dates.map(formatDate).join(', ')}. As versões anteriores à implantação do arquivamento completo podem não ter os pratos antigos disponíveis.</p>}
+          {event.operation_kind==='backup'&&<p className="helper">Cópia automática do cardápio vigente antes de uma correção ou restauração; o operador do backup não é identificado separadamente.</p>}
           {event.restored_from&&<p className="helper">Restaurada a partir da versão {event.restored_from.slice(0,8)}.</p>}
           <button className="secondary history-version-button" onClick={()=>showVersion(event.id)} disabled={detailBusy}>Ver versão e comparar pratos</button>
           {event.operation_kind==='legacy_publication'&&<p className="helper">Registro anterior à implantação da auditoria detalhada.</p>}
