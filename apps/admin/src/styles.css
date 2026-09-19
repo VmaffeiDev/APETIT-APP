@@ -216,3 +216,23 @@ summary span { color: #8a8a91; font-size: 11px; }
   .comparison-actions { justify-content:stretch; }
   .comparison-actions button { flex:1 1 100%; }
 }
+
+.alerts-card { padding:24px; margin-bottom:16px; }
+.alerts-list { display:grid; gap:10px; }
+.alert-item { display:grid; grid-template-columns:auto 1fr auto; gap:12px; align-items:center; border:1px solid #ececef; border-radius:13px; padding:13px 14px; background:#fafafa; }
+.alert-signal { width:30px; height:30px; border-radius:50%; display:grid; place-items:center; font-weight:900; }
+.alert-copy strong { display:block; font-size:11px; }
+.alert-copy p { margin:3px 0 0; color:#7d7d85; font-size:9px; line-height:1.45; }
+.alert-item.high { border-color:#f1c4cb; background:#fff7f8; }
+.alert-item.high .alert-signal { background:#ffe0e5; color:#a61732; }
+.alert-item.medium { border-color:#ecdca4; background:#fffaf0; }
+.alert-item.medium .alert-signal { background:#fff0bd; color:#8c6800; }
+.alert-item.info .alert-signal { background:#eef3ff; color:#4665a8; }
+.alerts-empty { display:flex; align-items:center; gap:12px; border:1px solid #d8ecdf; background:#f4fbf6; border-radius:13px; padding:16px; }
+.alerts-empty > span { width:30px; height:30px; border-radius:50%; display:grid; place-items:center; background:#e3f7ea; color:#15844f; font-weight:900; }
+.alerts-empty strong { display:block; font-size:11px; }
+.alerts-empty p { margin:3px 0 0; color:#718078; font-size:9px; }
+@media (max-width:760px) {
+  .alert-item { grid-template-columns:auto 1fr; }
+  .alert-item button { grid-column:1 / -1; width:100%; }
+}
