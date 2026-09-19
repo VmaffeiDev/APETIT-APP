@@ -14,7 +14,7 @@ from app.services.menu_workflow import (
     published_menu_for_day,
     stage_menu_import,
 )
-from app.settings import settings
+from app.api.admin_auth import require_admin_key
 
 
 router = APIRouter()
@@ -26,10 +26,6 @@ class PublishMenuRequest(BaseModel):
     confirm_period: bool
 
 
-def _require_admin_key(value: str | None) -> None:
-    if not value or value != settings.api_secret:
-        raise HTTPException(status_code=401, detail="credencial administrativa inválida")
-
 
 @router.post("/api/admin/menu-imports/preview", tags=["admin-menu"])
 async def preview_menu_import(
@@ -38,7 +34,7 @@ async def preview_menu_import(
     file: UploadFile = File(...),
     x_apetit_admin_key: str | None = Header(default=None),
 ) -> dict:
-    _require_admin_key(x_apetit_admin_key)
+    require_admin_key(x_apetit_admin_key)
 
     file_name = file.filename or "cardapio"
     extension = Path(file_name).suffix.lower()
@@ -74,7 +70,7 @@ def publish_menu_import(
     payload: PublishMenuRequest,
     x_apetit_admin_key: str | None = Header(default=None),
 ) -> dict:
-    _require_admin_key(x_apetit_admin_key)
+    require_admin_key(x_apetit_admin_key)
     if not payload.confirm_period:
         raise HTTPException(
             status_code=409,
