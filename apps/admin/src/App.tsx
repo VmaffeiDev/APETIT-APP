@@ -1,5 +1,5 @@
 import { DragEvent, useMemo, useRef, useState } from 'react'
-import { MenuPreview, PublishResult, previewMenu, publishMenu } from './api'
+import { isPresentationMode, MenuPreview, presentationAdminKey, PublishResult, previewMenu, publishMenu } from './api'
 import { DEMO_UNITS } from './demoUnits'
 
 type Stage = 'upload' | 'preview' | 'published'
@@ -29,7 +29,7 @@ function App() {
   const [file, setFile] = useState<File | null>(null)
   const [unitId, setUnitId] = useState(DEMO_UNITS[0].unitId)
   const [mealType, setMealType] = useState('almoco')
-  const [adminKey, setAdminKey] = useState('')
+  const [adminKey, setAdminKey] = useState(presentationAdminKey)
   const [preview, setPreview] = useState<MenuPreview | null>(null)
   const [month, setMonth] = useState<number>(8)
   const [year, setYear] = useState<number>(new Date().getFullYear())
@@ -141,7 +141,7 @@ function App() {
               <label><span>Unidade</span><select value={unitId} onChange={(e) => setUnitId(e.target.value)}>{DEMO_UNITS.map((unit) => <option key={unit.unitId} value={unit.unitId}>{unit.company} · {unit.unitName.replace(' — Demonstração', '')}</option>)}</select><small>Base fictícia temporária para apresentação.</small></label>
               <label><span>Refeição</span><select value={mealType} onChange={(e) => setMealType(e.target.value)}><option value="almoco">Almoço</option><option value="jantar">Jantar</option><option value="cafe">Café</option></select></label>
               <label className="full"><span>Refeitório da unidade</span><input value={selectedUnit.restaurantName} readOnly /></label>
-              <label className="full"><span>Chave administrativa</span><input type="password" value={adminKey} onChange={(e) => setAdminKey(e.target.value)} placeholder="Chave de acesso da operação" /></label>
+              {isPresentationMode ? <div className="full presentation-access"><strong>Modo apresentação</strong><span>Acesso administrativo liberado automaticamente neste ambiente.</span></div> : <label className="full"><span>Chave administrativa</span><input type="password" value={adminKey} onChange={(e) => setAdminKey(e.target.value)} placeholder="Chave de acesso da operação" /></label>}
             </div>
             <div className={`dropzone ${dragging ? 'dragging' : ''} ${file ? 'has-file' : ''}`} onDragOver={(e) => {e.preventDefault(); setDragging(true)}} onDragLeave={() => setDragging(false)} onDrop={onDrop} onClick={() => fileInput.current?.click()}>
               <input ref={fileInput} hidden type="file" accept=".xlsx,.csv" onChange={(e) => chooseFile(e.target.files?.[0] ?? null)} />
