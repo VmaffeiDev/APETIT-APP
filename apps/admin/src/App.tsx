@@ -112,6 +112,7 @@ function App() {
         <nav>
           <button className="nav-item" onClick={() => { window.location.hash = 'visao-geral' }}><span>⌂</span>Visão geral</button>
           <button className="nav-item active"><span>▣</span>Cardápios</button>
+          <button className="nav-item" onClick={() => { window.location.hash = `calendario-cardapios/${unitId}` }}>▦ Calendário semanal</button>
           <button className="nav-item" onClick={() => { window.location.hash = 'importar-fichas' }}><span>↥</span>Importações</button>
           <button className="nav-item" onClick={() => { window.location.hash = 'fichas-tecnicas' }}><span>⌘</span>Fichas técnicas</button>
           <div className="nav-label">Experiência</div>
@@ -128,6 +129,7 @@ function App() {
       <main className="main">
         <header className="topbar"><div><span className="eyebrow">OPERAÇÃO · CARDÁPIOS</span><h1>Publicar cardápio semanal</h1><p>Valide a planilha antes de disponibilizar o cardápio para os funcionários.</p></div><div className="status-pill"><span className="status-dot" />API conectada</div></header>
 
+        <div className="weekly-entry"><button className="secondary" onClick={() => { window.location.hash = `calendario-cardapios/${unitId}` }}>Ver cardápio semanal publicado →</button></div>
         <div className="stepper">
           <div className={`step ${stage !== 'upload' ? 'done' : 'current'}`}><span>1</span><div><strong>Enviar arquivo</strong><small>XLSX ou CSV</small></div></div>
           <div className={`step ${stage === 'preview' ? 'current' : stage === 'published' ? 'done' : ''}`}><span>2</span><div><strong>Conferir</strong><small>Itens e período</small></div></div>
