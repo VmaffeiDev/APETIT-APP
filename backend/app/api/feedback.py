@@ -10,7 +10,7 @@ from sqlalchemy import text
 from app.api.auth import current_person
 from app.db import engine
 from app.services.feedback_reporting import feedback_summary
-from app.settings import settings
+from app.api.admin_auth import require_admin_key
 
 router = APIRouter()
 
@@ -25,10 +25,6 @@ class FeedbackCreate(BaseModel):
     tags: list[str] = Field(default_factory=list, max_length=8)
     comment: str | None = Field(default=None, max_length=1000)
 
-
-def _require_admin_key(value: str | None) -> None:
-    if not value or value != settings.api_secret:
-        raise HTTPException(status_code=401, detail="credencial administrativa inválida")
 
 
 @router.post("/api/feedback", tags=["feedback"])
@@ -123,7 +119,7 @@ def admin_feedback_summary(
     restaurant_id: UUID | None = None,
     x_apetit_admin_key: str | None = Header(default=None),
 ) -> dict:
-    _require_admin_key(x_apetit_admin_key)
+    require_admin_key(x_apetit_admin_key)
     try:
         return feedback_summary(
             unit_id=str(unit_id),
