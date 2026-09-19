@@ -41,6 +41,7 @@ function App() {
   const [statusError,setStatusError]=useState('')
   const [statusBusy,setStatusBusy]=useState(false)
   const [replaceExisting,setReplaceExisting]=useState(false)
+  const [statusRevision,setStatusRevision]=useState(0)
 
   const selectedUnit = DEMO_UNITS.find((unit) => unit.unitId === unitId) ?? DEMO_UNITS[0]
 
@@ -55,7 +56,7 @@ function App() {
       .catch(e=>{if(!cancelled)setStatusError(e instanceof Error?e.message:'Não foi possível verificar publicações.')})
       .finally(()=>{if(!cancelled)setStatusBusy(false)})
     return()=>{cancelled=true}
-  },[unitId,mealType,month,year,adminKey])
+  },[unitId,mealType,month,year,adminKey,statusRevision])
 
   const overlappingDates = useMemo(()=>{
     if(!preview||!publicationStatus)return []
@@ -126,6 +127,7 @@ function App() {
       const result = await publishMenu({ previewId: preview.preview_id, month, year, adminKey: adminKey.trim(),replaceExisting })
       setPublishResult(result)
       setStage('published')
+      setStatusRevision(value=>value+1)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Falha ao publicar o cardápio.')
     } finally {
@@ -214,7 +216,7 @@ function App() {
             </section>
             {error && <div className="alert error">{error}</div>}
             {overlappingDates.length>0 && <label className="replacement-confirm"><input type="checkbox" checked={replaceExisting} onChange={e=>setReplaceExisting(e.target.checked)}/><span>Estou corrigindo uma publicação existente e autorizo substituir os cardápios das datas indicadas.</span></label>}
-            <div className="sticky-actions"><button className="secondary" onClick={() => setStage('upload')}>Voltar e trocar arquivo</button><div><small>Ao publicar, um cardápio existente no mesmo período será substituído.</small><button className="primary" disabled={busy||statusBusy||(overlappingDates.length>0&&!replaceExisting)} onClick={handlePublish}>{busy ? 'Publicando...' : 'Confirmar e publicar'}</button></div></div>
+            <div className="sticky-actions"><button className="secondary" onClick={() => setStage('upload')}>Voltar e trocar arquivo</button><div><small>Uma publicação já existente só será substituída mediante confirmação explícita.</small><button className="primary" disabled={busy||statusBusy||(overlappingDates.length>0&&!replaceExisting)} onClick={handlePublish}>{busy ? 'Publicando...' : 'Confirmar e publicar'}</button></div></div>
           </>
         )}
 
