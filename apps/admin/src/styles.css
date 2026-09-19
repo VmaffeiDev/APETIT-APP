@@ -370,3 +370,17 @@ summary span { color: #8a8a91; font-size: 11px; }
 .history-details{display:flex;gap:6px 22px;flex-wrap:wrap;margin-top:10px;color:#707077;font-size:11px}
 .history-correction{font-size:11px;color:#8b620c;background:#fff7e6;border-radius:9px;padding:10px;line-height:1.5;margin:12px 0 0}
 @media(max-width:760px){.history-controls{align-items:stretch;flex-direction:column}.history-controls label{width:100%;flex:auto}.history-heading{align-items:flex-start;flex-direction:column}.history-details{flex-direction:column}}
+
+.history-version-button{margin-top:14px}
+.version-panel{margin-top:16px}
+.version-days{display:grid;gap:12px;margin:16px 0}
+.version-day{padding:14px;border:1px solid #e5e5e8;border-radius:12px;background:#fcfcfd}
+.version-day .history-heading strong{font-size:12px}
+.version-dishes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.version-dishes>div{padding:9px 10px;background:white;border:1px solid #ededf0;border-radius:9px}
+.version-dishes strong,.version-dishes small{display:block;overflow-wrap:anywhere}
+.version-dishes strong{font-size:11px}.version-dishes small{color:#85858c;font-size:9px;margin-top:4px}
+.version-diff{background:#fff7eb;border:1px solid #f1dbb2;border-radius:10px;padding:11px;margin-top:10px}
+.version-diff p{font-size:11px;line-height:1.5;margin:4px 0;overflow-wrap:anywhere}
+.version-diff small{display:block;margin-top:7px;color:#806d4e;font-size:9px;line-height:1.5}
+@media(max-width:760px){.version-dishes{grid-template-columns:1fr}}
