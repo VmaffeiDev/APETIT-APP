@@ -3,6 +3,7 @@ import { FeedbackSummary, getFeedbackSummary, isPresentationMode, presentationAd
 import { DEMO_UNITS } from './demoUnits'
 
 const TAG_LABELS: Record<string, string> = {
+  sabor: 'Sabor',
   comida_fria: 'Comida fria',
   acabou_antes: 'Acabou antes de eu chegar',
   poucas_opcoes: 'Poucas opções',
