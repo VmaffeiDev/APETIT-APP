@@ -174,7 +174,7 @@ def _technical_sheet_snapshot(conn, code: str | None) -> tuple[dict | None, list
     return dict(sheet), [dict(item) for item in allergens]
 
 
-def publish_staged_menu(*, preview_id: str, month: int, year: int, replace_existing: bool = False) -> dict:
+def publish_staged_menu(*, preview_id: str, month: int, year: int, replace_existing: bool = False, operator_label: str = '') -> dict:
     staged = get_staged(preview_id)
     if staged is None:
         raise LookupError("preview não encontrado ou expirado")
@@ -182,6 +182,9 @@ def publish_staged_menu(*, preview_id: str, month: int, year: int, replace_exist
         raise ValueError("mês inválido")
     if not 2020 <= year <= 2100:
         raise ValueError("ano inválido")
+    operator_label = operator_label.strip()
+    if not 2 <= len(operator_label) <= 100:
+        raise ValueError("informe o nome do operador (2 a 100 caracteres)")
     dates = sorted({date(year, month, item.day) for item in staged.items})
     if not dates:
         raise ValueError("não há dias válidos para publicar")
@@ -213,9 +216,11 @@ def publish_staged_menu(*, preview_id: str, month: int, year: int, replace_exist
             text(
                 """
                 INSERT INTO menu_imports
-                    (id, unit_id, file_name, status, period_start, period_end, published_at)
+                    (id, unit_id, file_name, status, period_start, period_end, published_at,
+                     meal_type, operator_label, replaced_dates, item_count, operation_kind)
                 VALUES
-                    (:id, :unit_id, :file_name, 'published', :period_start, :period_end, now())
+                    (:id, :unit_id, :file_name, 'published', :period_start, :period_end, now(),
+                     :meal_type, :operator_label, :replaced_dates, :item_count, :operation_kind)
                 """
             ),
             {
@@ -224,6 +229,11 @@ def publish_staged_menu(*, preview_id: str, month: int, year: int, replace_exist
                 "file_name": staged.file_name,
                 "period_start": dates[0],
                 "period_end": dates[-1],
+                "meal_type": staged.meal_type,
+                "operator_label": operator_label,
+                "replaced_dates": overlaps,
+                "item_count": len(staged.items),
+                "operation_kind": "correction" if overlaps else "publication",
             },
         )
 
@@ -306,6 +316,9 @@ def publish_staged_menu(*, preview_id: str, month: int, year: int, replace_exist
         "period_end": dates[-1].isoformat(),
         "item_count": len(staged.items),
         "enriched_items": enriched_items,
+        "operation_kind": "correction" if overlaps else "publication",
+        "operator_label": operator_label,
+        "replaced_dates": [day.isoformat() for day in overlaps],
     }
 
 
