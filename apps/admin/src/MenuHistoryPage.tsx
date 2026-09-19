@@ -77,7 +77,7 @@ export function MenuHistoryPage({initialUnitId}:{initialUnitId?:string}){
         <div className="history-list">{events.map(event=><article className="history-event" key={event.id}>
           <div className="history-heading"><span className={event.operation_kind==='correction'?'badge':'badge soft'}>{title(event)}</span><time>{formatTime(event.published_at)}</time></div>
           <strong>{mealLabel[event.meal_type??'']??'Refeição não registrada'} · {formatDate(event.period_start)} a {formatDate(event.period_end)}</strong>
-          <div className="history-details"><span>Arquivo: {event.file_name}</span><span>Itens: {event.item_count??'Não registrado'}</span><span>Operador: {event.operator_label?event.operator_label+' (nome declarado)':'Não registrado'}</span></div>
+          <div className="history-details"><span>Arquivo: {event.file_name}</span><span>Itens: {event.item_count??'Não registrado'}</span><span>Operador: {event.operator_label?event.operator_label+(event.operator_verified?' (usuário verificado)':' (nome declarado)'):'Não registrado'}</span></div>
           {event.replaced_dates.length>0&&<p className="history-correction">Datas substituídas: {event.replaced_dates.map(formatDate).join(', ')}. As versões anteriores à implantação do arquivamento completo podem não ter os pratos antigos disponíveis.</p>}
           {event.operation_kind==='backup'&&<p className="helper">Cópia automática do cardápio vigente antes de uma correção ou restauração; o operador do backup não é identificado separadamente.</p>}
           {event.restored_from&&<p className="helper">Restaurada a partir da versão {event.restored_from.slice(0,8)}.</p>}
