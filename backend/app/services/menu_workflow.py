@@ -175,7 +175,7 @@ def _technical_sheet_snapshot(conn, code: str | None) -> tuple[dict | None, list
     return dict(sheet), [dict(item) for item in allergens]
 
 
-def publish_staged_menu(*, preview_id: str, month: int, year: int, replace_existing: bool = False, operator_label: str = '') -> dict:
+def publish_staged_menu(*, preview_id: str, month: int, year: int, replace_existing: bool = False, operator_label: str = '', actor_user_id: UUID | None = None) -> dict:
     staged = get_staged(preview_id)
     if staged is None:
         raise LookupError("preview não encontrado ou expirado")
@@ -222,7 +222,7 @@ def publish_staged_menu(*, preview_id: str, month: int, year: int, replace_exist
                 """
                 INSERT INTO menu_imports
                     (id, unit_id, file_name, status, period_start, period_end, published_at,
-                     meal_type, operator_label, replaced_dates, item_count, operation_kind)
+                     meal_type, operator_label, replaced_dates, item_count, operation_kind, actor_user_id)
                 VALUES
                     (:id, :unit_id, :file_name, 'published', :period_start, :period_end, now(),
                      :meal_type, :operator_label, :replaced_dates, :item_count, :operation_kind)
@@ -239,6 +239,7 @@ def publish_staged_menu(*, preview_id: str, month: int, year: int, replace_exist
                 "replaced_dates": overlaps,
                 "item_count": len(staged.items),
                 "operation_kind": "correction" if overlaps else "publication",
+                "actor_user_id": actor_user_id,
             },
         )
 
