@@ -84,8 +84,8 @@ export async function previewMenu(params: { unitId: string; mealType: string; ad
   return read(await fetch(`${API_URL}/api/admin/menu-imports/preview`, { method: 'POST', headers: { 'X-Apetit-Admin-Key': params.adminKey }, body }), 'Não foi possível validar o cardápio.')
 }
 
-export async function publishMenu(params: { previewId: string; month: number; year: number; adminKey: string; replaceExisting?:boolean }): Promise<PublishResult> {
-  return read(await fetch(`${API_URL}/api/admin/menu-imports/${params.previewId}/publish`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Apetit-Admin-Key': params.adminKey }, body: JSON.stringify({ month: params.month, year: params.year, confirm_period: true, replace_existing: params.replaceExisting ?? false }) }), 'Não foi possível publicar o cardápio.')
+export async function publishMenu(params: { previewId: string; month: number; year: number; adminKey: string; replaceExisting?:boolean; operatorLabel:string }): Promise<PublishResult> {
+  return read(await fetch(`${API_URL}/api/admin/menu-imports/${params.previewId}/publish`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Apetit-Admin-Key': params.adminKey }, body: JSON.stringify({ month: params.month, year: params.year, confirm_period: true, replace_existing: params.replaceExisting ?? false, operator_label:params.operatorLabel }) }), 'Não foi possível publicar o cardápio.')
 }
 
 export async function getFeedbackSummary(params: { unitId: string; restaurantId?: string; start: string; end: string; adminKey: string }): Promise<FeedbackSummary> {
@@ -155,4 +155,17 @@ export async function getWeeklyMenu(params:{unitId:string;weekStart:string;mealT
 export async function getPublicationStatus(params:{unitId:string;mealType:string;start:string;end:string;adminKey:string}):Promise<PublicationStatus>{
  const query=new URLSearchParams({unit_id:params.unitId,meal_type:params.mealType,start:params.start,end:params.end})
  return read(await fetch(`${API_URL}/api/admin/menus/publication-status?${query}`,{headers:{'X-Apetit-Admin-Key':params.adminKey}}),'Não foi possível verificar publicações.')
+}
+
+export type MenuHistoryEvent={
+ id:string;file_name:string;meal_type:string|null;operator_label:string|null;operator_verified:boolean;
+ operation_kind:'publication'|'correction'|'legacy_publication';
+ period_start:string|null;period_end:string|null;item_count:number|null;
+ replaced_dates:string[];published_at:string|null
+}
+export async function getMenuHistory(params:{unitId:string;adminKey:string}):Promise<{unit_id:string;events:MenuHistoryEvent[]}>{
+ const query=new URLSearchParams({unit_id:params.unitId})
+ return read(await fetch(`${API_URL}/api/admin/menus/publication-history?${query}`,{
+ headers:{'X-Apetit-Admin-Key':params.adminKey}
+ }),'Não foi possível carregar o histórico de publicações.')
 }
