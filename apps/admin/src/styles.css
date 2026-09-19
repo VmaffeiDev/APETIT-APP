@@ -384,3 +384,10 @@ summary span { color: #8a8a91; font-size: 11px; }
 .version-diff p{font-size:11px;line-height:1.5;margin:4px 0;overflow-wrap:anywhere}
 .version-diff small{display:block;margin-top:7px;color:#806d4e;font-size:9px;line-height:1.5}
 @media(max-width:760px){.version-dishes{grid-template-columns:1fr}}
+
+.admin-login{min-height:100vh;display:grid;place-items:center;padding:24px;background:#f6f6f8}
+.login-card{width:min(440px,100%);background:#fff;border:1px solid #e7e7eb;border-radius:24px;padding:32px;box-shadow:0 18px 60px rgba(20,20,30,.08)}
+.login-brand{margin-bottom:34px}.login-card h1{font-size:30px;margin:8px 0}.login-card>p{color:#71717a;line-height:1.6;margin-bottom:24px}
+.login-card form{display:grid;gap:14px}.login-card label span{display:block;font-size:11px;font-weight:700;margin-bottom:7px}.login-card form .primary{margin-top:4px;width:100%}.login-help{display:block;color:#8a8a91;line-height:1.5;margin-top:16px}
+.user-list{display:grid;gap:8px}.user-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:12px;padding:13px;border:1px solid #e9e9ed;border-radius:11px}.user-row strong,.user-row small{display:block}.user-row small{color:#85858c;margin-top:3px}
+@media(max-width:700px){.login-card{padding:24px 20px}.user-row{grid-template-columns:1fr auto}.user-row>span:last-child{grid-column:1/-1;width:max-content}}
