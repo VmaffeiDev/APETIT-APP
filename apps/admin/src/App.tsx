@@ -1,5 +1,5 @@
-import { DragEvent, useMemo, useRef, useState } from 'react'
-import { isPresentationMode, MenuPreview, presentationAdminKey, PublishResult, previewMenu, publishMenu } from './api'
+import { DragEvent, useEffect, useMemo, useRef, useState } from 'react'
+import { isPresentationMode, MenuPreview, presentationAdminKey, PublicationStatus, PublishResult, getPublicationStatus, previewMenu, publishMenu } from './api'
 import { DEMO_UNITS } from './demoUnits'
 
 type Stage = 'upload' | 'preview' | 'published'
@@ -31,14 +31,48 @@ function App() {
   const [mealType, setMealType] = useState('almoco')
   const [adminKey, setAdminKey] = useState(presentationAdminKey)
   const [preview, setPreview] = useState<MenuPreview | null>(null)
-  const [month, setMonth] = useState<number>(8)
+  const [month, setMonth] = useState<number>(new Date().getMonth()+1)
   const [year, setYear] = useState<number>(new Date().getFullYear())
   const [publishResult, setPublishResult] = useState<PublishResult | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [dragging, setDragging] = useState(false)
+  const [publicationStatus,setPublicationStatus]=useState<PublicationStatus|null>(null)
+  const [statusError,setStatusError]=useState('')
+  const [statusBusy,setStatusBusy]=useState(false)
+  const [replaceExisting,setReplaceExisting]=useState(false)
 
   const selectedUnit = DEMO_UNITS.find((unit) => unit.unitId === unitId) ?? DEMO_UNITS[0]
+
+  useEffect(() => {
+    let cancelled=false
+    const start=`${year}-${String(month).padStart(2,'0')}-01`
+    const lastDay=new Date(year,month,0).getDate()
+    const end=`${year}-${String(month).padStart(2,'0')}-${String(lastDay).padStart(2,'0')}`
+    setPublicationStatus(null);setStatusError('');setStatusBusy(true);setReplaceExisting(false)
+    getPublicationStatus({unitId,mealType,start,end,adminKey})
+      .then(result=>{if(!cancelled)setPublicationStatus(result)})
+      .catch(e=>{if(!cancelled)setStatusError(e instanceof Error?e.message:'Não foi possível verificar publicações.')})
+      .finally(()=>{if(!cancelled)setStatusBusy(false)})
+    return()=>{cancelled=true}
+  },[unitId,mealType,month,year,adminKey])
+
+  const overlappingDates = useMemo(()=>{
+    if(!preview||!publicationStatus)return []
+    const published=new Set(publicationStatus.published_days.map(day=>day.date))
+    return preview.days.map(day=>`${year}-${String(month).padStart(2,'0')}-${String(day.day).padStart(2,'0')}`).filter(date=>published.has(date))
+  },[preview,publicationStatus,month,year])
+
+  const publicationNotice = <div className="publication-notice">
+    <strong>{statusBusy?'Verificando publicações...':publicationStatus?.published_days.length
+      ?`✓ ${publicationStatus.published_days.length} dia(s) já publicado(s) neste mês`
+      :'Nenhum dia publicado neste mês para esta unidade e refeição.'}</strong>
+    <p>Unidade: {DEMO_UNITS.find(unit=>unit.unitId===unitId)?.company} · {String(month).padStart(2,'0')}/{year} · {mealType}</p>
+    {publicationStatus && publicationStatus.published_days.length>0 && <div className="publication-days">
+      {publicationStatus.published_days.map(day=><span key={day.date} title={day.file_name}>{day.date.slice(8,10)}/{day.date.slice(5,7)} · Publicado</span>)}
+    </div>}
+    {statusError && <p className="publication-error">{statusError} A proteção contra duplicação continua ativa ao publicar.</p>}
+  </div>
 
   const summary = useMemo(() => {
     if (!preview) return null
@@ -73,6 +107,7 @@ function App() {
     try {
       const result = await previewMenu({ unitId: unitId.trim(), mealType, adminKey: adminKey.trim(), file })
       setPreview(result)
+      setReplaceExisting(false)
       if (result.suggested_month) setMonth(result.suggested_month)
       setStage('preview')
     } catch (err) {
@@ -84,10 +119,11 @@ function App() {
 
   async function handlePublish() {
     if (!preview) return
+    if(overlappingDates.length && !replaceExisting){setError('Este período já possui cardápio publicado. Confira as datas e confirme a substituição somente se for uma correção.');return}
     setBusy(true)
     setError('')
     try {
-      const result = await publishMenu({ previewId: preview.preview_id, month, year, adminKey: adminKey.trim() })
+      const result = await publishMenu({ previewId: preview.preview_id, month, year, adminKey: adminKey.trim(),replaceExisting })
       setPublishResult(result)
       setStage('published')
     } catch (err) {
@@ -103,6 +139,7 @@ function App() {
     setPreview(null)
     setPublishResult(null)
     setError('')
+    setReplaceExisting(false)
   }
 
   return (
@@ -145,6 +182,8 @@ function App() {
               <label className="full"><span>Refeitório da unidade</span><input value={selectedUnit.restaurantName} readOnly /></label>
               {isPresentationMode ? <div className="full presentation-access"><strong>Modo apresentação</strong><span>Acesso administrativo liberado automaticamente neste ambiente.</span></div> : <label className="full"><span>Chave administrativa</span><input type="password" value={adminKey} onChange={(e) => setAdminKey(e.target.value)} placeholder="Chave de acesso da operação" /></label>}
             </div>
+            <section className="card period-card"><div><h2>Verificar publicações existentes</h2><p>Selecione mês e ano antes de enviar outro cardápio para esta unidade.</p></div><div className="period-fields"><label><span>Mês</span><select value={month} onChange={e=>setMonth(Number(e.target.value))}>{Array.from({length:12},(_,i)=><option value={i+1} key={i+1}>{String(i+1).padStart(2,'0')}</option>)}</select></label><label><span>Ano</span><input type="number" min="2020" max="2100" value={year} onChange={e=>setYear(Number(e.target.value))}/></label></div></section>
+            {publicationNotice}
             <div className={`dropzone ${dragging ? 'dragging' : ''} ${file ? 'has-file' : ''}`} onDragOver={(e) => {e.preventDefault(); setDragging(true)}} onDragLeave={() => setDragging(false)} onDrop={onDrop} onClick={() => fileInput.current?.click()}>
               <input ref={fileInput} hidden type="file" accept=".xlsx,.csv" onChange={(e) => chooseFile(e.target.files?.[0] ?? null)} />
               <div className="upload-icon">↥</div>
@@ -164,6 +203,8 @@ function App() {
               <div className="metric"><small>Sem ficha</small><strong>{(summary?.missing ?? 0) + (summary?.no_code ?? 0)}</strong><span>sem base nutricional confiável</span></div>
             </section>
 
+            {publicationNotice}
+            {overlappingDates.length>0 && <div className="alert warning"><strong>Já publicado — possível duplicação</strong><p>Esta unidade e refeição já têm cardápio nas datas: {overlappingDates.map(date=>date.split('-').reverse().join('/')).join(', ')}.</p><p>Não publique novamente, a menos que esteja corrigindo o cardápio anterior.</p></div>}
             {preview.warnings.length > 0 && <div className="alert warning"><strong>Revise antes de publicar</strong>{preview.warnings.map((warning) => <p key={warning}>{warning}</p>)}</div>}
 
             <section className="card period-card"><div><h2>Confirme o período</h2><p>A planilha informa o dia, mas mês e ano precisam ser confirmados pela operação.</p></div><div className="period-fields"><label><span>Mês</span><select value={month} onChange={(e) => setMonth(Number(e.target.value))}>{Array.from({length: 12}, (_, i) => <option key={i+1} value={i+1}>{String(i+1).padStart(2,'0')}</option>)}</select></label><label><span>Ano</span><input type="number" min="2020" max="2100" value={year} onChange={(e) => setYear(Number(e.target.value))} /></label></div></section>
@@ -172,7 +213,8 @@ function App() {
               <div className="days-list">{preview.days.map((day) => <details key={day.day} open><summary><div><strong>Dia {day.day}</strong><span>{day.items.length} itens</span></div><span className="chevron">⌄</span></summary><div className="items-table"><div className="table-row header"><span>Categoria</span><span>Prato</span><span>Porção</span><span>Ficha técnica</span></div>{day.items.map((item, index) => <div className="table-row" key={`${day.day}-${item.name}-${index}`}><span><i className="category-dot" />{categoryLabel[item.category] ?? item.category}</span><strong>{item.name}</strong><span>{item.portion ?? '—'}</span><span className={item.technical_sheet_status === 'complete' ? '' : 'muted'}>{item.technical_sheet_code ? `${item.technical_sheet_code} · ${sheetStatusLabel[item.technical_sheet_status ?? 'missing']}` : sheetStatusLabel.no_code}</span></div>)}</div></details>)}</div>
             </section>
             {error && <div className="alert error">{error}</div>}
-            <div className="sticky-actions"><button className="secondary" onClick={() => setStage('upload')}>Voltar e trocar arquivo</button><div><small>Ao publicar, um cardápio existente no mesmo período será substituído.</small><button className="primary" disabled={busy} onClick={handlePublish}>{busy ? 'Publicando...' : 'Confirmar e publicar'}</button></div></div>
+            {overlappingDates.length>0 && <label className="replacement-confirm"><input type="checkbox" checked={replaceExisting} onChange={e=>setReplaceExisting(e.target.checked)}/><span>Estou corrigindo uma publicação existente e autorizo substituir os cardápios das datas indicadas.</span></label>}
+            <div className="sticky-actions"><button className="secondary" onClick={() => setStage('upload')}>Voltar e trocar arquivo</button><div><small>Ao publicar, um cardápio existente no mesmo período será substituído.</small><button className="primary" disabled={busy||statusBusy||(overlappingDates.length>0&&!replaceExisting)} onClick={handlePublish}>{busy ? 'Publicando...' : 'Confirmar e publicar'}</button></div></div>
           </>
         )}
 
