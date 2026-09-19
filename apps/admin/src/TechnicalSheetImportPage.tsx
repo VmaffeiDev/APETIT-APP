@@ -35,6 +35,7 @@ export function TechnicalSheetImportPage() {
     <aside className="sidebar">
       <div className="brand"><span className="brand-mark">A</span><div><strong>APETIT</strong><small>Admin</small></div></div>
       <nav>
+        <button className="nav-item" onClick={() => { window.location.hash = 'visao-geral' }}>⌂ Visão geral</button>
         <button className="nav-item" onClick={() => { window.location.hash = 'cardapios' }}>▣ Cardápios</button>
         <button className="nav-item" onClick={() => { window.location.hash = 'fichas-tecnicas' }}>⌘ Fichas técnicas</button>
         <button className="nav-item active">↥ Importar fichas</button>
