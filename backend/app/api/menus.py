@@ -28,6 +28,7 @@ class PublishMenuRequest(BaseModel):
     year: int = Field(ge=2020, le=2100)
     confirm_period: bool
     replace_existing: bool = False
+    operator_label: str = Field(min_length=2, max_length=100)
 
 
 
@@ -87,6 +88,7 @@ def publish_menu_import(
             month=payload.month,
             year=payload.year,
             replace_existing=payload.replace_existing,
+            operator_label=payload.operator_label,
         )
     except FileExistsError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
@@ -228,4 +230,40 @@ def admin_publication_status(
              "published_at":row["published_at"].isoformat() if row["published_at"] else None}
             for row in rows
         ],
+    }
+
+
+@router.get("/api/admin/menus/publication-history", tags=["admin-menu"])
+def admin_publication_history(
+    unit_id: UUID,
+    x_apetit_admin_key: str | None = Header(default=None),
+    limit: int = 50,
+) -> dict:
+    require_admin_key(x_apetit_admin_key)
+    if not 1 <= limit <= 100:
+        raise HTTPException(status_code=422, detail="limite inválido")
+    with engine.connect() as conn:
+        rows = conn.execute(text("""
+            SELECT id, unit_id, file_name, meal_type, operator_label, operation_kind,
+                   period_start, period_end, item_count, replaced_dates, published_at
+            FROM menu_imports
+            WHERE unit_id = :unit_id AND status = 'published'
+            ORDER BY published_at DESC NULLS LAST, created_at DESC, id DESC
+            LIMIT :limit
+        """), {"unit_id": unit_id, "limit": limit}).mappings().all()
+    return {
+        "unit_id": str(unit_id),
+        "events": [{
+            "id": str(row["id"]),
+            "file_name": row["file_name"],
+            "meal_type": row["meal_type"],
+            "operator_label": row["operator_label"],
+            "operator_verified": False,
+            "operation_kind": row["operation_kind"] or "legacy_publication",
+            "period_start": row["period_start"].isoformat() if row["period_start"] else None,
+            "period_end": row["period_end"].isoformat() if row["period_end"] else None,
+            "item_count": row["item_count"],
+            "replaced_dates": [day.isoformat() for day in (row["replaced_dates"] or [])],
+            "published_at": row["published_at"].isoformat() if row["published_at"] else None,
+        } for row in rows]
     }
