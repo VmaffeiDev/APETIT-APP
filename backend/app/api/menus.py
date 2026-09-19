@@ -27,6 +27,7 @@ class PublishMenuRequest(BaseModel):
     month: int = Field(ge=1, le=12)
     year: int = Field(ge=2020, le=2100)
     confirm_period: bool
+    replace_existing: bool = False
 
 
 
@@ -85,7 +86,10 @@ def publish_menu_import(
             preview_id=preview_id,
             month=payload.month,
             year=payload.year,
+            replace_existing=payload.replace_existing,
         )
+    except FileExistsError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
@@ -191,4 +195,37 @@ def admin_menu_week(
             "missing": sum(item["sheet_status"] in {"missing", "no_code"}
                            for item in all_items),
         },
+    }
+
+
+@router.get("/api/admin/menus/publication-status", tags=["admin-menu"])
+def admin_publication_status(
+    unit_id: UUID,
+    start: date,
+    end: date,
+    meal_type: str = "almoco",
+    x_apetit_admin_key: str | None = Header(default=None),
+) -> dict:
+    require_admin_key(x_apetit_admin_key)
+    if end < start or (end - start).days > 31:
+        raise HTTPException(status_code=422, detail="informe um período válido de até 32 dias")
+    if meal_type not in {"almoco", "jantar", "cafe"}:
+        raise HTTPException(status_code=422, detail="tipo de refeição inválido")
+    with engine.connect() as conn:
+        rows = conn.execute(text("""
+            SELECT md.service_date, mi.file_name, mi.published_at
+            FROM menu_days md
+            JOIN menu_imports mi ON mi.id = md.menu_import_id
+            WHERE md.unit_id = :unit_id AND md.meal_type = :meal_type
+              AND md.service_date BETWEEN :start AND :end
+            ORDER BY md.service_date
+        """), {"unit_id":unit_id,"meal_type":meal_type,"start":start,"end":end}).mappings().all()
+    return {
+        "unit_id": str(unit_id), "meal_type": meal_type,
+        "start": start.isoformat(), "end": end.isoformat(),
+        "published_days": [
+            {"date": row["service_date"].isoformat(), "file_name": row["file_name"],
+             "published_at":row["published_at"].isoformat() if row["published_at"] else None}
+            for row in rows
+        ],
     }
