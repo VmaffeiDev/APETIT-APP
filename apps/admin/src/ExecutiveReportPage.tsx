@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { AdminOverview, getAdminOverview, presentationAdminKey } from './api'
+import { AdminOverview, getAdminOverview, getExecutiveReportPdf, presentationAdminKey } from './api'
 
 function go(hash:string){ window.location.hash = hash }
 
@@ -11,6 +11,7 @@ function fmtDate(value?:string|null){
 export function ExecutiveReportPage(){
   const [data,setData]=useState<AdminOverview|null>(null)
   const [error,setError]=useState('')
+  const [exporting,setExporting]=useState(false)
 
   useEffect(()=>{
     getAdminOverview(presentationAdminKey)
@@ -54,6 +55,40 @@ export function ExecutiveReportPage(){
     return items
   },[data])
 
+  async function downloadPdf(){
+    setExporting(true)
+    setError('')
+    try{
+      const blob=await getExecutiveReportPdf(presentationAdminKey)
+      const fileName=`APETIT-Relatorio-Executivo-${new Date().toISOString().slice(0,10)}.pdf`
+      const file=new File([blob],fileName,{type:'application/pdf'})
+      const shareNavigator=navigator as Navigator & {
+        canShare?: (data: ShareData) => boolean
+      }
+
+      if(navigator.share && shareNavigator.canShare?.({files:[file]})){
+        await navigator.share({
+          title:'APETIT · Relatório Executivo',
+          files:[file],
+        })
+      }else{
+        const url=URL.createObjectURL(blob)
+        const anchor=document.createElement('a')
+        anchor.href=url
+        anchor.download=fileName
+        document.body.appendChild(anchor)
+        anchor.click()
+        anchor.remove()
+        window.setTimeout(()=>URL.revokeObjectURL(url),1000)
+      }
+    }catch(e){
+      if(e instanceof DOMException && e.name==='AbortError') return
+      setError(e instanceof Error ? e.message : 'Não foi possível baixar o PDF.')
+    }finally{
+      setExporting(false)
+    }
+  }
+
   const generatedAt=new Intl.DateTimeFormat('pt-BR',{
     day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'
   }).format(new Date())
@@ -61,7 +96,10 @@ export function ExecutiveReportPage(){
   return <div className="report-shell">
     <div className="report-toolbar no-print">
       <button className="secondary" onClick={()=>go('visao-geral')}>← Voltar ao painel</button>
-      <button className="primary" onClick={()=>window.print()}>Exportar / Salvar em PDF</button>
+      <div className="report-toolbar-actions">
+        <button className="secondary" onClick={()=>window.print()}>Imprimir</button>
+        <button className="primary" disabled={exporting} onClick={downloadPdf}>{exporting ? 'Gerando PDF...' : 'Baixar PDF'}</button>
+      </div>
     </div>
 
     <main className="report-page">
