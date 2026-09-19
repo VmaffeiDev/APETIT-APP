@@ -327,3 +327,21 @@ summary span { color: #8a8a91; font-size: 11px; }
   .unit-restaurant { min-width:0; }
   .unit-action-buttons { display:grid; grid-template-columns:1fr; }
 }
+
+.weekly-entry { margin-bottom:16px; display:flex; justify-content:flex-end; }
+.weekly-controls { display:flex; align-items:end; flex-wrap:wrap; gap:12px; margin-bottom:12px; }
+.weekly-controls label { min-width:160px; flex:1 1 160px; }
+.weekly-step { display:flex; align-items:center; flex-wrap:wrap; gap:10px; }
+.weekly-step strong { font-size:12px; white-space:nowrap; }
+.weekly-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; margin:18px 0; }
+.weekly-day { padding:18px; }
+.weekly-day-head { display:flex; justify-content:space-between; align-items:center; gap:12px; text-transform:capitalize; margin-bottom:12px; }
+.weekly-items { display:grid; gap:8px; }
+.weekly-item { border:1px solid #ebebee; border-radius:11px; padding:11px; display:flex; justify-content:space-between; align-items:flex-start; gap:10px; }
+.weekly-item small,.weekly-item span { display:block; font-size:10px; color:#888890; }
+.weekly-item strong { display:block; font-size:12px; margin:4px 0; }
+.weekly-status { padding:5px 8px; border-radius:8px; font-size:9px!important; max-width:145px; flex:0 0 auto; }
+.weekly-status.complete { color:#148047; background:#eaf8ee; }
+.weekly-status.review { color:#9a6511; background:#fff2d7; }
+.weekly-empty { background:#f8f8f9; border-radius:10px; padding:18px; font-size:11px; color:#84848c; }
+@media(max-width:760px){.weekly-grid{grid-template-columns:1fr}.weekly-item{flex-direction:column}.weekly-status{max-width:none}.weekly-step{width:100%;justify-content:space-between}}
