@@ -60,6 +60,8 @@ export type TechnicalSheetImportPreview = {
 export type TechnicalSheetImportResult = { status: 'published'; created: number; updated: number; count: number }
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
+export const isPresentationMode = import.meta.env.VITE_PRESENTATION_MODE === 'true'
+export const presentationAdminKey = isPresentationMode ? 'presentation' : ''
 
 function readError(payload: unknown, fallback: string) {
   if (payload && typeof payload === 'object' && 'detail' in payload) {
