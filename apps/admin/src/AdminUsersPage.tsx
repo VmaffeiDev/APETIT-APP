@@ -6,7 +6,7 @@ export function AdminUsersPage(){
  const [users,setUsers]=useState<AdminUser[]>([]);const [error,setError]=useState('');const [busy,setBusy]=useState(false)
  const [form,setForm]=useState({name:'',email:'',password:'',role:'operacao'})
  const load=()=>listAdminUsers().then(r=>setUsers(r.users)).catch(e=>setError(e instanceof Error?e.message:'Falha ao carregar usuários.'))
- useEffect(load,[])
+ useEffect(()=>{void load()},[])
  async function submit(e:FormEvent){e.preventDefault();setBusy(true);setError('');try{await createAdminUser({...form,unit_ids:[]});setForm({name:'',email:'',password:'',role:'operacao'});await load()}catch(e){setError(e instanceof Error?e.message:'Não foi possível criar usuário.')}finally{setBusy(false)}}
  return <div className="app-shell"><aside className="sidebar"><div className="brand"><span className="brand-mark">A</span><div><strong>APETIT</strong><small>Admin</small></div></div><nav><button className="nav-item" onClick={()=>location.hash='visao-geral'}>⌂ Visão geral</button><button className="nav-item active">♙ Usuários e acessos</button></nav></aside><main className="main">
  <header className="topbar"><div><span className="eyebrow">GESTÃO · ACESSOS</span><h1>Usuários e permissões</h1><p>Crie contas individuais para tornar as ações do Admin rastreáveis.</p></div></header>
