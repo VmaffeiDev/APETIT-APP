@@ -3,14 +3,14 @@ from __future__ import annotations
 from decimal import Decimal
 from pathlib import Path
 
-from fastapi import APIRouter, File, Header, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 
 from app.db import engine
 from app.services.technical_sheet_import import preview_payload as import_preview_payload
 from app.services.technical_sheet_import import publish_import, stage_import
-from app.api.admin_auth import require_admin_key
+from app.api.admin_auth import AdminPrincipal, require_admin, require_permission
 
 router = APIRouter()
 
@@ -73,9 +73,9 @@ def _sheet_payload(conn, code: str) -> dict | None:
 @router.post("/api/admin/technical-sheets/imports/preview", tags=["admin-technical-sheets"])
 async def preview_technical_sheet_import(
     file: UploadFile = File(...),
-    x_apetit_admin_key: str | None = Header(default=None),
+    principal: AdminPrincipal = Depends(require_admin),
 ) -> dict:
-    require_admin_key(x_apetit_admin_key)
+    require_permission(principal, "manage_sheets")
     file_name = file.filename or "fichas-tecnicas"
     if Path(file_name).suffix.lower() not in {".xlsx", ".csv"}:
         raise HTTPException(status_code=415, detail="formato não suportado; envie .xlsx ou .csv")
@@ -90,9 +90,9 @@ async def preview_technical_sheet_import(
 @router.post("/api/admin/technical-sheets/imports/{preview_id}/publish", tags=["admin-technical-sheets"])
 def publish_technical_sheet_import(
     preview_id: str,
-    x_apetit_admin_key: str | None = Header(default=None),
+    principal: AdminPrincipal = Depends(require_admin),
 ) -> dict:
-    require_admin_key(x_apetit_admin_key)
+    require_permission(principal, "manage_sheets")
     try:
         return publish_import(preview_id)
     except LookupError as exc:
@@ -102,9 +102,9 @@ def publish_technical_sheet_import(
 @router.get("/api/admin/technical-sheets", tags=["admin-technical-sheets"])
 def list_technical_sheets(
     search: str = Query(default="", max_length=120),
-    x_apetit_admin_key: str | None = Header(default=None),
+    principal: AdminPrincipal = Depends(require_admin),
 ) -> dict:
-    require_admin_key(x_apetit_admin_key)
+    require_permission(principal, "manage_sheets")
     term = search.strip()
     with engine.connect() as conn:
         rows = conn.execute(
@@ -126,9 +126,9 @@ def list_technical_sheets(
 @router.get("/api/admin/technical-sheets/{code}", tags=["admin-technical-sheets"])
 def get_technical_sheet(
     code: str,
-    x_apetit_admin_key: str | None = Header(default=None),
+    principal: AdminPrincipal = Depends(require_admin),
 ) -> dict:
-    require_admin_key(x_apetit_admin_key)
+    require_permission(principal, "manage_sheets")
     with engine.connect() as conn:
         payload = _sheet_payload(conn, code.strip())
     if payload is None:
@@ -140,9 +140,9 @@ def get_technical_sheet(
 def upsert_technical_sheet(
     code: str,
     payload: TechnicalSheetPayload,
-    x_apetit_admin_key: str | None = Header(default=None),
+    principal: AdminPrincipal = Depends(require_admin),
 ) -> dict:
-    require_admin_key(x_apetit_admin_key)
+    require_permission(principal, "manage_sheets")
     normalized_code = code.strip()
     if not normalized_code:
         raise HTTPException(status_code=422, detail="código da ficha técnica é obrigatório")
@@ -214,9 +214,9 @@ def upsert_technical_sheet(
 @router.delete("/api/admin/technical-sheets/{code}", tags=["admin-technical-sheets"])
 def delete_technical_sheet(
     code: str,
-    x_apetit_admin_key: str | None = Header(default=None),
+    principal: AdminPrincipal = Depends(require_admin),
 ) -> dict:
-    require_admin_key(x_apetit_admin_key)
+    require_permission(principal, "manage_sheets")
     with engine.begin() as conn:
         result = conn.execute(
             text("DELETE FROM technical_sheets WHERE code = :code"),
