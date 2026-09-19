@@ -8,6 +8,7 @@ import { UnitsPage } from './UnitsPage'
 import { OverviewPage } from './OverviewPage'
 import { ExecutiveReportPage } from './ExecutiveReportPage'
 import { UnitDetailPage } from './UnitDetailPage'
+import { WeeklyMenuPage } from './WeeklyMenuPage'
 import './styles.css'
 
 function Root() {
@@ -44,6 +45,8 @@ function Root() {
   }, [])
 
   if (hash === 'visao-geral') return <OverviewPage />
+  if (hash === 'calendario-cardapios') return <WeeklyMenuPage />
+  if (hash.startsWith('calendario-cardapios/')) return <WeeklyMenuPage initialUnitId={hash.slice('calendario-cardapios/'.length)} />
   if (hash.startsWith('unidade/')) return <UnitDetailPage unitId={hash.slice('unidade/'.length)} />
   if (hash === 'relatorio-executivo') return <ExecutiveReportPage />
   if (hash === 'feedbacks') return <FeedbackPage />
