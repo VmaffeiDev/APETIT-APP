@@ -5,18 +5,21 @@ import { FeedbackPage } from './FeedbackPage'
 import { TechnicalSheetImportPage } from './TechnicalSheetImportPage'
 import { TechnicalSheetsPage } from './TechnicalSheetsPage'
 import { UnitsPage } from './UnitsPage'
+import { OverviewPage } from './OverviewPage'
 import './styles.css'
 
 function Root() {
-  const [hash, setHash] = useState(window.location.hash.replace('#', '') || 'cardapios')
+  const [hash, setHash] = useState(window.location.hash.replace('#', '') || 'visao-geral')
 
   useEffect(() => {
-    const onHash = () => setHash(window.location.hash.replace('#', '') || 'cardapios')
+    const onHash = () => setHash(window.location.hash.replace('#', '') || 'visao-geral')
     const onClick = (event: MouseEvent) => {
       const button = (event.target as HTMLElement | null)?.closest('button')
       if (!button) return
       const label = button.textContent?.toLowerCase() ?? ''
-      if (label.includes('importar fichas')) {
+      if (label.includes('visão geral')) {
+        window.location.hash = 'visao-geral'
+      } else if (label.includes('importar fichas')) {
         window.location.hash = 'importar-fichas'
       } else if (label.includes('fichas técnicas')) {
         window.location.hash = 'fichas-tecnicas'
@@ -36,6 +39,7 @@ function Root() {
     }
   }, [])
 
+  if (hash === 'visao-geral') return <OverviewPage />
   if (hash === 'feedbacks') return <FeedbackPage />
   if (hash === 'unidades') return <UnitsPage />
   if (hash === 'fichas-tecnicas') return <TechnicalSheetsPage />
