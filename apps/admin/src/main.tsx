@@ -6,6 +6,7 @@ import { TechnicalSheetImportPage } from './TechnicalSheetImportPage'
 import { TechnicalSheetsPage } from './TechnicalSheetsPage'
 import { UnitsPage } from './UnitsPage'
 import { OverviewPage } from './OverviewPage'
+import { ExecutiveReportPage } from './ExecutiveReportPage'
 import './styles.css'
 
 function Root() {
@@ -25,6 +26,8 @@ function Root() {
         window.location.hash = 'fichas-tecnicas'
       } else if (label.includes('feedback') || label.includes('satisfação')) {
         window.location.hash = 'feedbacks'
+      } else if (label.includes('relatório executivo')) {
+        window.location.hash = 'relatorio-executivo'
       } else if (label.includes('unidades')) {
         window.location.hash = 'unidades'
       } else if (label.includes('cardápios')) {
@@ -40,6 +43,7 @@ function Root() {
   }, [])
 
   if (hash === 'visao-geral') return <OverviewPage />
+  if (hash === 'relatorio-executivo') return <ExecutiveReportPage />
   if (hash === 'feedbacks') return <FeedbackPage />
   if (hash === 'unidades') return <UnitsPage />
   if (hash === 'fichas-tecnicas') return <TechnicalSheetsPage />
