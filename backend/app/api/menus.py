@@ -11,6 +11,7 @@ from sqlalchemy import text
 from app.db import engine
 
 from app.services.menu_import import read_planning_csv, read_planning_xlsx_bytes
+from app.services.menu_versions import get_version, restore_version
 from app.services.menu_workflow import (
     preview_payload,
     publish_staged_menu,
@@ -245,7 +246,8 @@ def admin_publication_history(
     with engine.connect() as conn:
         rows = conn.execute(text("""
             SELECT id, unit_id, file_name, meal_type, operator_label, operation_kind,
-                   period_start, period_end, item_count, replaced_dates, published_at
+                   period_start, period_end, item_count, replaced_dates, published_at,
+                   restored_from
             FROM menu_imports
             WHERE unit_id = :unit_id AND status = 'published'
             ORDER BY published_at DESC NULLS LAST, created_at DESC, id DESC
@@ -265,5 +267,52 @@ def admin_publication_history(
             "item_count": row["item_count"],
             "replaced_dates": [day.isoformat() for day in (row["replaced_dates"] or [])],
             "published_at": row["published_at"].isoformat() if row["published_at"] else None,
+            "restored_from": str(row["restored_from"]) if row["restored_from"] else None,
         } for row in rows]
     }
+
+
+class RestoreVersionRequest(BaseModel):
+    unit_id: UUID
+    operator_label: str = Field(min_length=2, max_length=100)
+    confirm_restore: bool
+    expected_current: list[dict[str, str]]
+
+
+@router.get("/api/admin/menus/versions/{version_id}", tags=["admin-menu"])
+def admin_menu_version(
+    version_id: UUID,
+    unit_id: UUID,
+    x_apetit_admin_key: str | None = Header(default=None),
+) -> dict:
+    require_admin_key(x_apetit_admin_key)
+    try:
+        return get_version(unit_id, version_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post("/api/admin/menus/versions/{version_id}/restore", tags=["admin-menu"])
+def admin_restore_menu_version(
+    version_id: UUID,
+    payload: RestoreVersionRequest,
+    x_apetit_admin_key: str | None = Header(default=None),
+) -> dict:
+    require_admin_key(x_apetit_admin_key)
+    if not payload.confirm_restore:
+        raise HTTPException(status_code=409, detail="Confirme explicitamente a restauração")
+    if any(set(item) != {"date", "menu_import_id"} for item in payload.expected_current):
+        raise HTTPException(status_code=422, detail="Referência de versão atual inválida")
+    try:
+        return restore_version(
+            unit_id=payload.unit_id,
+            version_id=version_id,
+            expected_current=payload.expected_current,
+            operator_label=payload.operator_label,
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except FileExistsError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
