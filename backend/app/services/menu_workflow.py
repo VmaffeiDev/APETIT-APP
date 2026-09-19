@@ -174,7 +174,7 @@ def _technical_sheet_snapshot(conn, code: str | None) -> tuple[dict | None, list
     return dict(sheet), [dict(item) for item in allergens]
 
 
-def publish_staged_menu(*, preview_id: str, month: int, year: int) -> dict:
+def publish_staged_menu(*, preview_id: str, month: int, year: int, replace_existing: bool = False) -> dict:
     staged = get_staged(preview_id)
     if staged is None:
         raise LookupError("preview não encontrado ou expirado")
@@ -194,6 +194,21 @@ def publish_staged_menu(*, preview_id: str, month: int, year: int) -> dict:
             text("SELECT 1 FROM units WHERE id = :unit_id"), {"unit_id": unit_uuid}
         ).scalar_one_or_none() is None:
             raise LookupError("unidade não encontrada")
+        # Serialize concurrent publications for the same unit and meal type.
+        conn.execute(text("SELECT pg_advisory_xact_lock(hashtext(:key))"),
+                     {"key": f"{unit_uuid}:{staged.meal_type}"})
+        overlaps = conn.execute(text("""
+            SELECT md.service_date FROM menu_days md
+            WHERE md.unit_id = :unit_id AND md.meal_type = :meal_type
+              AND md.service_date = ANY(:dates)
+            ORDER BY md.service_date
+        """), {"unit_id": unit_uuid, "meal_type": staged.meal_type, "dates": dates}).scalars().all()
+        if overlaps and not replace_existing:
+            raise FileExistsError(
+                "Cardápio já publicado para esta unidade, refeição e data(s): "
+                + ", ".join(day.isoformat() for day in overlaps)
+                + ". Para corrigir, confirme explicitamente a substituição."
+            )
         conn.execute(
             text(
                 """
