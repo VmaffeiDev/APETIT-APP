@@ -199,3 +199,20 @@ summary span { color: #8a8a91; font-size: 11px; }
   .executive-kpis, .executive-grid, .operations-grid { grid-template-columns:1fr; }
   .panel-head { align-items:center; }
 }
+
+.comparison-card { padding:24px; margin-bottom:16px; }
+.comparison-table { border:1px solid #ececef; border-radius:14px; overflow:hidden; }
+.comparison-row { display:grid; grid-template-columns:1.6fr .7fr .7fr .7fr .8fr; gap:12px; align-items:center; padding:13px 15px; border-top:1px solid #efeff1; font-size:11px; }
+.comparison-row:first-child { border-top:0; }
+.comparison-head { background:#fafafa; color:#8b8b93; text-transform:uppercase; letter-spacing:.06em; font-size:9px; font-weight:800; }
+.comparison-row strong { display:block; font-size:12px; }
+.comparison-row small { display:block; color:#8a8a91; margin-top:2px; font-size:9px; }
+.metric-good { color:#15844f; font-weight:900; }
+.metric-warning { color:#a06c00; font-weight:900; }
+.comparison-actions { display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap; margin-top:16px; }
+@media (max-width:760px) {
+  .comparison-table { overflow-x:auto; }
+  .comparison-row { min-width:620px; }
+  .comparison-actions { justify-content:stretch; }
+  .comparison-actions button { flex:1 1 100%; }
+}
