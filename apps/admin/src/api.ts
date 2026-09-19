@@ -159,7 +159,7 @@ export async function getPublicationStatus(params:{unitId:string;mealType:string
 
 export type MenuHistoryEvent={
  id:string;file_name:string;meal_type:string|null;operator_label:string|null;operator_verified:boolean;
- operation_kind:'publication'|'correction'|'legacy_publication'|'restore';
+ operation_kind:'publication'|'correction'|'legacy_publication'|'restore'|'backup';
  period_start:string|null;period_end:string|null;item_count:number|null;
  replaced_dates:string[];published_at:string|null;restored_from:string|null
 }
