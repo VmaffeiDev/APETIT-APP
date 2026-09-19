@@ -157,3 +157,7 @@ summary span { color: #8a8a91; font-size: 11px; }
   .overview-hero { align-items: stretch; flex-direction: column; }
   .overview-metrics { grid-template-columns: 1fr; }
 }
+
+.presentation-access { border: 1px solid #cfeede; background: #f2fcf7; border-radius: 11px; padding: 12px 14px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.presentation-access strong { color: #167b4b; font-size: 11px; }
+.presentation-access span { color: #6b7f73; font-size: 10px; }
