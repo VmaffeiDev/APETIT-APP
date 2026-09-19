@@ -345,3 +345,13 @@ summary span { color: #8a8a91; font-size: 11px; }
 .weekly-status.review { color:#9a6511; background:#fff2d7; }
 .weekly-empty { background:#f8f8f9; border-radius:10px; padding:18px; font-size:11px; color:#84848c; }
 @media(max-width:760px){.weekly-grid{grid-template-columns:1fr}.weekly-item{flex-direction:column}.weekly-status{max-width:none}.weekly-step{width:100%;justify-content:space-between}}
+
+.publication-notice { margin:14px 0; padding:16px; border:1px solid #cce9dc; background:#f2fbf6; border-radius:13px; }
+.publication-notice strong { display:block; color:#116b40; font-size:13px; }
+.publication-notice p { margin:5px 0 0; font-size:11px; color:#536f60; line-height:1.5; }
+.publication-days { display:flex; flex-wrap:wrap; gap:7px; margin-top:12px; }
+.publication-days span { padding:7px 9px; background:#fff; border:1px solid #b9ddca; border-radius:8px; color:#116b40; font-size:10px; font-weight:700; }
+.publication-notice .publication-error { color:#9f233a; }
+.replacement-confirm { display:flex; align-items:flex-start; gap:10px; padding:15px; margin:14px 0; background:#fff8e8; border:1px solid #f1d69a; border-radius:12px; cursor:pointer; }
+.replacement-confirm input { width:18px; height:18px; flex:0 0 auto; margin:0; accent-color:#b87900; }
+.replacement-confirm span { display:block; font-size:12px; line-height:1.5; color:#6c520b; font-weight:700; }
