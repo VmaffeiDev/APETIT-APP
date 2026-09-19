@@ -1,8 +1,16 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
+from io import BytesIO
 
 from fastapi import APIRouter, Header
+from fastapi.responses import StreamingResponse
+from reportlab.lib import colors
+from reportlab.lib.enums import TA_CENTER
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.lib.units import mm
+from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 from sqlalchemy import text
 
 from app.api.admin_auth import require_admin_key
@@ -169,3 +177,270 @@ def admin_overview(
             "published_at": latest_menu["published_at"].isoformat() if latest_menu["published_at"] else None,
         } if latest_menu else None,
     }
+
+
+def _report_pdf(payload: dict) -> bytes:
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        rightMargin=14 * mm,
+        leftMargin=14 * mm,
+        topMargin=14 * mm,
+        bottomMargin=14 * mm,
+        title="APETIT - Relatorio Executivo",
+        author="APETIT",
+    )
+    styles = getSampleStyleSheet()
+    styles.add(
+        ParagraphStyle(
+            name="ReportTitle",
+            parent=styles["Title"],
+            fontName="Helvetica-Bold",
+            fontSize=20,
+            leading=24,
+            textColor=colors.HexColor("#171717"),
+            spaceAfter=8,
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name="Eyebrow",
+            parent=styles["Normal"],
+            fontName="Helvetica-Bold",
+            fontSize=8,
+            leading=10,
+            textColor=colors.HexColor("#EC003F"),
+            spaceAfter=4,
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name="Muted",
+            parent=styles["Normal"],
+            fontSize=8.5,
+            leading=12,
+            textColor=colors.HexColor("#66666E"),
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name="Kpi",
+            parent=styles["Normal"],
+            fontName="Helvetica-Bold",
+            fontSize=18,
+            leading=20,
+            alignment=TA_CENTER,
+        )
+    )
+
+    story = [
+        Paragraph("APETIT · RELATORIO EXECUTIVO", styles["Eyebrow"]),
+        Paragraph("Operacao, experiencia e qualidade da base", styles["ReportTitle"]),
+        Paragraph(
+            "Ambiente de demonstracao com dados ficticios e agregados. "
+            "Nenhuma prescricao, restricao ou historico alimentar individual e exibido.",
+            styles["Muted"],
+        ),
+        Spacer(1, 8),
+    ]
+
+    satisfaction = payload.get("satisfaction_overall")
+    kpis = [
+        ["Unidades", "Cardapios publicados", "Fichas tecnicas", "Satisfacao geral"],
+        [
+            str(payload.get("units", 0)),
+            str(payload.get("published_menus", 0)),
+            str(payload.get("technical_sheets", 0)),
+            "—" if satisfaction is None else f"{satisfaction:.1f}",
+        ],
+        [
+            f"{payload.get('restaurants', 0)} refeitorios",
+            f"{payload.get('menu_items', 0)} itens",
+            f"{payload.get('complete_sheets', 0)} completas",
+            f"{payload.get('feedback_responses', 0)} respostas",
+        ],
+    ]
+    kpi_table = Table(kpis, colWidths=[43 * mm] * 4)
+    kpi_table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#F7F7F8")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#77777F")),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTNAME", (0, 1), (-1, 1), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, 0), 7),
+                ("FONTSIZE", (0, 1), (-1, 1), 16),
+                ("FONTSIZE", (0, 2), (-1, 2), 7),
+                ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#E4E4E8")),
+                ("BOX", (0, 0), (-1, -1), 0.8, colors.HexColor("#DCDCE1")),
+                ("TOPPADDING", (0, 0), (-1, -1), 7),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+            ]
+        )
+    )
+    story += [kpi_table, Spacer(1, 12)]
+
+    story += [
+        Paragraph("QUALIDADE DA BASE", styles["Eyebrow"]),
+        Paragraph("Cobertura de fichas tecnicas", styles["Heading2"]),
+        Paragraph(
+            f"{payload.get('technical_coverage_percent', 0)}% de cobertura - "
+            f"{payload.get('enriched_menu_items', 0)} de "
+            f"{payload.get('menu_items', 0)} itens associados.",
+            styles["Muted"],
+        ),
+        Spacer(1, 10),
+        Paragraph("COMPARATIVO ENTRE UNIDADES", styles["Eyebrow"]),
+    ]
+
+    unit_rows = [["Unidade", "Satisfacao", "Respostas", "Cardapios", "Cobertura"]]
+    for unit in payload.get("unit_comparison", []):
+        sat = unit.get("satisfaction")
+        unit_rows.append(
+            [
+                unit.get("company_name") or unit.get("unit_name") or "—",
+                "—" if sat is None else f"{sat:.1f}",
+                str(unit.get("feedback_responses", 0)),
+                str(unit.get("published_menus", 0)),
+                f"{unit.get('technical_coverage_percent', 0)}%",
+            ]
+        )
+
+    unit_table = Table(
+        unit_rows,
+        colWidths=[58 * mm, 29 * mm, 29 * mm, 29 * mm, 29 * mm],
+        repeatRows=1,
+    )
+    unit_table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#F7F7F8")),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, -1), 8),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#E5E5E8")),
+                ("TOPPADDING", (0, 0), (-1, -1), 6),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ]
+        )
+    )
+    story += [unit_table, Spacer(1, 12)]
+
+    alerts: list[list[str]] = []
+    for unit in payload.get("unit_comparison", []):
+        if unit.get("technical_coverage_percent", 0) < 80:
+            alerts.append(
+                [
+                    "Atencao",
+                    f"{unit.get('company_name', 'Unidade')}: cobertura tecnica "
+                    f"{unit.get('technical_coverage_percent', 0)}%.",
+                ]
+            )
+        satisfaction = unit.get("satisfaction")
+        if satisfaction is not None and satisfaction < 4:
+            alerts.append(
+                [
+                    "Alta",
+                    f"{unit.get('company_name', 'Unidade')}: satisfacao "
+                    f"{satisfaction:.1f}.",
+                ]
+            )
+        if unit.get("published_menus", 0) == 0:
+            alerts.append(
+                [
+                    "Alta",
+                    f"{unit.get('company_name', 'Unidade')}: sem cardapio publicado.",
+                ]
+            )
+
+    incomplete = payload.get("technical_sheets", 0) - payload.get("complete_sheets", 0)
+    if incomplete > 0:
+        alerts.append(["Atencao", f"{incomplete} ficha(s) tecnica(s) incompleta(s)."])
+
+    story += [
+        Paragraph("ALERTAS OPERACIONAIS", styles["Eyebrow"]),
+        Paragraph("Pontos que exigem atencao", styles["Heading2"]),
+    ]
+    if alerts:
+        alert_table = Table([["Prioridade", "Alerta"], *alerts], colWidths=[28 * mm, 146 * mm])
+        alert_table.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#F7F7F8")),
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ("FONTSIZE", (0, 0), (-1, -1), 8),
+                    ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#E5E5E8")),
+                    ("TOPPADDING", (0, 0), (-1, -1), 6),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                ]
+            )
+        )
+        story.append(alert_table)
+    else:
+        story.append(
+            Paragraph(
+                "Nenhum alerta operacional relevante no periodo.",
+                styles["Muted"],
+            )
+        )
+
+    latest = payload.get("latest_menu")
+    story += [
+        Spacer(1, 12),
+        Paragraph("ULTIMA PUBLICACAO", styles["Eyebrow"]),
+        Paragraph(
+            latest.get("unit_name", "Nenhuma publicacao")
+            if latest
+            else "Nenhuma publicacao",
+            styles["Heading2"],
+        ),
+    ]
+    if latest:
+        story.append(
+            Paragraph(
+                f"Periodo: {latest.get('period_start') or '—'} a "
+                f"{latest.get('period_end') or '—'}",
+                styles["Muted"],
+            )
+        )
+
+    story += [
+        Spacer(1, 16),
+        Paragraph(
+            "Todos os dados deste relatorio sao ficticios e controlados para "
+            "apresentacao. Na versao final, serao substituidos pelos dados "
+            "oficiais da APETIT.",
+            styles["Muted"],
+        ),
+    ]
+
+    def _footer(canvas, _doc):
+        canvas.saveState()
+        canvas.setFont("Helvetica", 7)
+        canvas.setFillColor(colors.HexColor("#77777F"))
+        canvas.drawString(14 * mm, 8 * mm, "APETIT · Relatorio Executivo de Demonstracao")
+        canvas.drawRightString(
+            A4[0] - 14 * mm,
+            8 * mm,
+            f"Pagina {canvas.getPageNumber()}",
+        )
+        canvas.restoreState()
+
+    doc.build(story, onFirstPage=_footer, onLaterPages=_footer)
+    return buffer.getvalue()
+
+
+@router.get("/api/admin/overview.pdf", tags=["admin-overview"])
+def admin_overview_pdf(
+    x_apetit_admin_key: str | None = Header(default=None),
+) -> StreamingResponse:
+    payload = admin_overview(x_apetit_admin_key)
+    pdf_bytes = _report_pdf(payload)
+    filename = f"APETIT-Relatorio-Executivo-{date.today().isoformat()}.pdf"
+    return StreamingResponse(
+        BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
