@@ -28,6 +28,7 @@ export type MenuPreview = {
 }
 export type PublishResult = { status: 'published'; menu_import_id: string; period_start: string; period_end: string; item_count: number; enriched_items?: number }
 export type FeedbackSummary = { unit_id: string; restaurant_id: string | null; period_start: string; period_end: string; responses: number; minimum_group: number; suppressed: boolean; message: string | null; ratings: null | { overall: number; food: number; service: number }; tags: Array<{ tag: string; count: number }>; trend: Array<{ date: string; responses: number; rating: number }>; comments: Array<{ date: string; comment: string }> }
+export type AdminOverview = { units:number; restaurants:number; published_menus:number; technical_sheets:number; complete_sheets:number; menu_items:number; enriched_menu_items:number; technical_coverage_percent:number; feedback_period_start:string; feedback_period_end:string; feedback_responses:number; satisfaction_overall:number|null; top_feedback_tag:null|{tag:string;count:number}; latest_menu:null|{unit_name:string;period_start:string|null;period_end:string|null;published_at:string|null} }
 
 export type TechnicalSheetSummary = {
   code: string
@@ -115,4 +116,8 @@ export async function previewTechnicalSheetImport(adminKey: string, file: File):
 
 export async function publishTechnicalSheetImport(adminKey: string, previewId: string): Promise<TechnicalSheetImportResult> {
   return read(await fetch(`${API_URL}/api/admin/technical-sheets/imports/${previewId}/publish`, { method: 'POST', headers: { 'X-Apetit-Admin-Key': adminKey } }), 'Não foi possível importar as fichas técnicas.')
+}
+
+export async function getAdminOverview(adminKey: string): Promise<AdminOverview> {
+  return read(await fetch(`${API_URL}/api/admin/overview`, { headers: { 'X-Apetit-Admin-Key': adminKey } }), 'Não foi possível carregar a visão geral.')
 }
