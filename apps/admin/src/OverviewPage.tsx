@@ -92,6 +92,39 @@ export function OverviewPage() {
           </article>
         </section>
 
+
+        <section className="card comparison-card">
+          <div className="section-heading">
+            <div>
+              <span className="eyebrow">COMPARATIVO ENTRE UNIDADES</span>
+              <h2>Onde a operação precisa de atenção</h2>
+              <p>Indicadores agregados da demonstração para comparar rapidamente as unidades.</p>
+            </div>
+            <button className="secondary" onClick={() => go('unidades')}>Ver unidades</button>
+          </div>
+          <div className="comparison-table">
+            <div className="comparison-row comparison-head">
+              <span>Unidade</span><span>Satisfação</span><span>Respostas</span><span>Cardápios</span><span>Cobertura</span>
+            </div>
+            {(data?.unit_comparison ?? []).map((unit) => {
+              const satisfactionWarning = unit.satisfaction != null && unit.satisfaction < 4
+              const coverageWarning = unit.technical_coverage_percent < 80
+              return <div className="comparison-row" key={unit.unit_id}>
+                <div><strong>{unit.company_name}</strong><small>{unit.unit_name.replace(' — Demonstração','')}</small></div>
+                <span className={satisfactionWarning ? 'metric-warning' : 'metric-good'}>{unit.satisfaction == null ? '—' : unit.satisfaction.toFixed(1)}</span>
+                <span>{unit.feedback_responses}</span>
+                <span>{unit.published_menus}</span>
+                <span className={coverageWarning ? 'metric-warning' : 'metric-good'}>{unit.technical_coverage_percent}%</span>
+              </div>
+            })}
+          </div>
+          <div className="comparison-actions">
+            <button className="secondary" onClick={() => go('feedbacks')}>Analisar satisfação</button>
+            <button className="secondary" onClick={() => go('fichas-tecnicas')}>Revisar cobertura técnica</button>
+            <button className="primary" onClick={() => go('cardapios')}>Gerenciar cardápios</button>
+          </div>
+        </section>
+
         <section className="card operations-card">
           <div className="section-heading"><div><span className="eyebrow">OPERAÇÃO</span><h2>Status e próximos cuidados</h2><p>Leitura rápida do que merece atenção na demonstração.</p></div></div>
           <div className="operations-grid">
