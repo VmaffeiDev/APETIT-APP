@@ -46,7 +46,7 @@ def login(payload: LoginRequest) -> dict:
         raise HTTPException(status_code=401, detail="E-mail ou senha inválidos")
     token, expires = create_session(row["id"])
     return {"token": token, "expires_at": expires.isoformat(),
-            "user": public_user(row | {"last_login_at": None})}
+            "user": public_user(row)}
 
 
 @router.get("/api/admin/auth/me", tags=["admin-auth"])
