@@ -254,7 +254,7 @@ def admin_publication_history(
             FROM menu_imports mi
             LEFT JOIN admin_users au ON au.id = mi.actor_user_id
             WHERE mi.unit_id = :unit_id AND status IN ('published', 'archived')
-            ORDER BY published_at DESC NULLS LAST, created_at DESC, id DESC
+            ORDER BY mi.published_at DESC NULLS LAST, mi.created_at DESC, mi.id DESC
             LIMIT :limit
         """), {"unit_id": unit_id, "limit": limit}).mappings().all()
     return {
