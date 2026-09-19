@@ -4,7 +4,7 @@ from datetime import date, timedelta
 from pathlib import Path
 from uuid import UUID
 
-from fastapi import APIRouter, File, Form, Header, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 
@@ -18,7 +18,7 @@ from app.services.menu_workflow import (
     published_menu_for_day,
     stage_menu_import,
 )
-from app.api.admin_auth import require_admin_key
+from app.api.admin_auth import AdminPrincipal, require_admin, require_admin_key, require_permission
 
 
 router = APIRouter()
@@ -38,9 +38,9 @@ async def preview_menu_import(
     unit_id: UUID = Form(...),
     meal_type: str = Form("almoco"),
     file: UploadFile = File(...),
-    x_apetit_admin_key: str | None = Header(default=None),
+    principal: AdminPrincipal = Depends(require_admin),
 ) -> dict:
-    require_admin_key(x_apetit_admin_key)
+    require_permission(principal, "publish_menu")
 
     file_name = file.filename or "cardapio"
     extension = Path(file_name).suffix.lower()
@@ -74,9 +74,9 @@ async def preview_menu_import(
 def publish_menu_import(
     preview_id: str,
     payload: PublishMenuRequest,
-    x_apetit_admin_key: str | None = Header(default=None),
+    principal: AdminPrincipal = Depends(require_admin),
 ) -> dict:
-    require_admin_key(x_apetit_admin_key)
+    require_permission(principal, "publish_menu")
     if not payload.confirm_period:
         raise HTTPException(
             status_code=409,
@@ -89,7 +89,8 @@ def publish_menu_import(
             month=payload.month,
             year=payload.year,
             replace_existing=payload.replace_existing,
-            operator_label=payload.operator_label,
+            operator_label=principal.name if principal.id else payload.operator_label,
+            actor_user_id=principal.id,
         )
     except FileExistsError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
