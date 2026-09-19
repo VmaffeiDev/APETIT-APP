@@ -148,6 +148,7 @@ export function UnitDetailPage({unitId}:Props){
           <p>Acesse diretamente os módulos relacionados à unidade.</p>
         </div>
         <div className="unit-action-buttons">
+          <button className="secondary" onClick={()=>go(`calendario-cardapios/${unitId}`)}>Ver calendário semanal</button>
           <button className="secondary" onClick={()=>go('cardapios')}>Gerenciar cardápios</button>
           <button className="secondary" onClick={()=>go('feedbacks')}>Analisar satisfação</button>
           <button className="secondary" onClick={()=>go('fichas-tecnicas')}>Revisar fichas</button>
