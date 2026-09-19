@@ -11,7 +11,7 @@ from sqlalchemy import text
 
 from app.db import engine
 from app.services.demo_menu import resolve_menu_service_date
-from app.services.menu_versions import archive_snapshot, snapshot_days
+from app.services.menu_versions import archive_snapshot, backup_current_days, snapshot_days
 from app.services.menu_import import ImportedMenuItem
 
 
@@ -212,6 +212,10 @@ def publish_staged_menu(*, preview_id: str, month: int, year: int, replace_exist
                 "Cardápio já publicado para esta unidade, refeição e data(s): "
                 + ", ".join(day.isoformat() for day in overlaps)
                 + ". Para corrigir, confirme explicitamente a substituição."
+            )
+        if overlaps:
+            backup_current_days(
+                conn, unit_id=unit_uuid, meal_type=staged.meal_type, dates=overlaps
             )
         conn.execute(
             text(
