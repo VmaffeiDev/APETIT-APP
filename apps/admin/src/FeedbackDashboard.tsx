@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
-import { FeedbackSummary, getFeedbackSummary } from './api'
+import { FeedbackSummary, getFeedbackSummary, isPresentationMode, presentationAdminKey } from './api'
+import { DEMO_UNITS } from './demoUnits'
 
 const TAG_LABELS: Record<string, string> = {
   comida_fria: 'Comida fria',
@@ -20,9 +21,9 @@ export function FeedbackDashboard() {
   const sevenDaysAgo = new Date(today)
   sevenDaysAgo.setDate(today.getDate() - 6)
 
-  const [unitId, setUnitId] = useState('')
-  const [restaurantId, setRestaurantId] = useState('')
-  const [adminKey, setAdminKey] = useState('')
+  const [unitId, setUnitId] = useState(DEMO_UNITS[0].unitId)
+  const [restaurantId, setRestaurantId] = useState(DEMO_UNITS[0].restaurantId)
+  const [adminKey, setAdminKey] = useState(presentationAdminKey)
   const [start, setStart] = useState(sevenDaysAgo.toISOString().slice(0, 10))
   const [end, setEnd] = useState(today.toISOString().slice(0, 10))
   const [summary, setSummary] = useState<FeedbackSummary | null>(null)
@@ -74,7 +75,7 @@ export function FeedbackDashboard() {
           <label><span>Refeitório</span><input value={restaurantId} onChange={(e) => setRestaurantId(e.target.value)} placeholder="Opcional" /></label>
           <label><span>De</span><input type="date" value={start} onChange={(e) => setStart(e.target.value)} /></label>
           <label><span>Até</span><input type="date" value={end} onChange={(e) => setEnd(e.target.value)} /></label>
-          <label className="full"><span>Chave administrativa</span><input type="password" value={adminKey} onChange={(e) => setAdminKey(e.target.value)} placeholder="Chave de acesso da operação" /></label>
+          {isPresentationMode ? <div className="full presentation-access"><strong>Modo apresentação</strong><span>Acesso administrativo liberado automaticamente neste ambiente.</span></div> : <label className="full"><span>Chave administrativa</span><input type="password" value={adminKey} onChange={(e) => setAdminKey(e.target.value)} placeholder="Chave de acesso da operação" /></label>}
         </div>
         {error && <div className="alert error">{error}</div>}
         <div className="action-row"><span className="helper">Nenhum identificador de funcionário é retornado neste relatório.</span><button className="primary" disabled={busy} onClick={load}>{busy ? 'Carregando...' : 'Atualizar relatório'}</button></div>
