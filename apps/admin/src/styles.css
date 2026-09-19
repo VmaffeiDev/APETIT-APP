@@ -304,3 +304,9 @@ summary span { color: #8a8a91; font-size: 11px; }
   .report-section, .report-kpis, .report-header { break-inside:avoid; }
   .report-row { min-width:0; }
 }
+
+.report-toolbar-actions { display:flex; gap:8px; }
+@media (max-width:760px) {
+  .report-toolbar { align-items:stretch; }
+  .report-toolbar-actions { display:grid; grid-template-columns:1fr 1fr; }
+}
