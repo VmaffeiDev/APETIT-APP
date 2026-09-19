@@ -62,6 +62,7 @@ export function UnitsPage() {
               </div>
 
               <div className="unit-actions">
+                <button className="primary" onClick={() => { window.location.hash = `unidade/${unit.unitId}` }}>Abrir unidade</button>
                 <button className="secondary" onClick={() => { window.location.hash = 'cardapios' }}>Publicar cardápio</button>
                 <button className="secondary" onClick={() => { window.location.hash = 'feedbacks' }}>Ver satisfação</button>
               </div>
