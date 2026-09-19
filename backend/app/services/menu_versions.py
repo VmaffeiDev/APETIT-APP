@@ -93,7 +93,18 @@ def get_version(unit_id: UUID, version_id: UUID) -> dict:
         current = snapshot_days(conn, unit_id=unit_id,
             meal_type=row["meal_type"] or (days[0]["meal_type"] if days else "almoco"),
             dates=all_dates)
+        active_rows = conn.execute(text("""
+            SELECT service_date, menu_import_id FROM menu_days
+            WHERE unit_id=:unit_id AND meal_type=:meal_type
+              AND service_date = ANY(:dates)
+            ORDER BY service_date
+        """), {"unit_id": unit_id,
+               "meal_type": row["meal_type"] or (days[0]["meal_type"] if days else "almoco"),
+               "dates": all_dates}).mappings().all()
+        expected_current = [{"date": a["service_date"].isoformat(),
+                             "menu_import_id": str(a["menu_import_id"])} for a in active_rows]
         return {
+            "expected_current": expected_current,
             "id": str(row["id"]), "unit_id": str(row["unit_id"]),
             "meal_type": row["meal_type"], "file_name": row["file_name"],
             "published_at": row["published_at"].isoformat() if row["published_at"] else None,
