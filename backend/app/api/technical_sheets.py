@@ -104,7 +104,7 @@ def list_technical_sheets(
     search: str = Query(default="", max_length=120),
     principal: AdminPrincipal = Depends(require_admin),
 ) -> dict:
-    require_permission(principal, "manage_sheets")
+    require_permission(principal, "read")
     term = search.strip()
     with engine.connect() as conn:
         rows = conn.execute(
@@ -128,7 +128,7 @@ def get_technical_sheet(
     code: str,
     principal: AdminPrincipal = Depends(require_admin),
 ) -> dict:
-    require_permission(principal, "manage_sheets")
+    require_permission(principal, "read")
     with engine.connect() as conn:
         payload = _sheet_payload(conn, code.strip())
     if payload is None:
