@@ -9,6 +9,7 @@ import { OverviewPage } from './OverviewPage'
 import { ExecutiveReportPage } from './ExecutiveReportPage'
 import { UnitDetailPage } from './UnitDetailPage'
 import { WeeklyMenuPage } from './WeeklyMenuPage'
+import { MenuHistoryPage } from './MenuHistoryPage'
 import './styles.css'
 
 function Root() {
@@ -45,6 +46,8 @@ function Root() {
   }, [])
 
   if (hash === 'visao-geral') return <OverviewPage />
+  if (hash === 'historico-cardapios') return <MenuHistoryPage />
+  if (hash.startsWith('historico-cardapios/')) return <MenuHistoryPage initialUnitId={hash.slice('historico-cardapios/'.length)} />
   if (hash === 'calendario-cardapios') return <WeeklyMenuPage />
   if (hash.startsWith('calendario-cardapios/')) return <WeeklyMenuPage initialUnitId={hash.slice('calendario-cardapios/'.length)} />
   if (hash.startsWith('unidade/')) return <UnitDetailPage unitId={hash.slice('unidade/'.length)} />
