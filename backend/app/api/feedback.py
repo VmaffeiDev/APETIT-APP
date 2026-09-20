@@ -10,7 +10,7 @@ from sqlalchemy import text
 from app.api.auth import current_person
 from app.db import engine
 from app.services.feedback_reporting import feedback_summary
-from app.api.admin_auth import AdminPrincipal, require_admin, require_permission
+from app.api.admin_auth import AdminPrincipal, require_admin, require_permission, require_unit_access
 
 router = APIRouter()
 
