@@ -98,6 +98,33 @@ def require_admin_key(value: str | None) -> None:
     raise HTTPException(status_code=401, detail="credencial administrativa inválida")
 
 
+
+def require_unit_access(principal: AdminPrincipal, unit_id: UUID) -> None:
+    """Admins and development presentation principals are global; named non-admins require an explicit unit grant."""
+    if principal.role == "admin":
+        return
+    if principal.id is None:
+        raise HTTPException(status_code=403, detail="Conta individual necessária para acessar unidades")
+    with engine.connect() as conn:
+        allowed = conn.execute(text("""
+            SELECT 1 FROM admin_user_units
+            WHERE user_id=:user_id AND unit_id=:unit_id
+        """), {"user_id": principal.id, "unit_id": unit_id}).scalar_one_or_none()
+    if allowed is None:
+        raise HTTPException(status_code=403, detail="Sua conta não possui acesso a esta unidade")
+
+
+def allowed_unit_ids(principal: AdminPrincipal) -> list[UUID] | None:
+    if principal.role == "admin":
+        return None
+    if principal.id is None:
+        return []
+    with engine.connect() as conn:
+        return list(conn.execute(text("""
+            SELECT unit_id FROM admin_user_units WHERE user_id=:user_id ORDER BY unit_id
+        """), {"user_id": principal.id}).scalars().all())
+
+
 def create_session(user_id: UUID) -> tuple[str, datetime]:
     token = secrets.token_urlsafe(40)
     expires = datetime.now(timezone.utc) + timedelta(hours=SESSION_HOURS)
