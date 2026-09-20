@@ -201,7 +201,7 @@ export async function restoreMenuVersion(params:{unitId:string;version:MenuVersi
  }),'Não foi possível restaurar o cardápio.')
 }
 
-export type AdminUser={id:string|null;name:string;email:string|null;role:'admin'|'operacao'|'nutricao'|'visualizacao';presentation?:boolean;active?:boolean;last_login_at?:string|null}
+export type AdminUser={id:string|null;name:string;email:string|null;role:'admin'|'operacao'|'nutricao'|'visualizacao';presentation?:boolean;active?:boolean;last_login_at?:string|null;unit_ids?:string[]}
 export async function adminLogin(email:string,password:string):Promise<{token:string;expires_at:string;user:AdminUser}>{
  return read(await fetch(`${API_URL}/api/admin/auth/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})}),'Não foi possível entrar.')
 }
@@ -217,6 +217,10 @@ export async function listAdminUsers():Promise<{users:AdminUser[]}>{
 }
 export async function createAdminUser(payload:{name:string;email:string;password:string;role:string;unit_ids:string[]}):Promise<AdminUser>{
  return read(await fetch(`${API_URL}/api/admin/users`,{method:'POST',headers:adminHeaders(presentationAdminKey,{'Content-Type':'application/json'}),body:JSON.stringify(payload)}),'Não foi possível criar o usuário.')
+}
+
+export async function updateAdminUserAccess(userId:string,role:string,unit_ids:string[]):Promise<void>{
+ await read(await fetch(`${API_URL}/api/admin/users/${encodeURIComponent(userId)}/access`,{method:'PATCH',headers:adminHeaders(presentationAdminKey,{'Content-Type':'application/json'}),body:JSON.stringify({role,unit_ids})}),'Não foi possível atualizar as permissões.')
 }
 
 export async function bootstrapDemoAdmin(payload:{name:string;email:string;password:string}):Promise<{token:string;expires_at:string;user:AdminUser}>{
