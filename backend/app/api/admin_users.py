@@ -32,7 +32,7 @@ class UserRequest(BaseModel):
 def public_user(row) -> dict:
     return {"id": str(row["id"]), "name": row["name"], "email": str(row["email"]),
             "role": row["role"], "active": row["active"],
-            "last_login_at": row["last_login_at"].isoformat() if row["last_login_at"] else None}
+            "last_login_at": row["last_login_at"].isoformat() if row["last_login_at"] else None,\n            "unit_ids": [str(value) for value in (row.get("unit_ids") or [])]}
 
 
 @router.post("/api/admin/auth/login", tags=["admin-auth"])
@@ -124,6 +124,45 @@ def bootstrap_demo(payload: UserRequest, x_apetit_admin_key: str | None = Header
                "password": hash_password(payload.password)}).mappings().one()
     token, expires = create_session(row["id"])
     return {"token": token, "expires_at": expires.isoformat(), "user": public_user(row)}
+
+
+class UserAccessRequest(BaseModel):
+    role: str
+    unit_ids: list[UUID] = []
+
+
+@router.patch("/api/admin/users/{user_id}/access", tags=["admin-users"])
+def update_user_access(user_id: UUID, payload: UserAccessRequest,
+                       principal: AdminPrincipal = Depends(require_admin)) -> dict:
+    require_permission(principal, "manage_users")
+    if principal.id is None:
+        raise HTTPException(status_code=403, detail="Use uma conta individual de administrador")
+    if payload.role not in {"admin","operacao","nutricao","visualizacao"}:
+        raise HTTPException(status_code=422, detail="Perfil inválido")
+    if user_id == principal.id and payload.role != "admin":
+        raise HTTPException(status_code=409, detail="Você não pode remover seu próprio perfil de administrador")
+    with engine.begin() as conn:
+        row = conn.execute(text("SELECT id FROM admin_users WHERE id=:id"), {"id": user_id}).first()
+        if row is None:
+            raise HTTPException(status_code=404, detail="Usuário não encontrado")
+        if payload.unit_ids:
+            found = set(conn.execute(text("SELECT id FROM units WHERE id = ANY(:ids)"), {"ids": list(set(payload.unit_ids))}).scalars().all())
+            if found != set(payload.unit_ids):
+                raise HTTPException(status_code=422, detail="Uma ou mais unidades são inválidas")
+        conn.execute(text("UPDATE admin_users SET role=:role WHERE id=:id"), {"role": payload.role, "id": user_id})
+        conn.execute(text("DELETE FROM admin_user_units WHERE user_id=:id"), {"id": user_id})
+        if payload.role != "admin":
+            for unit_id in set(payload.unit_ids):
+                conn.execute(text("INSERT INTO admin_user_units(user_id,unit_id) VALUES (:user_id,:unit_id)"),
+                             {"user_id": user_id, "unit_id": unit_id})
+        conn.execute(text("""
+            INSERT INTO admin_audit_events(user_id,action,resource_type,resource_id,metadata)
+            VALUES (:actor,'admin_user.access_updated','admin_user',:target,
+                    jsonb_build_object('role',:role,'unit_ids',:unit_ids))
+        """), {"actor": principal.id, "target": str(user_id), "role": payload.role,
+               "unit_ids": [str(v) for v in payload.unit_ids]})
+    return {"status":"updated","id":str(user_id),"role":payload.role,
+            "unit_ids":[] if payload.role=="admin" else [str(v) for v in payload.unit_ids]}
 
 
 class UserStatusRequest(BaseModel):
