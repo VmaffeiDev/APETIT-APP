@@ -18,14 +18,33 @@ import './styles.css'
 
 function Root() {
   const [authRevision,setAuthRevision]=useState(0)
-  const [authChecked,setAuthChecked]=useState(isPresentationMode || !getAdminToken())
+  const [authState,setAuthState]=useState<'checking'|'valid'|'invalid'|'forbidden'>('checking')
   const [hash, setHash] = useState(window.location.hash.replace('#', '') || 'visao-geral')
 
   useEffect(() => {
-    if (!isPresentationMode && getAdminToken()) {
-      adminMe().then(()=>setAuthChecked(true)).catch(()=>{setAdminToken('');setAuthChecked(true);setAuthRevision(v=>v+1)})
+    const protectedRoute = !isPresentationMode || hash === 'usuarios'
+    if (!protectedRoute) {
+      setAuthState('valid')
+      return
     }
-  }, [authRevision])
+    if (!getAdminToken()) {
+      setAuthState('invalid')
+      return
+    }
+    let cancelled = false
+    setAuthState('checking')
+    adminMe()
+      .then(user => {
+        if (!cancelled) setAuthState(hash === 'usuarios' && user.role !== 'admin' ? 'forbidden' : 'valid')
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setAdminToken('')
+          setAuthState('invalid')
+        }
+      })
+    return () => { cancelled = true }
+  }, [authRevision, hash])
 
   useEffect(() => {
     const onHash = () => setHash(window.location.hash.replace('#', '') || 'visao-geral')
@@ -57,10 +76,17 @@ function Root() {
     }
   }, [])
 
-  if (!authChecked) return <main className="admin-login"><section className="login-card"><h1>Validando acesso...</h1></section></main>
   if (hash === 'configurar-admin' && isPresentationMode) return <AdminSetupPage />
-  if (hash === 'usuarios' && !getAdminToken()) return <AdminLoginPage onSuccess={()=>setAuthRevision(v=>v+1)} />
-  if (!isPresentationMode && !getAdminToken()) return <AdminLoginPage onSuccess={()=>setAuthRevision(v=>v+1)} />
+  const protectedRoute = !isPresentationMode || hash === 'usuarios'
+  if (protectedRoute && (!getAdminToken() || authState === 'invalid')) {
+    return <AdminLoginPage onSuccess={() => setAuthRevision(v => v + 1)} />
+  }
+  if (protectedRoute && authState === 'checking') {
+    return <main className="admin-login"><section className="login-card"><h1>Validando acesso...</h1></section></main>
+  }
+  if (protectedRoute && authState === 'forbidden') {
+    return <main className="admin-login"><section className="login-card"><h1>Acesso restrito</h1><p>Esta área exige uma conta individual com perfil Administrador.</p><button className="secondary" onClick={() => { setAdminToken(''); setAuthRevision(v => v + 1) }}>Entrar com outra conta</button></section></main>
+  }
   if (hash === 'usuarios') return <AdminUsersPage />
   if (hash === 'visao-geral') return <OverviewPage />
   if (hash === 'historico-cardapios') return <MenuHistoryPage />
