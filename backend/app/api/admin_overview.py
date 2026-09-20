@@ -13,7 +13,7 @@ from reportlab.lib.units import mm
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 from sqlalchemy import text
 
-from app.api.admin_auth import AdminPrincipal, require_admin, require_admin_key, require_permission
+from app.api.admin_auth import AdminPrincipal, require_admin, require_permission
 from app.db import engine
 
 router = APIRouter()
