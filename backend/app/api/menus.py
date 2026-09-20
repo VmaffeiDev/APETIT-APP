@@ -18,7 +18,7 @@ from app.services.menu_workflow import (
     published_menu_for_day,
     stage_menu_import,
 )
-from app.api.admin_auth import AdminPrincipal, require_admin, require_admin_key, require_permission
+from app.api.admin_auth import AdminPrincipal, require_admin, require_admin_key, require_permission, require_unit_access
 
 
 router = APIRouter()
@@ -41,6 +41,7 @@ async def preview_menu_import(
     principal: AdminPrincipal = Depends(require_admin),
 ) -> dict:
     require_permission(principal, "publish_menu")
+    require_unit_access(principal, unit_id)
 
     file_name = file.filename or "cardapio"
     extension = Path(file_name).suffix.lower()
@@ -124,6 +125,7 @@ def admin_menu_week(
     principal: AdminPrincipal = Depends(require_admin),
 ) -> dict:
     require_permission(principal, "read")
+    require_unit_access(principal, unit_id)
     if week_start.weekday() != 0:
         raise HTTPException(status_code=422, detail="week_start deve ser uma segunda-feira")
     if meal_type not in {"almoco", "jantar", "cafe"}:
@@ -211,6 +213,7 @@ def admin_publication_status(
     principal: AdminPrincipal = Depends(require_admin),
 ) -> dict:
     require_permission(principal, "read")
+    require_unit_access(principal, unit_id)
     if end < start or (end - start).days > 31:
         raise HTTPException(status_code=422, detail="informe um período válido de até 32 dias")
     if meal_type not in {"almoco", "jantar", "cafe"}:
@@ -242,6 +245,7 @@ def admin_publication_history(
     limit: int = 50,
 ) -> dict:
     require_permission(principal, "read")
+    require_unit_access(principal, unit_id)
     if not 1 <= limit <= 100:
         raise HTTPException(status_code=422, detail="limite inválido")
     with engine.connect() as conn:
@@ -290,6 +294,7 @@ def admin_menu_version(
     principal: AdminPrincipal = Depends(require_admin),
 ) -> dict:
     require_permission(principal, "read")
+    require_unit_access(principal, unit_id)
     try:
         return get_version(unit_id, version_id)
     except LookupError as exc:
@@ -303,6 +308,7 @@ def admin_restore_menu_version(
     principal: AdminPrincipal = Depends(require_admin),
 ) -> dict:
     require_permission(principal, "restore_menu")
+    require_unit_access(principal, payload.unit_id)
     if not payload.confirm_restore:
         raise HTTPException(status_code=409, detail="Confirme explicitamente a restauração")
     if any(set(item) != {"date", "menu_import_id"} for item in payload.expected_current):
