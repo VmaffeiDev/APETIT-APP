@@ -32,7 +32,8 @@ class UserRequest(BaseModel):
 def public_user(row) -> dict:
     return {"id": str(row["id"]), "name": row["name"], "email": str(row["email"]),
             "role": row["role"], "active": row["active"],
-            "last_login_at": row["last_login_at"].isoformat() if row["last_login_at"] else None,\n            "unit_ids": [str(value) for value in (row.get("unit_ids") or [])]}
+            "last_login_at": row["last_login_at"].isoformat() if row["last_login_at"] else None,
+            "unit_ids": [str(value) for value in (row.get("unit_ids") or [])]}
 
 
 @router.post("/api/admin/auth/login", tags=["admin-auth"])
