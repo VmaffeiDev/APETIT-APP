@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react'
-import { DEMO_UNITS } from './demoUnits'\nimport { AdminUser, AdminAuditEvent, createAdminUser, listAdminUsers, setAdminUserActive, resetAdminUserPassword, getAdminAudit, updateAdminUserAccess } from './api'
+import { DEMO_UNITS } from './demoUnits'
+import { AdminUser, AdminAuditEvent, createAdminUser, listAdminUsers, setAdminUserActive, resetAdminUserPassword, getAdminAudit, updateAdminUserAccess } from './api'
 
 const roles:Record<string,string>={admin:'Administrador',operacao:'Operação',nutricao:'Nutrição',visualizacao:'Visualização'}
 export function AdminUsersPage(){
