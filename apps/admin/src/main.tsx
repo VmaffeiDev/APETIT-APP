@@ -79,7 +79,7 @@ function Root() {
   if (hash === 'configurar-admin' && isPresentationMode) return <AdminSetupPage />
   const protectedRoute = !isPresentationMode || hash === 'usuarios'
   if (protectedRoute && (!getAdminToken() || authState === 'invalid')) {
-    return <AdminLoginPage onSuccess={() => setAuthRevision(v => v + 1)} />
+    return <AdminLoginPage onSuccess={() => { setAuthState('checking'); setAuthRevision(v => v + 1) }} />
   }
   if (protectedRoute && authState === 'checking') {
     return <main className="admin-login"><section className="login-card"><h1>Validando acesso...</h1></section></main>
