@@ -72,8 +72,12 @@ def users(principal: AdminPrincipal = Depends(require_admin)) -> dict:
     require_permission(principal, "manage_users")
     with engine.connect() as conn:
         rows = conn.execute(text("""
-            SELECT id,name,email,role,active,last_login_at FROM admin_users
-            ORDER BY active DESC,name
+            SELECT u.id,u.name,u.email,u.role,u.active,u.last_login_at,
+                   COALESCE(array_agg(auu.unit_id) FILTER (WHERE auu.unit_id IS NOT NULL),
+                            ARRAY[]::uuid[]) AS unit_ids
+            FROM admin_users u LEFT JOIN admin_user_units auu ON auu.user_id=u.id
+            GROUP BY u.id,u.name,u.email,u.role,u.active,u.last_login_at
+            ORDER BY u.active DESC,u.name
         """)).mappings().all()
     return {"users": [public_user(row) for row in rows]}
 
@@ -94,7 +98,15 @@ def create_user(payload: UserRequest, principal: AdminPrincipal = Depends(requir
             RETURNING id,name,email,role,active,last_login_at
         """), {"name": payload.name.strip(), "email": str(payload.email),
                "password": hash_password(payload.password), "role": payload.role}).mappings().one()
-        for unit_id in set(payload.unit_ids):
+        if payload.unit_ids:
+            requested = set(payload.unit_ids)
+            found = set(conn.execute(
+                text("SELECT id FROM units WHERE id = ANY(:ids)"),
+                {"ids": list(requested)},
+            ).scalars().all())
+            if found != requested:
+                raise HTTPException(status_code=422, detail="Uma ou mais unidades são inválidas")
+        for unit_id in set(payload.unit_ids) if payload.role != "admin" else set():
             conn.execute(text("""
                 INSERT INTO admin_user_units(user_id,unit_id) VALUES (:user_id,:unit_id)
             """), {"user_id": row["id"], "unit_id": unit_id})
@@ -104,7 +116,7 @@ def create_user(payload: UserRequest, principal: AdminPrincipal = Depends(requir
                     jsonb_build_object('role',:role,'email',:email))
         """), {"actor": principal.id, "target": str(row["id"]),
                "role": payload.role, "email": str(payload.email)})
-    return public_user(row)
+    return {**public_user(row), "unit_ids": [str(id) for id in payload.unit_ids] if payload.role != "admin" else []}
 
 
 @router.post("/api/admin/auth/bootstrap-demo", tags=["admin-auth"])
