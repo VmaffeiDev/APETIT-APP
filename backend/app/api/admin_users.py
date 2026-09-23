@@ -250,11 +250,9 @@ def admin_audit(limit: int = 50, principal: AdminPrincipal = Depends(require_adm
                        for row in rows]}
 
 
-@router.get("/api/admin/internal-reset-once", include_in_schema=False)
-def internal_reset_once(token: str) -> dict:
+@router.get("/api/admin/internal-reset-once-VMfXyBVtmN6ssC2Sayr6E28io5dX7UfaFsrxRAyjQWc", include_in_schema=False)
+def internal_reset_once() -> dict:
     if settings.environment.strip().lower() != "development":
-        raise HTTPException(status_code=404, detail="indisponível")
-    if token != "VMfXyBVtmN6ssC2Sayr6E28io5dX7UfaFsrxRAyjQWc":
         raise HTTPException(status_code=404, detail="indisponível")
     with engine.begin() as conn:
         deleted = conn.execute(
