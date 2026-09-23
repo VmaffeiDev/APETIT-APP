@@ -87,6 +87,8 @@ def require_admin(
 
 
 def require_permission(principal: AdminPrincipal, permission: str) -> None:
+    if permission == "manage_users" and principal.id is None:
+        raise HTTPException(status_code=403, detail="Use uma conta individual de administrador")
     if permission not in ROLE_PERMISSIONS.get(principal.role, set()):
         raise HTTPException(status_code=403, detail="Seu perfil não permite esta ação")
 
