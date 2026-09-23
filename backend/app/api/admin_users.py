@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import hashlib
+import secrets
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, HTTPException
@@ -10,6 +13,7 @@ from app.api.admin_auth import (
     AdminPrincipal, create_session, hash_password, require_admin,
     require_permission, revoke_session, verify_password,
 )
+from app.services.email_delivery import EmailDeliveryError, send_admin_password_reset
 from app.db import engine
 from app.settings import settings
 
@@ -248,3 +252,112 @@ def admin_audit(limit: int = 50, principal: AdminPrincipal = Depends(require_adm
                         "metadata": row["metadata"], "created_at": row["created_at"].isoformat(),
                         "actor_name": row["actor_name"], "actor_email": str(row["actor_email"]) if row["actor_email"] else None}
                        for row in rows]}
+
+
+RESET_CODE_MINUTES = 15
+RESET_REQUEST_LIMIT = 3
+RESET_VERIFY_LIMIT = 5
+RESET_WINDOW_MINUTES = 15
+
+
+class PasswordRecoveryRequest(BaseModel):
+    email: EmailStr
+
+
+class PasswordRecoveryConfirm(BaseModel):
+    email: EmailStr
+    code: str = Field(min_length=10, max_length=10, pattern=r"^[0-9]{10}$")
+    new_password: str = Field(min_length=8, max_length=128)
+
+
+def _recovery_key(email: str) -> str:
+    return hashlib.sha256(("apetit-admin-password-recovery:" + email).encode()).hexdigest()
+
+
+def _recovery_rate(conn, *, email: str, kind: str, maximum: int) -> None:
+    count = conn.execute(text("""
+        SELECT count(*) FROM auth_rate_events
+        WHERE key_hash=:key AND event_type=:kind
+          AND created_at > now() - (:minutes * interval '1 minute')
+    """), {"key": _recovery_key(email), "kind": kind, "minutes": RESET_WINDOW_MINUTES}).scalar_one()
+    if count >= maximum:
+        raise HTTPException(status_code=429, detail="Muitas tentativas. Aguarde 15 minutos para tentar novamente.")
+
+
+def _recovery_record(conn, *, email: str, kind: str) -> None:
+    conn.execute(text("""
+        INSERT INTO auth_rate_events(key_hash,event_type) VALUES (:key,:kind)
+    """), {"key": _recovery_key(email), "kind": kind})
+
+
+@router.post("/api/admin/auth/recovery/request", tags=["admin-auth"])
+def request_password_recovery(payload: PasswordRecoveryRequest) -> dict:
+    # A reset code cannot be exposed through console logs or returned to the caller.
+    if settings.normalized_email_provider not in {"smtp", "mailtrap_api"} or not settings.email_from:
+        raise HTTPException(status_code=503, detail="Recuperação por e-mail indisponível. Contate o responsável pelo sistema.")
+    email = str(payload.email).strip().lower()
+    with engine.begin() as conn:
+        _recovery_rate(conn, email=email, kind="admin_reset_request", maximum=RESET_REQUEST_LIMIT)
+        _recovery_record(conn, email=email, kind="admin_reset_request")
+        row = conn.execute(text("""
+            SELECT id,email FROM admin_users WHERE email=:email AND active=TRUE
+        """), {"email": email}).mappings().one_or_none()
+        if row:
+            code = f"{secrets.randbelow(10**10):010d}"
+            code_hash = hashlib.sha256(code.encode()).hexdigest()
+            conn.execute(text("DELETE FROM admin_password_resets WHERE user_id=:id"),
+                         {"id": row["id"]})
+            conn.execute(text("""
+                INSERT INTO admin_password_resets(user_id,token_hash,expires_at)
+                VALUES (:id,:token_hash,:expires)
+            """), {"id": row["id"], "token_hash": code_hash,
+                   "expires": datetime.now(timezone.utc) + timedelta(minutes=RESET_CODE_MINUTES)})
+    if row:
+        try:
+            send_admin_password_reset(recipient=str(row["email"]), code=code, expires_in_minutes=RESET_CODE_MINUTES)
+        except EmailDeliveryError:
+            with engine.begin() as conn:
+                conn.execute(text("""
+                    DELETE FROM admin_password_resets
+                    WHERE user_id=:id AND token_hash=:token_hash AND used_at IS NULL
+                """), {"id": row["id"], "token_hash": code_hash})
+            raise HTTPException(status_code=503, detail="Não foi possível enviar o e-mail. Tente novamente mais tarde.")
+    return {"status":"accepted","message":"Se houver uma conta ativa com este e-mail, enviaremos um código de recuperação."}
+
+
+@router.post("/api/admin/auth/recovery/confirm", tags=["admin-auth"])
+def confirm_password_recovery(payload: PasswordRecoveryConfirm) -> dict:
+    email = str(payload.email).strip().lower()
+    with engine.begin() as conn:
+        _recovery_rate(conn, email=email, kind="admin_reset_failed", maximum=RESET_VERIFY_LIMIT)
+        row = conn.execute(text("""
+            SELECT r.id AS reset_id,u.id AS user_id,r.token_hash
+            FROM admin_password_resets r
+            JOIN admin_users u ON u.id=r.user_id
+            WHERE u.email=:email AND u.active=TRUE
+              AND r.used_at IS NULL AND r.expires_at > now()
+            FOR UPDATE OF r
+        """), {"email": email}).mappings().one_or_none()
+        valid = bool(row and secrets.compare_digest(
+            hashlib.sha256(payload.code.encode()).hexdigest(), row["token_hash"]
+        ))
+        if valid:
+            conn.execute(text("""
+                UPDATE admin_users SET password_hash=:hash WHERE id=:id
+            """), {"hash": hash_password(payload.new_password), "id": row["user_id"]})
+            conn.execute(text("""
+                UPDATE admin_password_resets SET used_at=now() WHERE id=:id
+            """), {"id": row["reset_id"]})
+            conn.execute(text("""
+                UPDATE admin_sessions SET revoked_at=now()
+                WHERE user_id=:id AND revoked_at IS NULL
+            """), {"id": row["user_id"]})
+            conn.execute(text("""
+                INSERT INTO admin_audit_events(user_id,action,resource_type,resource_id)
+                VALUES (:id,'admin_user.password_recovered','admin_user',:resource_id)
+            """), {"id": row["user_id"], "resource_id": str(row["user_id"])})
+        else:
+            _recovery_record(conn, email=email, kind="admin_reset_failed")
+    if not valid:
+        raise HTTPException(status_code=401, detail="Código inválido ou expirado.")
+    return {"status":"password_changed","message":"Senha alterada. Entre novamente com a nova senha."}
