@@ -78,6 +78,10 @@ function readError(payload: unknown, fallback: string) {
 }
 
 async function read<T>(response: Response, fallback: string): Promise<T> {
+  if (response.status === 401 && getAdminToken()) {
+    setAdminToken('')
+    window.dispatchEvent(new Event('apetit-admin-session-expired'))
+  }
   const payload = await response.json().catch(() => null)
   if (!response.ok) throw new Error(readError(payload, fallback))
   return payload as T
@@ -209,8 +213,8 @@ export async function adminMe():Promise<AdminUser>{
  return read(await fetch(`${API_URL}/api/admin/auth/me`,{headers:adminHeaders('')}),'Sessão inválida.')
 }
 export async function adminLogout():Promise<void>{
- await read(await fetch(`${API_URL}/api/admin/auth/logout`,{method:'POST',headers:adminHeaders('')}),'Não foi possível sair.')
- setAdminToken('')
+ try { await read(await fetch(`${API_URL}/api/admin/auth/logout`,{method:'POST',headers:adminHeaders('')}),'Não foi possível sair.') }
+ finally { setAdminToken(''); window.dispatchEvent(new Event('apetit-admin-session-expired')) }
 }
 export async function listAdminUsers():Promise<{users:AdminUser[]}>{
  return read(await fetch(`${API_URL}/api/admin/users`,{headers:adminHeaders(presentationAdminKey)}),'Não foi possível carregar usuários.')
