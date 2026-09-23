@@ -47,6 +47,12 @@ function Root() {
   }, [authRevision, hash])
 
   useEffect(() => {
+    const onExpired = () => { setAuthState('invalid'); setAuthRevision(v => v + 1) }
+    window.addEventListener('apetit-admin-session-expired', onExpired)
+    return () => window.removeEventListener('apetit-admin-session-expired', onExpired)
+  }, [])
+
+  useEffect(() => {
     const onHash = () => setHash(window.location.hash.replace('#', '') || 'visao-geral')
     const onClick = (event: MouseEvent) => {
       const button = (event.target as HTMLElement | null)?.closest('button')
