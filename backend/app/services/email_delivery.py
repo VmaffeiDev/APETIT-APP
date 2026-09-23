@@ -69,12 +69,12 @@ def send_login_code(*, recipient: str, code: str, expires_in_minutes: int) -> st
     raise EmailDeliveryError(f"provedor de e-mail não suportado: {settings.email_provider}")
 
 
-def _send_via_smtp(*, recipient: str, text_body: str, html_body: str) -> None:
+def _send_via_smtp(*, recipient: str, text_body: str, html_body: str, subject: str = LOGIN_EMAIL_SUBJECT) -> None:
     if not settings.smtp_host:
         raise EmailDeliveryError("SMTP não configurado: defina APETIT_SMTP_HOST")
 
     message = EmailMessage()
-    message["Subject"] = LOGIN_EMAIL_SUBJECT
+    message["Subject"] = subject
     message["From"] = settings.email_from
     message["To"] = recipient
     message.set_content(text_body)
@@ -138,17 +138,17 @@ def _mailtrap_error_reason(exc: urllib.error.HTTPError) -> str:
     return str(data)[:200]
 
 
-def _send_via_mailtrap_api(*, recipient: str, text_body: str, html_body: str) -> None:
+def _send_via_mailtrap_api(*, recipient: str, text_body: str, html_body: str, subject: str = LOGIN_EMAIL_SUBJECT, category: str = 'login-code') -> None:
     if not settings.mailtrap_api_token:
         raise EmailDeliveryError("Mailtrap não configurado: defina APETIT_MAILTRAP_API_TOKEN")
 
     payload = {
         "from": _sender(),
         "to": [{"email": recipient}],
-        "subject": LOGIN_EMAIL_SUBJECT,
+        "subject": subject,
         "text": text_body,
         "html": html_body,
-        "category": "login-code",
+        "category": category,
     }
     request = urllib.request.Request(
         _mailtrap_url(),
@@ -172,3 +172,31 @@ def _send_via_mailtrap_api(*, recipient: str, text_body: str, html_body: str) ->
 
     if not body.get("success"):
         raise EmailDeliveryError("Mailtrap não confirmou o envio")
+
+
+def send_admin_password_reset(*, recipient: str, code: str, expires_in_minutes: int) -> None:
+    """Deliver only through a real configured provider; never print or return reset secrets."""
+    provider = settings.normalized_email_provider
+    if provider not in {"smtp", "mailtrap_api"} or not settings.email_from:
+        raise EmailDeliveryError("envio de recuperação não configurado")
+    subject = "Recuperação de senha do APETIT Admin"
+    text_body = (
+        f"Recebemos uma solicitação para redefinir a senha do APETIT Admin. "
+        f"Seu código é: {code}. Expira em {expires_in_minutes} minutos e só pode ser usado uma vez. "
+        "Se você não solicitou a recuperação, ignore este e-mail. Nunca compartilhe o código."
+    )
+    html_body = (
+        "<html><body><h2>Recuperação de senha — APETIT Admin</h2>"
+        "<p>Use o código abaixo para redefinir sua senha:</p>"
+        f"<p style='font-size:24px;font-weight:bold;letter-spacing:3px'>{code}</p>"
+        f"<p>Expira em {expires_in_minutes} minutos e só pode ser usado uma vez.</p>"
+        "<p>Se não solicitou, ignore este e-mail. Nunca compartilhe o código.</p>"
+        "</body></html>"
+    )
+    if provider == "smtp":
+        _send_via_smtp(recipient=recipient, text_body=text_body, html_body=html_body, subject=subject)
+    else:
+        _send_via_mailtrap_api(
+            recipient=recipient, text_body=text_body, html_body=html_body,
+            subject=subject, category="admin-password-reset",
+        )
