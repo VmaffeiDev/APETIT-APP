@@ -241,3 +241,10 @@ export type AdminAuditEvent={id:string;action:string;resource_type:string;resour
 export async function getAdminAudit():Promise<{events:AdminAuditEvent[]}>{
  return read(await fetch(`${API_URL}/api/admin/audit`,{headers:adminHeaders(presentationAdminKey)}),'Não foi possível consultar auditoria.')
 }
+
+export async function requestAdminPasswordRecovery(email:string):Promise<{status:string;message:string}>{
+ return read(await fetch(`${API_URL}/api/admin/auth/recovery/request`, {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email})}), "Não foi possível solicitar a recuperação.")
+}
+export async function confirmAdminPasswordRecovery(email:string,code:string,newPassword:string):Promise<{status:string;message:string}>{
+ return read(await fetch(`${API_URL}/api/admin/auth/recovery/confirm`, {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email,code,new_password:newPassword})}), "Não foi possível redefinir a senha.")
+}
