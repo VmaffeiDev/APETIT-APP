@@ -391,3 +391,17 @@ summary span { color: #8a8a91; font-size: 11px; }
 .login-card form{display:grid;gap:14px}.login-card label span{display:block;font-size:11px;font-weight:700;margin-bottom:7px}.login-card form .primary{margin-top:4px;width:100%}.login-help{display:block;color:#8a8a91;line-height:1.5;margin-top:16px}
 .user-list{display:grid;gap:8px}.user-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:12px;padding:13px;border:1px solid #e9e9ed;border-radius:11px}.user-row strong,.user-row small{display:block}.user-row small{color:#85858c;margin-top:3px}
 @media(max-width:700px){.login-card{padding:24px 20px}.user-row{grid-template-columns:1fr auto}.user-row>span:last-child{grid-column:1/-1;width:max-content}}
+
+/* Access editor: responsive, finger-friendly unit selection. */
+.unit-access-field{grid-column:1/-1;border:1px solid #e7e7ec;border-radius:12px;padding:14px;margin:0;min-width:0}
+.unit-access-field legend{font-size:12px;font-weight:800;padding:0 5px}
+.unit-access-field p{color:#71717a;font-size:11px;line-height:1.5;margin:5px 0 12px}
+.unit-access-options{display:flex;flex-wrap:wrap;gap:10px}
+.unit-access-options label{display:flex;align-items:center;gap:9px;padding:10px 13px;border:1px solid #e6e6ea;border-radius:10px;cursor:pointer;font-size:12px;font-weight:600}
+.unit-access-options input{width:18px;height:18px;margin:0;accent-color:#d62e4b}
+.access-editor{grid-column:1/-1;width:100%;background:#fbfbfc;border:1px solid #e7e7ec;border-radius:12px;padding:16px;display:grid;gap:14px}
+.access-editor h3{font-size:14px;margin:0}
+.access-editor label span{display:block;margin-bottom:6px;font-size:11px;font-weight:700}
+.access-editor-actions{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap}
+.user-actions{display:flex;flex-wrap:wrap;gap:8px}
+@media(max-width:760px){.user-row{grid-template-columns:minmax(0,1fr);gap:12px}.unit-access-options{display:grid;grid-template-columns:1fr}.unit-access-options label{width:100%}.user-actions button{flex:1 1 140px}.access-editor-actions button{flex:1 1 140px}}
