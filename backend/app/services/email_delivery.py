@@ -179,6 +179,8 @@ def send_admin_password_reset(*, recipient: str, code: str, expires_in_minutes: 
     provider = settings.normalized_email_provider
     if provider not in {"smtp", "mailtrap_api"} or not settings.email_from:
         raise EmailDeliveryError("envio de recuperação não configurado")
+    if provider == "mailtrap_api" and _mailtrap_url().startswith("https://sandbox.api.mailtrap.io/"):
+        raise EmailDeliveryError("Mailtrap Sandbox não entrega recuperação na caixa de entrada; configure envio real")
     subject = "Recuperação de senha do APETIT Admin"
     text_body = (
         f"Recebemos uma solicitação para redefinir a senha do APETIT Admin. "
