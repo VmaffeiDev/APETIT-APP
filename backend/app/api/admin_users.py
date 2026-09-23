@@ -295,6 +295,9 @@ def request_password_recovery(payload: PasswordRecoveryRequest) -> dict:
     # A reset code cannot be exposed through console logs or returned to the caller.
     if settings.normalized_email_provider not in {"smtp", "mailtrap_api"} or not settings.email_from:
         raise HTTPException(status_code=503, detail="Recuperação por e-mail indisponível. Contate o responsável pelo sistema.")
+    if (settings.normalized_email_provider == "mailtrap_api"
+            and settings.mailtrap_sandbox_id and not settings.mailtrap_api_url):
+        raise HTTPException(status_code=503, detail="Recuperação indisponível: configure um provedor de e-mail com entrega real.")
     email = str(payload.email).strip().lower()
     with engine.begin() as conn:
         _recovery_rate(conn, email=email, kind="admin_reset_request", maximum=RESET_REQUEST_LIMIT)
