@@ -248,20 +248,3 @@ def admin_audit(limit: int = 50, principal: AdminPrincipal = Depends(require_adm
                         "metadata": row["metadata"], "created_at": row["created_at"].isoformat(),
                         "actor_name": row["actor_name"], "actor_email": str(row["actor_email"]) if row["actor_email"] else None}
                        for row in rows]}
-
-
-@router.get("/api/admin/internal-reset-once-VMfXyBVtmN6ssC2Sayr6E28io5dX7UfaFsrxRAyjQWc", include_in_schema=False)
-def internal_reset_once() -> dict:
-    if settings.environment.strip().lower() != "development":
-        raise HTTPException(status_code=404, detail="indisponível")
-    with engine.begin() as conn:
-        deleted = conn.execute(
-            text("DELETE FROM admin_users WHERE email=:email RETURNING id"),
-            {"email": "vmaffei.dev@gmail.com"},
-        ).fetchall()
-        remaining = conn.execute(text("SELECT count(*) FROM admin_users")).scalar_one()
-        matching = conn.execute(
-            text("SELECT count(*) FROM admin_users WHERE email=:email"),
-            {"email": "vmaffei.dev@gmail.com"},
-        ).scalar_one()
-    return {"deleted": len(deleted), "remaining": int(remaining), "matching": int(matching)}
