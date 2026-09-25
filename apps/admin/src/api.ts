@@ -216,6 +216,13 @@ export async function adminLogout():Promise<void>{
  try { await read(await fetch(`${API_URL}/api/admin/auth/logout`,{method:'POST',headers:adminHeaders('')}),'Não foi possível sair.') }
  finally { setAdminToken(''); window.dispatchEvent(new Event('apetit-admin-session-expired')) }
 }
+export async function changeAdminPassword(currentPassword:string,newPassword:string):Promise<{status:string;other_sessions_revoked:boolean}>{
+ return read(await fetch(`${API_URL}/api/admin/auth/change-password`,{
+  method:'POST',
+  headers:adminHeaders('',{'Content-Type':'application/json'}),
+  body:JSON.stringify({current_password:currentPassword,new_password:newPassword})
+ }),'Não foi possível alterar a senha.')
+}
 export async function listAdminUsers():Promise<{users:AdminUser[]}>{
  return read(await fetch(`${API_URL}/api/admin/users`,{headers:adminHeaders(presentationAdminKey)}),'Não foi possível carregar usuários.')
 }
