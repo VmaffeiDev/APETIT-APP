@@ -46,7 +46,7 @@ export function UnitsPage() {
           {DEMO_UNITS.map((unit, index) => (
             <article className="unit-card" key={unit.unitId}>
               <div className="unit-card-head">
-                <div className={`company-avatar company-${index + 1}`}>{unit.company.slice(0, 1)}</div>
+                <div className={`company-avatar company-${index + 1}`}><img src={unit.logoUrl} alt={`Logo ${unit.company}`} loading="lazy" /></div>
                 <div>
                   <span className="demo-chip">DEMO</span>
                   <h2>{unit.company}</h2>
@@ -64,7 +64,7 @@ export function UnitsPage() {
               <div className="unit-actions">
                 <button className="primary" onClick={() => { window.location.hash = `unidade/${unit.unitId}` }}>Abrir unidade</button>
                 <button className="secondary" onClick={() => { window.location.hash = 'cardapios' }}>Publicar cardápio</button>
-                <button className="secondary" onClick={() => { window.location.hash = 'feedbacks' }}>Ver satisfação</button>
+                <button className="secondary" onClick={() => { window.location.hash = `feedbacks/${unit.unitId}` }}>Ver satisfação</button>
               </div>
 
               <details className="technical-data">
