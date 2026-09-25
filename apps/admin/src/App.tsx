@@ -162,9 +162,9 @@ function App() {
           <button className="nav-item" onClick={() => { window.location.hash = 'feedbacks' }}><span>⌁</span>Satisfação</button>
           <div className="nav-label">Gestão</div>
           <button className="nav-item" onClick={() => { window.location.hash = 'unidades' }}><span>□</span>Unidades</button>
-          <button className="nav-item"><span>◫</span>Empresas</button>
+          <button className="nav-item" onClick={() => { window.location.hash = 'empresas' }}><span>◫</span>Empresas</button>
           <button className="nav-item" onClick={() => { window.location.hash = 'usuarios' }}><span>♙</span>Usuários e acessos</button>
-          <button className="nav-item"><span>⚙</span>Configurações</button>
+          <button className="nav-item" onClick={() => { window.location.hash = 'configuracoes' }}><span>⚙</span>Configurações</button>
         </nav>
         <div className="privacy-note"><strong>Privacidade por padrão</strong><p>Prescrições e histórico alimentar individual não aparecem neste painel.</p></div>
       </aside>
