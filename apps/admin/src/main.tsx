@@ -13,6 +13,8 @@ import { MenuHistoryPage } from './MenuHistoryPage'
 import { AdminLoginPage } from './AdminLoginPage'
 import { AdminUsersPage } from './AdminUsersPage'
 import { AdminSetupPage } from './AdminSetupPage'
+import { CompaniesPage } from './CompaniesPage'
+import { SettingsPage } from './SettingsPage'
 import { adminMe, getAdminToken, isPresentationMode, setAdminToken } from './api'
 import './styles.css'
 
@@ -94,6 +96,8 @@ function Root() {
     return <main className="admin-login"><section className="login-card"><h1>Acesso restrito</h1><p>Esta área exige uma conta individual com perfil Administrador.</p><button className="secondary" onClick={() => { setAdminToken(''); setAuthRevision(v => v + 1) }}>Entrar com outra conta</button></section></main>
   }
   if (hash === 'usuarios') return <AdminUsersPage />
+  if (hash === 'empresas') return <CompaniesPage />
+  if (hash === 'configuracoes') return <SettingsPage />
   if (hash === 'visao-geral') return <OverviewPage />
   if (hash === 'historico-cardapios') return <MenuHistoryPage />
   if (hash.startsWith('historico-cardapios/')) return <MenuHistoryPage initialUnitId={hash.slice('historico-cardapios/'.length)} />
