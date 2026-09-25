@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, foundation/v1]
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: apetit
+          POSTGRES_USER: apetit
+          POSTGRES_PASSWORD: apetit
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U apetit -d apetit"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      APETIT_DATABASE_URL: postgresql+psycopg://apetit:apetit@localhost:5432/apetit
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install backend
+        run: pip install -e '.[dev]'
+      - name: Ruff correctness checks
+        run: ruff check app tests db_migrations --select E9,F63,F7,F82
+      - name: Tests
+        run: pytest -q
+      - name: Apply migrations from empty database
+        run: alembic upgrade head
+      - name: Check migration head
+        run: alembic current
+
+  mobile:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install
+        run: npm install --no-audit --no-fund
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Build PWA
+        env:
+          EXPO_PUBLIC_API_URL: https://api-staging-v2-production.up.railway.app
+        run: npm run build:web
+
+  admin:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/admin
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install
+        run: npm install --no-audit --no-fund
+      - name: Build
+        run: npm run build
