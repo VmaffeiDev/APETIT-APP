@@ -102,6 +102,7 @@ function Root() {
   if (hash.startsWith('unidade/')) return <UnitDetailPage unitId={hash.slice('unidade/'.length)} />
   if (hash === 'relatorio-executivo') return <ExecutiveReportPage />
   if (hash === 'feedbacks') return <FeedbackPage />
+  if (hash.startsWith('feedbacks/')) return <FeedbackPage initialUnitId={hash.slice('feedbacks/'.length)} />
   if (hash === 'unidades') return <UnitsPage />
   if (hash === 'fichas-tecnicas') return <TechnicalSheetsPage />
   if (hash === 'importar-fichas') return <TechnicalSheetImportPage />
