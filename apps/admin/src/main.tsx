@@ -64,7 +64,7 @@ function Root() {
         window.location.hash = 'importar-fichas'
       } else if (label.includes('fichas técnicas')) {
         window.location.hash = 'fichas-tecnicas'
-      } else if (label.includes('feedback') || label.includes('satisfação')) {
+      } else if ((label.includes('feedback') || label.includes('satisfação')) && !window.location.hash.includes('feedbacks/')) {
         window.location.hash = 'feedbacks'
       } else if (label.includes('relatório executivo')) {
         window.location.hash = 'relatorio-executivo'
@@ -102,6 +102,7 @@ function Root() {
   if (hash.startsWith('unidade/')) return <UnitDetailPage unitId={hash.slice('unidade/'.length)} />
   if (hash === 'relatorio-executivo') return <ExecutiveReportPage />
   if (hash === 'feedbacks') return <FeedbackPage />
+  if (hash.startsWith('feedbacks/')) return <FeedbackPage initialUnitId={hash.slice('feedbacks/'.length)} />
   if (hash === 'unidades') return <UnitsPage />
   if (hash === 'fichas-tecnicas') return <TechnicalSheetsPage />
   if (hash === 'importar-fichas') return <TechnicalSheetImportPage />
