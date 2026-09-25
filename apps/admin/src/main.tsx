@@ -64,7 +64,7 @@ function Root() {
         window.location.hash = 'importar-fichas'
       } else if (label.includes('fichas técnicas')) {
         window.location.hash = 'fichas-tecnicas'
-      } else if (label.includes('feedback') || label.includes('satisfação')) {
+      } else if ((label.includes('feedback') || label.includes('satisfação')) && !window.location.hash.includes('feedbacks/')) {
         window.location.hash = 'feedbacks'
       } else if (label.includes('relatório executivo')) {
         window.location.hash = 'relatorio-executivo'
