@@ -241,3 +241,7 @@ export type AdminAuditEvent={id:string;action:string;resource_type:string;resour
 export async function getAdminAudit():Promise<{events:AdminAuditEvent[]}>{
  return read(await fetch(`${API_URL}/api/admin/audit`,{headers:adminHeaders(presentationAdminKey)}),'Não foi possível consultar auditoria.')
 }
+
+export async function registerAdminUser(payload:{name:string;email:string;password:string}):Promise<{status:string;message:string;user:AdminUser}>{
+ return read(await fetch(`${API_URL}/api/admin/auth/register`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}),'Não foi possível concluir o cadastro.')
+}
