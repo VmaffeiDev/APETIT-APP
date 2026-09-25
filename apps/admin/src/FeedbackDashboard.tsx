@@ -17,22 +17,60 @@ function formatDate(value: string) {
   return new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit' }).format(new Date(`${value}T12:00:00`))
 }
 
-export function FeedbackDashboard() {
+export function FeedbackDashboard({ initialUnitId }: { initialUnitId?: string } = {}) {
+  const initialUnit = DEMO_UNITS.find((unit) => unit.unitId === initialUnitId) ?? DEMO_UNITS[0]
   const today = new Date()
   const sevenDaysAgo = new Date(today)
   sevenDaysAgo.setDate(today.getDate() - 6)
 
-  const [unitId, setUnitId] = useState(DEMO_UNITS[0].unitId)
-  const [restaurantId, setRestaurantId] = useState(DEMO_UNITS[0].restaurantId)
+  const [unitId, setUnitId] = useState(initialUnit.unitId)
+  const [restaurantId, setRestaurantId] = useState(initialUnit.restaurantId)
   const [adminKey, setAdminKey] = useState(presentationAdminKey)
-  const [start, setStart] = useState(sevenDaysAgo.toISOString().slice(0, 10))
-  const [end, setEnd] = useState(today.toISOString().slice(0, 10))
+  const [start, setStart] = useState(isPresentationMode ? '2026-09-15' : sevenDaysAgo.toISOString().slice(0, 10))
+  const [end, setEnd] = useState(isPresentationMode ? '2026-09-19' : today.toISOString().slice(0, 10))
   const [summary, setSummary] = useState<FeedbackSummary | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
   const selectedUnit = useMemo(() => DEMO_UNITS.find((unit) => unit.unitId === unitId) ?? DEMO_UNITS[0], [unitId])
   const maxTag = useMemo(() => Math.max(1, ...(summary?.tags.map((tag) => tag.count) ?? [1])), [summary])
+
+  function demoFallback(): FeedbackSummary {
+    const unitIndex = Math.max(0, DEMO_UNITS.findIndex((unit) => unit.unitId === unitId))
+    const ratings = [
+      { overall: 4.2, food: 4.1, service: 4.3, responses: 25 },
+      { overall: 4.3, food: 4.2, service: 4.4, responses: 25 },
+      { overall: 4.3, food: 4.2, service: 4.4, responses: 26 },
+    ][unitIndex] ?? { overall: 4.3, food: 4.2, service: 4.4, responses: 25 }
+    return {
+      unit_id: unitId,
+      restaurant_id: restaurantId || null,
+      period_start: '2026-09-15',
+      period_end: '2026-09-19',
+      responses: ratings.responses,
+      minimum_group: 5,
+      suppressed: false,
+      message: null,
+      ratings: { overall: ratings.overall, food: ratings.food, service: ratings.service },
+      tags: [
+        { tag: 'atendimento', count: 13 },
+        { tag: 'sabor', count: 10 },
+        { tag: 'variedade', count: 7 },
+        { tag: 'temperatura', count: 5 },
+      ],
+      trend: [
+        { date: '2026-09-15', responses: 5, rating: 4.1 },
+        { date: '2026-09-16', responses: 5, rating: 4.2 },
+        { date: '2026-09-17', responses: 5, rating: 4.3 },
+        { date: '2026-09-18', responses: 5, rating: 4.4 },
+        { date: '2026-09-19', responses: ratings.responses - 20, rating: ratings.overall },
+      ],
+      comments: [
+        { date: '2026-09-19', comment: 'Atendimento rápido e equipe atenciosa.' },
+        { date: '2026-09-18', comment: 'Boa variedade no almoço.' },
+      ],
+    }
+  }
 
   async function load() {
     if (!unitId.trim() || !adminKey.trim()) {
@@ -50,7 +88,12 @@ export function FeedbackDashboard() {
         adminKey: adminKey.trim(),
       }))
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Falha ao carregar os feedbacks.')
+      if (isPresentationMode) {
+        setSummary(demoFallback())
+        setError('')
+      } else {
+        setError(err instanceof Error ? err.message : 'Falha ao carregar os feedbacks.')
+      }
     } finally {
       setBusy(false)
     }
@@ -81,7 +124,7 @@ export function FeedbackDashboard() {
           <label><span>Refeitório</span><input value={selectedUnit.restaurantName} readOnly /></label>
           <label><span>De</span><input type="date" value={start} onChange={(e) => setStart(e.target.value)} /></label>
           <label><span>Até</span><input type="date" value={end} onChange={(e) => setEnd(e.target.value)} /></label>
-          {isPresentationMode ? <div className="full presentation-access"><strong>Modo apresentação</strong><span>Acesso administrativo liberado automaticamente neste ambiente.</span></div> : <label className="full"><span>Chave administrativa</span><input type="password" value={adminKey} onChange={(e) => setAdminKey(e.target.value)} placeholder="Chave de acesso da operação" /></label>}
+          {isPresentationMode ? <div className="full presentation-access"><strong>Modo apresentação</strong><span>Dados fictícios controlados de 15/09 a 19/09/2026. Se a API demo estiver indisponível, o painel usa uma amostra local identificada como demonstração.</span></div> : <label className="full"><span>Chave administrativa</span><input type="password" value={adminKey} onChange={(e) => setAdminKey(e.target.value)} placeholder="Chave de acesso da operação" /></label>}
         </div>
         {error && <div className="alert error">{error}</div>}
         <div className="action-row"><span className="helper">{isPresentationMode ? 'Dados fictícios para demonstração · nenhum funcionário real é usado.' : 'Nenhum identificador de funcionário é retornado neste relatório.'}</span><button className="primary" disabled={busy} onClick={load}>{busy ? 'Carregando...' : 'Atualizar relatório'}</button></div>
