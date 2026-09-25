@@ -25,6 +25,13 @@ class LoginRequest(BaseModel):
     password: str = Field(min_length=8, max_length=128)
 
 
+class ChangePasswordRequest(BaseModel):
+    current_password: str = Field(min_length=8, max_length=128)
+    new_password: str = Field(min_length=8, max_length=128)
+
+
+
+
 class UserRequest(BaseModel):
     name: str = Field(min_length=2, max_length=100)
     email: EmailStr
@@ -69,6 +76,62 @@ def logout(
     if authorization and authorization.startswith("Bearer ") and principal.id:
         revoke_session(authorization[7:].strip())
     return {"status": "ok"}
+
+
+@router.post("/api/admin/auth/change-password", tags=["admin-auth"])
+def change_password(
+    payload: ChangePasswordRequest,
+    authorization: str | None = Header(default=None),
+    principal: AdminPrincipal = Depends(require_admin),
+) -> dict:
+    if principal.id is None:
+        raise HTTPException(status_code=403, detail="Use uma conta individual para alterar a senha")
+    if payload.current_password == payload.new_password:
+        raise HTTPException(status_code=422, detail="A nova senha deve ser diferente da senha atual")
+
+    token = authorization[7:].strip() if authorization and authorization.startswith("Bearer ") else ""
+    current_token_hash = hashlib.sha256(token.encode()).hexdigest() if token else None
+
+    with engine.begin() as conn:
+        row = conn.execute(text("""
+            SELECT password_hash FROM admin_users
+            WHERE id=:id AND active=TRUE
+            FOR UPDATE
+        """), {"id": principal.id}).mappings().one_or_none()
+        if row is None:
+            raise HTTPException(status_code=404, detail="Conta administrativa não encontrada")
+        if not verify_password(payload.current_password, row["password_hash"]):
+            raise HTTPException(status_code=400, detail="Senha atual incorreta")
+
+        conn.execute(text("""
+            UPDATE admin_users SET password_hash=:password WHERE id=:id
+        """), {"id": principal.id, "password": hash_password(payload.new_password)})
+
+        if current_token_hash:
+            conn.execute(text("""
+                UPDATE admin_sessions SET revoked_at=now()
+                WHERE user_id=:id AND revoked_at IS NULL AND token_hash<>:current_token
+            """), {"id": principal.id, "current_token": current_token_hash})
+        else:
+            conn.execute(text("""
+                UPDATE admin_sessions SET revoked_at=now()
+                WHERE user_id=:id AND revoked_at IS NULL
+            """), {"id": principal.id})
+
+        conn.execute(text("""
+            DELETE FROM admin_password_resets
+            WHERE user_id=:id AND used_at IS NULL
+        """), {"id": principal.id})
+
+        conn.execute(text("""
+            INSERT INTO admin_audit_events(user_id,action,resource_type,resource_id,metadata)
+            VALUES (:actor,'admin_user.password_changed','admin_user',:target,
+                    jsonb_build_object('other_sessions_revoked',TRUE))
+        """), {"actor": principal.id, "target": str(principal.id)})
+
+    return {"status": "password_changed", "other_sessions_revoked": True}
+
+
 
 
 @router.get("/api/admin/users", tags=["admin-users"])
