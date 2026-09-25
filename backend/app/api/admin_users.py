@@ -364,3 +364,46 @@ def confirm_password_recovery(payload: PasswordRecoveryConfirm) -> dict:
     if not valid:
         raise HTTPException(status_code=401, detail="Código inválido ou expirado.")
     return {"status":"password_changed","message":"Senha alterada. Entre novamente com a nova senha."}
+
+
+class SelfRegistrationRequest(BaseModel):
+    name: str = Field(min_length=2, max_length=100)
+    email: EmailStr
+    password: str = Field(min_length=8, max_length=128)
+
+
+@router.post("/api/admin/auth/register", tags=["admin-auth"])
+def register_admin_user(payload: SelfRegistrationRequest) -> dict:
+    """Public team signup. New accounts are inactive until an administrator approves access."""
+    email = str(payload.email).strip().lower()
+    with engine.begin() as conn:
+        _recovery_rate(conn, email=email, kind="admin_register", maximum=3)
+        _recovery_record(conn, email=email, kind="admin_register")
+        existing = conn.execute(
+            text("SELECT active FROM admin_users WHERE email=:email"),
+            {"email": email},
+        ).mappings().one_or_none()
+        if existing:
+            raise HTTPException(
+                status_code=409,
+                detail="Já existe uma conta com este e-mail. Entre ou recupere sua senha.",
+            )
+        row = conn.execute(text("""
+            INSERT INTO admin_users(name,email,password_hash,role,active)
+            VALUES (:name,:email,:password,'visualizacao',FALSE)
+            RETURNING id,name,email,role,active,last_login_at
+        """), {
+            "name": payload.name.strip(),
+            "email": email,
+            "password": hash_password(payload.password),
+        }).mappings().one()
+        conn.execute(text("""
+            INSERT INTO admin_audit_events(user_id,action,resource_type,resource_id,metadata)
+            VALUES (NULL,'admin_user.registration_requested','admin_user',:target,
+                    jsonb_build_object('email',:email))
+        """), {"target": str(row["id"]), "email": email})
+    return {
+        "status": "pending_approval",
+        "message": "Cadastro recebido. Um administrador precisa aprovar seu acesso antes do primeiro login.",
+        "user": public_user(row),
+    }
