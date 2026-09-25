@@ -209,6 +209,20 @@ export type AdminUser={id:string|null;name:string;email:string|null;role:'admin'
 export async function adminLogin(email:string,password:string):Promise<{token:string;expires_at:string;user:AdminUser}>{
  return read(await fetch(`${API_URL}/api/admin/auth/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})}),'Não foi possível entrar.')
 }
+export async function requestAdminPasswordRecovery(email:string):Promise<{status:string;message:string}>{
+ return read(await fetch(`${API_URL}/api/admin/auth/recovery/request`,{
+  method:'POST',
+  headers:{'Content-Type':'application/json'},
+  body:JSON.stringify({email})
+ }),'Não foi possível solicitar a recuperação de senha.')
+}
+export async function confirmAdminPasswordRecovery(email:string,code:string,newPassword:string):Promise<{status:string;message:string}>{
+ return read(await fetch(`${API_URL}/api/admin/auth/recovery/confirm`,{
+  method:'POST',
+  headers:{'Content-Type':'application/json'},
+  body:JSON.stringify({email,code,new_password:newPassword})
+ }),'Não foi possível redefinir a senha.')
+}
 export async function adminMe():Promise<AdminUser>{
  return read(await fetch(`${API_URL}/api/admin/auth/me`,{headers:adminHeaders('')}),'Sessão inválida.')
 }
