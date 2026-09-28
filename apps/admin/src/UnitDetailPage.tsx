@@ -61,6 +61,15 @@ export function UnitDetailPage({unitId}:Props){
     return items
   },[unit])
 
+  if(data && !unit){
+    return <div className="app-shell"><main className="main"><section className="card content-card">
+      <span className="eyebrow">ACESSO À UNIDADE</span>
+      <h1>Unidade não disponível para sua conta</h1>
+      <p>Esta unidade não está entre as unidades atribuídas ao seu perfil.</p>
+      <button className="primary" onClick={()=>go('unidades')}>Voltar às minhas unidades</button>
+    </section></main></div>
+  }
+
   return <div className="app-shell">
     <aside className="sidebar">
       <div className="brand"><span className="brand-mark">A</span><div><strong>APETIT</strong><small>Admin</small></div></div>
