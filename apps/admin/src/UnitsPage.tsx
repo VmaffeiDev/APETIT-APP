@@ -1,7 +1,25 @@
+import { useEffect, useState } from 'react'
+import { adminMe, getAdminToken } from './api'
 import { DEMO_UNITS } from './demoUnits'
 import './units.css'
 
 export function UnitsPage() {
+  const [visibleUnits,setVisibleUnits]=useState(DEMO_UNITS)
+  const [scopeLoading,setScopeLoading]=useState(Boolean(getAdminToken()))
+  const [scopeError,setScopeError]=useState('')
+
+  useEffect(()=>{
+    if(!getAdminToken()){ setVisibleUnits(DEMO_UNITS); setScopeLoading(false); return }
+    let cancelled=false
+    adminMe().then(user=>{
+      if(cancelled)return
+      setVisibleUnits(user.role==='admin' ? DEMO_UNITS : DEMO_UNITS.filter(unit=>(user.unit_ids??[]).includes(unit.unitId)))
+    }).catch(err=>{
+      if(!cancelled)setScopeError(err instanceof Error?err.message:'Não foi possível carregar suas unidades.')
+    }).finally(()=>{if(!cancelled)setScopeLoading(false)})
+    return()=>{cancelled=true}
+  },[])
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -28,13 +46,13 @@ export function UnitsPage() {
             <h1>Unidades atendidas</h1>
             <p>Base fictícia para apresentação do APETIT-APP até a chegada do relatório oficial.</p>
           </div>
-          <span className="badge">3 unidades demo</span>
+          <span className="badge">{scopeLoading?'Carregando...':`${visibleUnits.length} unidade(s)`}</span>
         </header>
 
         <section className="units-summary">
-          <div className="metric"><small>Empresas</small><strong>3</strong><span>cadastros temporários</span></div>
-          <div className="metric"><small>Unidades</small><strong>3</strong><span>uma por empresa na demo</span></div>
-          <div className="metric"><small>Refeitórios</small><strong>3</strong><span>ligados aos fluxos reais</span></div>
+          <div className="metric"><small>Empresas</small><strong>{visibleUnits.length}</strong><span>visíveis para sua conta</span></div>
+          <div className="metric"><small>Unidades</small><strong>{visibleUnits.length}</strong><span>conforme suas permissões</span></div>
+          <div className="metric"><small>Refeitórios</small><strong>{visibleUnits.length}</strong><span>ligados às unidades autorizadas</span></div>
         </section>
 
         <section className="demo-notice">
@@ -42,8 +60,10 @@ export function UnitsPage() {
           <p><strong>Dados de demonstração.</strong> Os nomes abaixo servem apenas para validar o produto. Quando a Apetit enviar a relação oficial de empresas, unidades e refeitórios, substituiremos esses registros mantendo a mesma arquitetura.</p>
         </section>
 
+        {scopeError&&<div className="alert error">{scopeError}</div>}
+        {!scopeLoading&&visibleUnits.length===0&&<section className="card content-card"><h2>Nenhuma unidade atribuída</h2><p>Sua conta está ativa, mas ainda não possui acesso a nenhuma unidade. Um Administrador precisa atribuir pelo menos uma unidade ao seu perfil.</p></section>}
         <section className="units-grid">
-          {DEMO_UNITS.map((unit, index) => (
+          {visibleUnits.map((unit, index) => (
             <article className="unit-card" key={unit.unitId}>
               <div className="unit-card-head">
                 <div className={`company-avatar company-${index + 1}`}><img src={unit.logoUrl} alt={`Logo ${unit.company}`} loading="lazy" /></div>
