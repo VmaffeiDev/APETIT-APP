@@ -33,6 +33,6 @@ export function AdminLoginPage({onSuccess}:{onSuccess:()=>void}){
    {error&&<div className="alert error">{error}</div>}
    <button className="primary" disabled={busy}>{busy?'Entrando...':'Entrar'}</button>
   </form>
-  <small className="login-help">Esqueceu a senha? Solicite a redefinição a um Administrador em Usuários e acessos. A recuperação por código será ativada somente após a aprovação da empresa.</small>
+  <small className="login-help">Para trocar sua senha, entre na conta e acesse Configurações → Alterar senha. Se você esqueceu a senha atual, um Administrador pode definir uma nova em Usuários e acessos.</small>
  </section></main>
 }
