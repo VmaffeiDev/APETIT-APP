@@ -196,11 +196,11 @@ export async function getMenuVersion(params:{unitId:string;versionId:string;admi
  headers:adminHeaders(params.adminKey)
  }),'Não foi possível abrir esta versão.')
 }
-export async function restoreMenuVersion(params:{unitId:string;version:MenuVersion;operatorLabel:string;adminKey:string}):Promise<{status:string;menu_import_id:string;days:number}>{
+export async function restoreMenuVersion(params:{unitId:string;version:MenuVersion;operatorLabel?:string;adminKey:string}):Promise<{status:string;menu_import_id:string;days:number}>{
  return read(await fetch(`${API_URL}/api/admin/menus/versions/${encodeURIComponent(params.version.id)}/restore`,{
  method:'POST',
  headers:adminHeaders(params.adminKey,{'Content-Type':'application/json'}),
- body:JSON.stringify({unit_id:params.unitId,operator_label:params.operatorLabel,confirm_restore:true,
+ body:JSON.stringify({unit_id:params.unitId,operator_label:params.operatorLabel?.trim()||null,confirm_restore:true,
  expected_current:params.version.expected_current})
  }),'Não foi possível restaurar o cardápio.')
 }
