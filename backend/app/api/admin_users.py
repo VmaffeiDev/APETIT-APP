@@ -5,8 +5,9 @@ import logging
 import secrets
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
+from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import text
 
@@ -332,7 +333,7 @@ class AdminPasswordResetRequest(BaseModel):
 
 class AdminPasswordResetConfirm(BaseModel):
     email: EmailStr
-    code: str = Field(min_length=6, max_length=6)
+    token: str = Field(min_length=32, max_length=256)
     new_password: str = Field(min_length=8, max_length=128)
 
 
@@ -365,9 +366,9 @@ def _recovery_record(conn, *, email: str, kind: str) -> None:
 
 
 @router.post("/api/admin/auth/password-reset/request", tags=["admin-auth"])
-def request_admin_password_reset(payload: AdminPasswordResetRequest) -> dict:
+def request_admin_password_reset(payload: AdminPasswordResetRequest, request: Request) -> dict:
     email = str(payload.email).strip().lower()
-    reset_code: str | None = None
+    reset_token: str | None = None
     user_id = None
 
     with engine.begin() as conn:
@@ -379,8 +380,8 @@ def request_admin_password_reset(payload: AdminPasswordResetRequest) -> dict:
 
         if row and row["active"]:
             user_id = row["id"]
-            reset_code = f"{secrets.randbelow(1_000_000):06d}"
-            token_hash = hashlib.sha256(reset_code.encode()).hexdigest()
+            reset_token = secrets.token_urlsafe(32)
+            token_hash = hashlib.sha256(reset_token.encode()).hexdigest()
             expires_at = datetime.now(timezone.utc) + timedelta(minutes=ADMIN_RESET_TTL_MINUTES)
             conn.execute(text("""
                 INSERT INTO admin_password_resets(user_id,token_hash,expires_at,used_at)
@@ -396,11 +397,20 @@ def request_admin_password_reset(payload: AdminPasswordResetRequest) -> dict:
                 "expires_at": expires_at,
             })
 
-    if reset_code and user_id:
+    if reset_token and user_id:
+        origin = (request.headers.get("origin") or "").rstrip("/")
+        if origin not in settings.allowed_origins:
+            origin = (settings.allowed_origins[0] if settings.allowed_origins else "").rstrip("/")
+        if not origin:
+            raise HTTPException(status_code=503, detail="Origem do Admin não configurada para recuperação")
+        reset_url = (
+            f"{origin}/?reset_token={quote(reset_token)}&email={quote(email)}"
+            "#redefinir-senha"
+        )
         try:
             send_admin_password_reset(
                 recipient=email,
-                code=reset_code,
+                reset_url=reset_url,
                 expires_in_minutes=ADMIN_RESET_TTL_MINUTES,
             )
         except EmailDeliveryError as exc:
@@ -417,7 +427,7 @@ def request_admin_password_reset(payload: AdminPasswordResetRequest) -> dict:
 
     return {
         "status": "accepted",
-        "message": "Se existir uma conta ativa com este e-mail, enviaremos um código de recuperação.",
+        "message": "Se existir uma conta ativa com este e-mail, enviaremos um link para criar uma nova senha.",
         "expires_in_minutes": ADMIN_RESET_TTL_MINUTES,
     }
 
@@ -425,7 +435,7 @@ def request_admin_password_reset(payload: AdminPasswordResetRequest) -> dict:
 @router.post("/api/admin/auth/password-reset/confirm", tags=["admin-auth"])
 def confirm_admin_password_reset(payload: AdminPasswordResetConfirm) -> dict:
     email = str(payload.email).strip().lower()
-    code_hash = hashlib.sha256(payload.code.strip().encode()).hexdigest()
+    token_hash = hashlib.sha256(payload.token.strip().encode()).hexdigest()
 
     with engine.begin() as conn:
         _recovery_rate(conn, email=email, kind="admin_reset_verify_failed", maximum=ADMIN_RESET_VERIFY_LIMIT)
@@ -438,11 +448,11 @@ def confirm_admin_password_reset(payload: AdminPasswordResetConfirm) -> dict:
               AND r.used_at IS NULL
               AND r.expires_at > now()
             FOR UPDATE
-        """), {"email": email, "token_hash": code_hash}).mappings().one_or_none()
+        """), {"email": email, "token_hash": token_hash}).mappings().one_or_none()
 
         if row is None:
             _recovery_record(conn, email=email, kind="admin_reset_verify_failed")
-            raise HTTPException(status_code=401, detail="Código inválido ou expirado")
+            raise HTTPException(status_code=401, detail="Link de redefinição inválido ou expirado")
 
         conn.execute(text("""
             UPDATE admin_users SET password_hash=:password WHERE id=:id
