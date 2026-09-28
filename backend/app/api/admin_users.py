@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import hashlib
+import logging
+import secrets
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, HTTPException
@@ -12,9 +15,15 @@ from app.api.admin_auth import (
     require_permission, revoke_session, verify_password,
 )
 from app.db import engine
+from app.services.email_delivery import EmailDeliveryError, send_admin_password_reset
 from app.settings import settings
 
 router = APIRouter()
+logger = logging.getLogger("apetit.admin_auth")
+ADMIN_RESET_TTL_MINUTES = 15
+ADMIN_RESET_REQUEST_LIMIT = 3
+ADMIN_RESET_VERIFY_LIMIT = 5
+ADMIN_RESET_RATE_WINDOW_MINUTES = 15
 
 
 class LoginRequest(BaseModel):
@@ -315,6 +324,147 @@ def admin_audit(limit: int = 50, principal: AdminPrincipal = Depends(require_adm
                         "actor_name": row["actor_name"], "actor_email": str(row["actor_email"]) if row["actor_email"] else None}
                        for row in rows]}
 
+
+
+class AdminPasswordResetRequest(BaseModel):
+    email: EmailStr
+
+
+class AdminPasswordResetConfirm(BaseModel):
+    email: EmailStr
+    code: str = Field(min_length=6, max_length=6)
+    new_password: str = Field(min_length=8, max_length=128)
+
+
+def _recovery_key(email: str) -> str:
+    return hashlib.sha256(f"admin-auth:{email.strip().lower()}".encode()).hexdigest()
+
+
+def _recovery_rate(conn, *, email: str, kind: str, maximum: int) -> None:
+    count = conn.execute(text("""
+        SELECT COUNT(*) FROM auth_rate_events
+        WHERE key_hash=:key_hash AND event_type=:kind
+          AND created_at >= now() - (:minutes * interval '1 minute')
+    """), {
+        "key_hash": _recovery_key(email),
+        "kind": kind,
+        "minutes": ADMIN_RESET_RATE_WINDOW_MINUTES,
+    }).scalar_one()
+    if count >= maximum:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Muitas tentativas. Aguarde {ADMIN_RESET_RATE_WINDOW_MINUTES} minutos e tente novamente.",
+        )
+
+
+def _recovery_record(conn, *, email: str, kind: str) -> None:
+    conn.execute(text("""
+        INSERT INTO auth_rate_events(key_hash,event_type)
+        VALUES (:key_hash,:kind)
+    """), {"key_hash": _recovery_key(email), "kind": kind})
+
+
+@router.post("/api/admin/auth/password-reset/request", tags=["admin-auth"])
+def request_admin_password_reset(payload: AdminPasswordResetRequest) -> dict:
+    email = str(payload.email).strip().lower()
+    reset_code: str | None = None
+    user_id = None
+
+    with engine.begin() as conn:
+        _recovery_rate(conn, email=email, kind="admin_reset_request", maximum=ADMIN_RESET_REQUEST_LIMIT)
+        _recovery_record(conn, email=email, kind="admin_reset_request")
+        row = conn.execute(text("""
+            SELECT id,email,active FROM admin_users WHERE email=:email
+        """), {"email": email}).mappings().one_or_none()
+
+        if row and row["active"]:
+            user_id = row["id"]
+            reset_code = f"{secrets.randbelow(1_000_000):06d}"
+            token_hash = hashlib.sha256(reset_code.encode()).hexdigest()
+            expires_at = datetime.now(timezone.utc) + timedelta(minutes=ADMIN_RESET_TTL_MINUTES)
+            conn.execute(text("""
+                INSERT INTO admin_password_resets(user_id,token_hash,expires_at,used_at)
+                VALUES (:user_id,:token_hash,:expires_at,NULL)
+                ON CONFLICT (user_id) DO UPDATE SET
+                    token_hash=EXCLUDED.token_hash,
+                    expires_at=EXCLUDED.expires_at,
+                    created_at=now(),
+                    used_at=NULL
+            """), {
+                "user_id": user_id,
+                "token_hash": token_hash,
+                "expires_at": expires_at,
+            })
+
+    if reset_code and user_id:
+        try:
+            send_admin_password_reset(
+                recipient=email,
+                code=reset_code,
+                expires_in_minutes=ADMIN_RESET_TTL_MINUTES,
+            )
+        except EmailDeliveryError as exc:
+            logger.warning("Falha ao enviar recuperação do Admin: %s", exc)
+            with engine.begin() as conn:
+                conn.execute(text("""
+                    DELETE FROM admin_password_resets
+                    WHERE user_id=:user_id AND used_at IS NULL
+                """), {"user_id": user_id})
+            raise HTTPException(
+                status_code=503,
+                detail="Não foi possível enviar o código de recuperação. Tente novamente em instantes.",
+            ) from exc
+
+    return {
+        "status": "accepted",
+        "message": "Se existir uma conta ativa com este e-mail, enviaremos um código de recuperação.",
+        "expires_in_minutes": ADMIN_RESET_TTL_MINUTES,
+    }
+
+
+@router.post("/api/admin/auth/password-reset/confirm", tags=["admin-auth"])
+def confirm_admin_password_reset(payload: AdminPasswordResetConfirm) -> dict:
+    email = str(payload.email).strip().lower()
+    code_hash = hashlib.sha256(payload.code.strip().encode()).hexdigest()
+
+    with engine.begin() as conn:
+        _recovery_rate(conn, email=email, kind="admin_reset_verify_failed", maximum=ADMIN_RESET_VERIFY_LIMIT)
+        row = conn.execute(text("""
+            SELECT u.id AS user_id, r.id AS reset_id
+            FROM admin_users u
+            JOIN admin_password_resets r ON r.user_id=u.id
+            WHERE u.email=:email AND u.active=TRUE
+              AND r.token_hash=:token_hash
+              AND r.used_at IS NULL
+              AND r.expires_at > now()
+            FOR UPDATE
+        """), {"email": email, "token_hash": code_hash}).mappings().one_or_none()
+
+        if row is None:
+            _recovery_record(conn, email=email, kind="admin_reset_verify_failed")
+            raise HTTPException(status_code=401, detail="Código inválido ou expirado")
+
+        conn.execute(text("""
+            UPDATE admin_users SET password_hash=:password WHERE id=:id
+        """), {"id": row["user_id"], "password": hash_password(payload.new_password)})
+        conn.execute(text("""
+            UPDATE admin_password_resets SET used_at=now() WHERE id=:id
+        """), {"id": row["reset_id"]})
+        conn.execute(text("""
+            UPDATE admin_sessions SET revoked_at=now()
+            WHERE user_id=:id AND revoked_at IS NULL
+        """), {"id": row["user_id"]})
+        conn.execute(text("""
+            DELETE FROM auth_rate_events
+            WHERE key_hash=:key_hash AND event_type='admin_reset_verify_failed'
+        """), {"key_hash": _recovery_key(email)})
+        conn.execute(text("""
+            INSERT INTO admin_audit_events(user_id,action,resource_type,resource_id,metadata)
+            VALUES (:actor,'admin_user.password_recovered','admin_user',:target,
+                    jsonb_build_object('all_sessions_revoked',TRUE))
+        """), {"actor": row["user_id"], "target": str(row["user_id"])})
+
+    return {"status": "password_reset", "sessions_revoked": True}
 
 
 
