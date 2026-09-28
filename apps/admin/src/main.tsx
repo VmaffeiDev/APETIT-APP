@@ -11,6 +11,7 @@ import { UnitDetailPage } from './UnitDetailPage'
 import { WeeklyMenuPage } from './WeeklyMenuPage'
 import { MenuHistoryPage } from './MenuHistoryPage'
 import { AdminLoginPage } from './AdminLoginPage'
+import { AdminPasswordResetPage } from './AdminPasswordResetPage'
 import { AdminUsersPage } from './AdminUsersPage'
 import { AdminSetupPage } from './AdminSetupPage'
 import { AdminRegisterPage } from './AdminRegisterPage'
@@ -86,6 +87,7 @@ function Root() {
   }, [])
 
   if (hash === 'cadastro') return <AdminRegisterPage />
+  if (hash === 'redefinir-senha') return <AdminPasswordResetPage />
   if (hash === 'login') return <AdminLoginPage onSuccess={() => { window.location.hash='visao-geral'; setAuthState('checking'); setAuthRevision(v => v + 1) }} />
   if (hash === 'configurar-admin' && isPresentationMode) return <AdminSetupPage />
   const protectedRoute = !isPresentationMode || hash === 'usuarios'
