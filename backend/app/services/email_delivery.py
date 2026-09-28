@@ -174,8 +174,8 @@ def _send_via_mailtrap_api(*, recipient: str, text_body: str, html_body: str, su
         raise EmailDeliveryError("Mailtrap não confirmou o envio")
 
 
-def send_admin_password_reset(*, recipient: str, code: str, expires_in_minutes: int) -> None:
-    """Deliver only through a real configured provider; never print or return reset secrets."""
+def send_admin_password_reset(*, recipient: str, reset_url: str, expires_in_minutes: int) -> None:
+    """Send a one-time recovery link; the secret is never printed or returned."""
     provider = settings.normalized_email_provider
     if provider not in {"smtp", "mailtrap_api"} or not settings.email_from:
         raise EmailDeliveryError("envio de recuperação não configurado")
@@ -183,16 +183,17 @@ def send_admin_password_reset(*, recipient: str, code: str, expires_in_minutes: 
         raise EmailDeliveryError("Mailtrap Sandbox não entrega recuperação na caixa de entrada; configure envio real")
     subject = "Recuperação de senha do APETIT Admin"
     text_body = (
-        f"Recebemos uma solicitação para redefinir a senha do APETIT Admin. "
-        f"Seu código é: {code}. Expira em {expires_in_minutes} minutos e só pode ser usado uma vez. "
-        "Se você não solicitou a recuperação, ignore este e-mail. Nunca compartilhe o código."
+        "Recebemos uma solicitação para redefinir a senha do APETIT Admin. "
+        f"Acesse este link para criar uma nova senha: {reset_url} "
+        f"O link expira em {expires_in_minutes} minutos e só pode ser usado uma vez. "
+        "Se você não solicitou a recuperação, ignore este e-mail."
     )
     html_body = (
         "<html><body><h2>Recuperação de senha — APETIT Admin</h2>"
-        "<p>Use o código abaixo para redefinir sua senha:</p>"
-        f"<p style='font-size:24px;font-weight:bold;letter-spacing:3px'>{code}</p>"
-        f"<p>Expira em {expires_in_minutes} minutos e só pode ser usado uma vez.</p>"
-        "<p>Se não solicitou, ignore este e-mail. Nunca compartilhe o código.</p>"
+        "<p>Clique no botão abaixo para criar uma nova senha:</p>"
+        f"<p><a href='{reset_url}' style='display:inline-block;padding:12px 18px;background:#ec003f;color:#fff;text-decoration:none;border-radius:10px;font-weight:700'>Criar nova senha</a></p>"
+        f"<p>O link expira em {expires_in_minutes} minutos e só pode ser usado uma vez.</p>"
+        "<p>Se você não solicitou a recuperação, ignore este e-mail.</p>"
         "</body></html>"
     )
     if provider == "smtp":
