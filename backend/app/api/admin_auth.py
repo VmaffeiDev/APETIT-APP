@@ -54,11 +54,15 @@ def verify_password(password: str, encoded: str) -> bool:
 
 
 def _presentation_allowed(value: str | None) -> bool:
-    return (
-        settings.environment.strip().lower() == "development"
-        and (value or "").strip() == PRESENTATION_ADMIN_KEY
-    )
-
+    if settings.environment.strip().lower() != "development":
+        return False
+    if (value or "").strip() != PRESENTATION_ADMIN_KEY:
+        return False
+    with engine.connect() as conn:
+        has_users = bool(
+            conn.execute(text("SELECT EXISTS(SELECT 1 FROM admin_users)")).scalar_one()
+        )
+    return not has_users
 
 def require_admin(
     authorization: str | None = Header(default=None),
