@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { getMenuHistory, getMenuVersion, restoreMenuVersion, MenuHistoryEvent, MenuVersion, presentationAdminKey } from './api'
+import { getAdminToken, getMenuHistory, getMenuVersion, restoreMenuVersion, MenuHistoryEvent, MenuVersion, presentationAdminKey } from './api'
 import { DEMO_UNITS } from './demoUnits'
 
 const formatDate=(value:string|null)=>value?new Intl.DateTimeFormat('pt-BR',{dateStyle:'short'}).format(new Date(value+'T12:00:00')):'—'
@@ -19,6 +19,7 @@ export function MenuHistoryPage({initialUnitId}:{initialUnitId?:string}){
   const [confirmRestore,setConfirmRestore]=useState(false)
   const [restoring,setRestoring]=useState(false)
   const [revision,setRevision]=useState(0)
+  const authenticated=Boolean(getAdminToken())
   useEffect(()=>{
     let cancelled=false
     setLoading(true);setError('');setEvents([]);setSelectedVersion(null);setDetailError('')
@@ -37,10 +38,10 @@ export function MenuHistoryPage({initialUnitId}:{initialUnitId?:string}){
     finally{setDetailBusy(false)}
   }
   async function restore(){
-    if(!selectedVersion||!selectedVersion.restorable||!confirmRestore||operatorLabel.trim().length<2)return
+    if(!selectedVersion||!selectedVersion.restorable||!confirmRestore||(!authenticated&&operatorLabel.trim().length<2))return
     setRestoring(true);setDetailError('')
     try{
-      await restoreMenuVersion({unitId,version:selectedVersion,operatorLabel:operatorLabel.trim(),adminKey:presentationAdminKey})
+      await restoreMenuVersion({unitId,version:selectedVersion,operatorLabel:authenticated?undefined:operatorLabel.trim(),adminKey:presentationAdminKey})
       setSelectedVersion(null);setRevision(n=>n+1)
     }catch(e){setDetailError(e instanceof Error?e.message:'Não foi possível restaurar esta versão.')}
     finally{setRestoring(false)}
@@ -68,7 +69,7 @@ export function MenuHistoryPage({initialUnitId}:{initialUnitId?:string}){
         <button className="secondary" onClick={()=>window.location.hash=`calendario-cardapios/${unitId}`}>Ver calendário</button>
         <button className="primary" onClick={()=>window.location.hash='cardapios'}>Nova publicação</button>
       </section>
-      <div className="alert warning"><strong>Identificação do operador</strong> A demo utiliza acesso administrativo compartilhado. O nome exibido é informado pela própria pessoa, não verificado por uma conta individual. Eventos anteriores a esta implantação podem não ter nome ou refeição registrados.</div>
+      <div className={authenticated?'alert success':'alert warning'}><strong>Identificação do operador</strong> {authenticated?'Sua conta individual está ativa. Novas publicações e restaurações serão vinculadas ao usuário autenticado.':'O modo de apresentação usa identificação declarada. Entre com uma conta individual para registrar ações com usuário verificado.'}</div>
       {loading&&<p>Carregando histórico de {selected?.company}...</p>}
       {error&&<div className="alert error">{error}</div>}
       {!loading&&!error&&<section className="card history-card">
@@ -109,12 +110,12 @@ export function MenuHistoryPage({initialUnitId}:{initialUnitId?:string}){
           </article>
         })}</div>
         {selectedVersion.restorable&&<>
-          <label className="operator-field"><span>Seu nome para registrar a restauração (declarado)</span>
+          {authenticated?<div className="alert success"><strong>Usuário verificado</strong>A restauração será registrada automaticamente no histórico com sua conta.</div>:<label className="operator-field"><span>Seu nome para registrar a restauração (declarado)</span>
             <input value={operatorLabel} maxLength={100} onChange={e=>setOperatorLabel(e.target.value)} placeholder="Nome do operador"/>
-            <small>A demo não verifica a identidade do operador por login individual.</small></label>
+            <small>Entre com uma conta individual para que a identidade seja verificada automaticamente.</small></label>}
           <label className="replacement-confirm"><input type="checkbox" checked={confirmRestore} onChange={e=>setConfirmRestore(e.target.checked)}/>
             <span>Confirmo que quero republicar todos os dias desta versão e substituir os cardápios atuais dessas datas.</span></label>
-          <button className="primary" disabled={restoring||!confirmRestore||operatorLabel.trim().length<2} onClick={restore}>{restoring?'Restaurando...':'Restaurar esta versão'}</button>
+          <button className="primary" disabled={restoring||!confirmRestore||(!authenticated&&operatorLabel.trim().length<2)} onClick={restore}>{restoring?'Restaurando...':'Restaurar esta versão'}</button>
         </>}
       </section>}
     </main>
