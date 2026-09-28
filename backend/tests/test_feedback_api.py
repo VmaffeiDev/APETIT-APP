@@ -5,7 +5,7 @@ from app.main import app
 client = TestClient(app)
 
 
-def test_feedback_summary_requires_admin_key():
+def test_feedback_summary_requires_admin_login():
     response = client.get(
         "/api/admin/feedback/summary",
         params={
@@ -15,7 +15,7 @@ def test_feedback_summary_requires_admin_key():
         },
     )
     assert response.status_code == 401
-    assert response.json()["detail"] == "credencial administrativa inválida"
+    assert response.json()["detail"] == "Faça login no Admin"
 
 
 def test_feedback_rating_validation_happens_before_database():
