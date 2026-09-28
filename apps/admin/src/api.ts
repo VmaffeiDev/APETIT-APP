@@ -206,6 +206,22 @@ export async function restoreMenuVersion(params:{unitId:string;version:MenuVersi
 }
 
 export type AdminUser={id:string|null;name:string;email:string|null;role:'admin'|'operacao'|'nutricao'|'visualizacao';presentation?:boolean;active?:boolean;last_login_at?:string|null;unit_ids?:string[]}
+
+export async function requestAdminPasswordReset(email:string):Promise<{status:string;message:string;expires_in_minutes:number}>{
+ return read(await fetch(`${API_URL}/api/admin/auth/password-reset/request`,{
+  method:'POST',
+  headers:{'Content-Type':'application/json'},
+  body:JSON.stringify({email})
+ }),'Não foi possível solicitar a recuperação da senha.')
+}
+export async function confirmAdminPasswordReset(email:string,code:string,newPassword:string):Promise<{status:string;sessions_revoked:boolean}>{
+ return read(await fetch(`${API_URL}/api/admin/auth/password-reset/confirm`,{
+  method:'POST',
+  headers:{'Content-Type':'application/json'},
+  body:JSON.stringify({email,code,new_password:newPassword})
+ }),'Não foi possível redefinir a senha.')
+}
+
 export async function adminLogin(email:string,password:string):Promise<{token:string;expires_at:string;user:AdminUser}>{
  return read(await fetch(`${API_URL}/api/admin/auth/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})}),'Não foi possível entrar.')
 }
