@@ -138,7 +138,8 @@ def get_version(unit_id: UUID, version_id: UUID) -> dict:
 
 
 def restore_version(*, unit_id: UUID, version_id: UUID,
-                    expected_current: list[dict], operator_label: str) -> dict:
+                    expected_current: list[dict], operator_label: str,
+                    actor_user_id: UUID | None = None) -> dict:
     operator_label = operator_label.strip()
     if not 2 <= len(operator_label) <= 100:
         raise ValueError("informe o nome do operador (2 a 100 caracteres)")
@@ -181,15 +182,16 @@ def restore_version(*, unit_id: UUID, version_id: UUID,
             INSERT INTO menu_imports
               (id, unit_id, file_name, status, period_start, period_end,
                published_at, meal_type, operator_label, replaced_dates,
-               item_count, operation_kind, restored_from)
+               item_count, operation_kind, restored_from, actor_user_id)
             VALUES
               (:id, :unit_id, :file, 'published', :start, :end, now(),
-               :meal, :operator, :dates, :count, 'restore', :source)
+               :meal, :operator, :dates, :count, 'restore', :source, :actor_user_id)
         """), {"id": new_id, "unit_id": unit_id,
                "file": f"Restauração da versão {version_id}",
                "start": min(dates), "end": max(dates), "meal": meal_type,
                "operator": operator_label, "dates": [r["service_date"] for r in active],
-               "count": sum(len(day["items"]) for day in days), "source": version_id})
+               "count": sum(len(day["items"]) for day in days), "source": version_id,
+               "actor_user_id": actor_user_id})
         for day in days:
             service_date = date.fromisoformat(day["date"])
             conn.execute(text("""
