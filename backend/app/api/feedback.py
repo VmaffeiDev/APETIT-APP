@@ -117,9 +117,10 @@ def admin_feedback_summary(
     start: date,
     end: date,
     restaurant_id: UUID | None = None,
-    x_apetit_admin_key: str | None = Header(default=None),
+    principal: AdminPrincipal = Depends(require_admin),
 ) -> dict:
-    require_admin_key(x_apetit_admin_key)
+    require_permission(principal, "read")
+    require_unit_access(principal, unit_id)
     try:
         return feedback_summary(
             unit_id=str(unit_id),
