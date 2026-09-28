@@ -47,6 +47,6 @@ def test_publish_requires_explicit_period_confirmation():
     response = client.post(
         "/api/admin/menu-imports/not-a-real-preview/publish",
         headers={"X-Apetit-Admin-Key": "change-me"},
-        json={"month": 8, "year": 2026, "confirm_period": False},
+        json={"month": 8, "year": 2026, "confirm_period": False, "operator_label": "Teste CI"},
     )
     assert response.status_code == 409
