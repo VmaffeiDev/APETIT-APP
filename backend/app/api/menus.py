@@ -282,7 +282,7 @@ def admin_publication_history(
 
 class RestoreVersionRequest(BaseModel):
     unit_id: UUID
-    operator_label: str = Field(min_length=2, max_length=100)
+    operator_label: str | None = Field(default=None, min_length=2, max_length=100)
     confirm_restore: bool
     expected_current: list[dict[str, str]]
 
@@ -314,11 +314,15 @@ def admin_restore_menu_version(
     if any(set(item) != {"date", "menu_import_id"} for item in payload.expected_current):
         raise HTTPException(status_code=422, detail="Referência de versão atual inválida")
     try:
+        operator_label = principal.name if principal.id else (payload.operator_label or "").strip()
+        if principal.id is None and len(operator_label) < 2:
+            raise HTTPException(status_code=422, detail="Informe o nome do operador")
         return restore_version(
             unit_id=payload.unit_id,
             version_id=version_id,
             expected_current=payload.expected_current,
-            operator_label=payload.operator_label,
+            operator_label=operator_label,
+            actor_user_id=principal.id,
         )
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
