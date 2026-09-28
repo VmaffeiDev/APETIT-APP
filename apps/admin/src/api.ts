@@ -214,11 +214,11 @@ export async function requestAdminPasswordReset(email:string):Promise<{status:st
   body:JSON.stringify({email})
  }),'Não foi possível solicitar a recuperação da senha.')
 }
-export async function confirmAdminPasswordReset(email:string,code:string,newPassword:string):Promise<{status:string;sessions_revoked:boolean}>{
+export async function confirmAdminPasswordReset(email:string,token:string,newPassword:string):Promise<{status:string;sessions_revoked:boolean}>{
  return read(await fetch(`${API_URL}/api/admin/auth/password-reset/confirm`,{
   method:'POST',
   headers:{'Content-Type':'application/json'},
-  body:JSON.stringify({email,code,new_password:newPassword})
+  body:JSON.stringify({email,token,new_password:newPassword})
  }),'Não foi possível redefinir a senha.')
 }
 
