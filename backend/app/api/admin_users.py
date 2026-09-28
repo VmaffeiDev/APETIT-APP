@@ -10,7 +10,7 @@ from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import text
 
 from app.api.admin_auth import (
-    AdminPrincipal, create_session, hash_password, require_admin,
+    AdminPrincipal, allowed_unit_ids, create_session, hash_password, require_admin,
     require_permission, revoke_session, verify_password,
 )
 from app.services.email_delivery import EmailDeliveryError, send_admin_password_reset
@@ -63,9 +63,11 @@ def login(payload: LoginRequest) -> dict:
 
 @router.get("/api/admin/auth/me", tags=["admin-auth"])
 def me(principal: AdminPrincipal = Depends(require_admin)) -> dict:
+    unit_ids = allowed_unit_ids(principal)
     return {"id": str(principal.id) if principal.id else None, "name": principal.name,
             "email": principal.email, "role": principal.role,
-            "presentation": principal.presentation}
+            "presentation": principal.presentation,
+            "unit_ids": [] if unit_ids is None else [str(value) for value in unit_ids]}
 
 
 @router.post("/api/admin/auth/logout", tags=["admin-auth"])
