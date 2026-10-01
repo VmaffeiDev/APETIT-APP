@@ -13,6 +13,7 @@ from app.db import engine
 from app.services.menu_import import read_planning_csv, read_planning_xlsx_bytes
 from app.services.menu_versions import get_version, restore_version
 from app.services.menu_workflow import (
+    get_staged,
     preview_payload,
     publish_staged_menu,
     published_menu_for_day,
@@ -78,6 +79,10 @@ def publish_menu_import(
     principal: AdminPrincipal = Depends(require_admin),
 ) -> dict:
     require_permission(principal, "publish_menu")
+    staged = get_staged(preview_id)
+    if staged is None:
+        raise HTTPException(status_code=404, detail="preview não encontrado ou expirado")
+    require_unit_access(principal, UUID(staged.unit_id))
     if not payload.confirm_period:
         raise HTTPException(
             status_code=409,
