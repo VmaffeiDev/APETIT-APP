@@ -1,6 +1,7 @@
 import { DragEvent, useEffect, useMemo, useRef, useState } from 'react'
-import { isPresentationMode, MenuPreview, presentationAdminKey, PublicationStatus, PublishResult, getPublicationStatus, previewMenu, publishMenu } from './api'
+import { AdminUser, getAdminToken, isPresentationMode, MenuPreview, presentationAdminKey, PublicationStatus, PublishResult, getPublicationStatus, previewMenu, publishMenu } from './api'
 import { DEMO_UNITS } from './demoUnits'
+import { filterUnitsForUser, hasAdminPermission } from './access'
 
 type Stage = 'upload' | 'preview' | 'published'
 
@@ -23,7 +24,7 @@ const sheetStatusLabel = {
   no_code: 'Sem código',
 }
 
-function App() {
+function App({user}:{user:AdminUser|null}) {
   const fileInput = useRef<HTMLInputElement>(null)
   const [stage, setStage] = useState<Stage>('upload')
   const [file, setFile] = useState<File | null>(null)
@@ -43,8 +44,16 @@ function App() {
   const [replaceExisting,setReplaceExisting]=useState(false)
   const [statusRevision,setStatusRevision]=useState(0)
   const [operatorLabel,setOperatorLabel]=useState('')
+  const authenticated=Boolean(getAdminToken())
+  const allowedUnits=useMemo(()=>filterUnitsForUser(DEMO_UNITS,user),[user])
+  const canManageSheets=hasAdminPermission(user,'manage_sheets')
+  const canManageUsers=hasAdminPermission(user,'manage_users')
 
-  const selectedUnit = DEMO_UNITS.find((unit) => unit.unitId === unitId) ?? DEMO_UNITS[0]
+  useEffect(()=>{
+    if(!allowedUnits.some(unit=>unit.unitId===unitId)) setUnitId(allowedUnits[0]?.unitId ?? '')
+  },[allowedUnits,unitId])
+
+  const selectedUnit = allowedUnits.find((unit) => unit.unitId === unitId) ?? allowedUnits[0] ?? DEMO_UNITS[0]
 
   useEffect(() => {
     let cancelled=false
@@ -69,7 +78,7 @@ function App() {
     <strong>{statusBusy?'Verificando publicações...':publicationStatus?.published_days.length
       ?`✓ ${publicationStatus.published_days.length} dia(s) já publicado(s) neste mês`
       :'Nenhum dia publicado neste mês para esta unidade e refeição.'}</strong>
-    <p>Unidade: {DEMO_UNITS.find(unit=>unit.unitId===unitId)?.company} · {String(month).padStart(2,'0')}/{year} · {mealType}</p>
+    <p>Unidade: {allowedUnits.find(unit=>unit.unitId===unitId)?.company} · {String(month).padStart(2,'0')}/{year} · {mealType}</p>
     {publicationStatus && publicationStatus.published_days.length>0 && <div className="publication-days">
       {publicationStatus.published_days.map(day=><span key={day.date} title={day.file_name}>{day.date.slice(8,10)}/{day.date.slice(5,7)} · Publicado</span>)}
     </div>}
@@ -100,8 +109,8 @@ function App() {
   }
 
   async function handlePreview() {
-    if (!file || !unitId.trim() || !adminKey.trim()) {
-      setError('Informe a unidade, a chave administrativa e selecione a planilha.')
+    if (!file || !unitId.trim() || (!authenticated && !adminKey.trim())) {
+      setError('Informe a unidade e selecione a planilha.')
       return
     }
     setBusy(true)
@@ -121,12 +130,12 @@ function App() {
 
   async function handlePublish() {
     if (!preview) return
-    if(operatorLabel.trim().length<2){setError('Informe seu nome para registrar quem declarou a publicação.');return}
+    if(!authenticated && operatorLabel.trim().length<2){setError('Informe seu nome para registrar quem declarou a publicação.');return}
     if(overlappingDates.length && !replaceExisting){setError('Este período já possui cardápio publicado. Confira as datas e confirme a substituição somente se for uma correção.');return}
     setBusy(true)
     setError('')
     try {
-      const result = await publishMenu({ previewId: preview.preview_id, month, year, adminKey: adminKey.trim(),replaceExisting,operatorLabel:operatorLabel.trim() })
+      const result = await publishMenu({ previewId: preview.preview_id, month, year, adminKey: adminKey.trim(),replaceExisting,operatorLabel:authenticated ? (user?.name ?? 'Usuário autenticado') : operatorLabel.trim() })
       setPublishResult(result)
       setStage('published')
       setStatusRevision(value=>value+1)
@@ -155,15 +164,15 @@ function App() {
           <button className="nav-item active"><span>▣</span>Cardápios</button>
           <button className="nav-item" onClick={() => {window.location.hash=`historico-cardapios/${unitId}`}}>◷ Histórico de publicações</button>
           <button className="nav-item" onClick={() => { window.location.hash = `calendario-cardapios/${unitId}` }}>▦ Calendário semanal</button>
-          <button className="nav-item" onClick={() => { window.location.hash = 'importar-fichas' }}><span>↥</span>Importações</button>
+          {canManageSheets&&<button className="nav-item" onClick={() => { window.location.hash = 'importar-fichas' }}><span>↥</span>Importações</button>}
           <button className="nav-item" onClick={() => { window.location.hash = 'fichas-tecnicas' }}><span>⌘</span>Fichas técnicas</button>
           <div className="nav-label">Experiência</div>
           <button className="nav-item" onClick={() => { window.location.hash = 'feedbacks' }}><span>♡</span>Feedbacks</button>
           <button className="nav-item" onClick={() => { window.location.hash = 'feedbacks' }}><span>⌁</span>Satisfação</button>
           <div className="nav-label">Gestão</div>
           <button className="nav-item" onClick={() => { window.location.hash = 'unidades' }}><span>□</span>Unidades</button>
-          <button className="nav-item" onClick={() => { window.location.hash = 'empresas' }}><span>◫</span>Empresas</button>
-          <button className="nav-item" onClick={() => { window.location.hash = 'usuarios' }}><span>♙</span>Usuários e acessos</button>
+          {canManageUsers&&<button className="nav-item" onClick={() => { window.location.hash = 'empresas' }}><span>◫</span>Empresas</button>}
+          {canManageUsers&&<button className="nav-item" onClick={() => { window.location.hash = 'usuarios' }}><span>♙</span>Usuários e acessos</button>}
           <button className="nav-item" onClick={() => { window.location.hash = 'configuracoes' }}><span>⚙</span>Configurações</button>
         </nav>
         <div className="privacy-note"><strong>Privacidade por padrão</strong><p>Prescrições e histórico alimentar individual não aparecem neste painel.</p></div>
@@ -183,10 +192,10 @@ function App() {
           <section className="card content-card">
             <div className="section-heading"><div><h2>Nova importação</h2><p>Use o arquivo de planejamento semanal da operação.</p></div><span className="badge">Demonstração</span></div>
             <div className="form-grid">
-              <label><span>Unidade</span><select value={unitId} onChange={(e) => setUnitId(e.target.value)}>{DEMO_UNITS.map((unit) => <option key={unit.unitId} value={unit.unitId}>{unit.company} · {unit.unitName.replace(' — Demonstração', '')}</option>)}</select><small>Base fictícia temporária para apresentação.</small></label>
+              <label><span>Unidade</span><select value={unitId} onChange={(e) => setUnitId(e.target.value)}>{allowedUnits.map((unit) => <option key={unit.unitId} value={unit.unitId}>{unit.company} · {unit.unitName.replace(' — Demonstração', '')}</option>)}</select><small>Base fictícia temporária para apresentação.</small></label>
               <label><span>Refeição</span><select value={mealType} onChange={(e) => setMealType(e.target.value)}><option value="almoco">Almoço</option><option value="jantar">Jantar</option><option value="cafe">Café</option></select></label>
               <label className="full"><span>Refeitório da unidade</span><input value={selectedUnit.restaurantName} readOnly /></label>
-              {isPresentationMode ? <div className="full presentation-access"><strong>Modo apresentação</strong><span>Acesso administrativo liberado automaticamente neste ambiente.</span></div> : <label className="full"><span>Chave administrativa</span><input type="password" value={adminKey} onChange={(e) => setAdminKey(e.target.value)} placeholder="Chave de acesso da operação" /></label>}
+              {isPresentationMode ? <div className="full presentation-access"><strong>Modo apresentação</strong><span>Acesso administrativo liberado automaticamente neste ambiente.</span></div> : !authenticated ? <label className="full"><span>Chave administrativa</span><input type="password" value={adminKey} onChange={(e) => setAdminKey(e.target.value)} placeholder="Chave de acesso da operação" /></label> : <div className="full presentation-access"><strong>Conta autenticada</strong><span>{user?.name} · {user?.role}</span></div>}
             </div>
             <section className="card period-card"><div><h2>Verificar publicações existentes</h2><p>Selecione mês e ano antes de enviar outro cardápio para esta unidade.</p></div><div className="period-fields"><label><span>Mês</span><select value={month} onChange={e=>setMonth(Number(e.target.value))}>{Array.from({length:12},(_,i)=><option value={i+1} key={i+1}>{String(i+1).padStart(2,'0')}</option>)}</select></label><label><span>Ano</span><input type="number" min="2020" max="2100" value={year} onChange={e=>setYear(Number(e.target.value))}/></label></div></section>
             {publicationNotice}
@@ -219,9 +228,9 @@ function App() {
               <div className="days-list">{preview.days.map((day) => <details key={day.day} open><summary><div><strong>Dia {day.day}</strong><span>{day.items.length} itens</span></div><span className="chevron">⌄</span></summary><div className="items-table"><div className="table-row header"><span>Categoria</span><span>Prato</span><span>Porção</span><span>Ficha técnica</span></div>{day.items.map((item, index) => <div className="table-row" key={`${day.day}-${item.name}-${index}`}><span><i className="category-dot" />{categoryLabel[item.category] ?? item.category}</span><strong>{item.name}</strong><span>{item.portion ?? '—'}</span><span className={item.technical_sheet_status === 'complete' ? '' : 'muted'}>{item.technical_sheet_code ? `${item.technical_sheet_code} · ${sheetStatusLabel[item.technical_sheet_status ?? 'missing']}` : sheetStatusLabel.no_code}</span></div>)}</div></details>)}</div>
             </section>
             {error && <div className="alert error">{error}</div>}
-            <label className="operator-field"><span>Funcionário responsável (nome informado pelo operador)</span><input value={operatorLabel} onChange={e=>setOperatorLabel(e.target.value)} maxLength={100} placeholder="Informe seu nome para registrar esta ação"/><small>O modo demonstração não possui login individual: este nome não é identidade verificada.</small></label>
+            {authenticated ? <div className="alert success"><strong>Usuário verificado</strong><p>A publicação será registrada automaticamente como {user?.name}.</p></div> : <label className="operator-field"><span>Funcionário responsável (nome informado pelo operador)</span><input value={operatorLabel} onChange={e=>setOperatorLabel(e.target.value)} maxLength={100} placeholder="Informe seu nome para registrar esta ação"/><small>O modo demonstração não possui login individual: este nome não é identidade verificada.</small></label>}
             {overlappingDates.length>0 && <label className="replacement-confirm"><input type="checkbox" checked={replaceExisting} onChange={e=>setReplaceExisting(e.target.checked)}/><span>Estou corrigindo uma publicação existente e autorizo substituir os cardápios das datas indicadas.</span></label>}
-            <div className="sticky-actions"><button className="secondary" onClick={() => setStage('upload')}>Voltar e trocar arquivo</button><div><small>Uma publicação já existente só será substituída mediante confirmação explícita.</small><button className="primary" disabled={busy||statusBusy||operatorLabel.trim().length<2||(overlappingDates.length>0&&!replaceExisting)} onClick={handlePublish}>{busy ? 'Publicando...' : 'Confirmar e publicar'}</button></div></div>
+            <div className="sticky-actions"><button className="secondary" onClick={() => setStage('upload')}>Voltar e trocar arquivo</button><div><small>Uma publicação já existente só será substituída mediante confirmação explícita.</small><button className="primary" disabled={busy||statusBusy||(!authenticated&&operatorLabel.trim().length<2)||(overlappingDates.length>0&&!replaceExisting)} onClick={handlePublish}>{busy ? 'Publicando...' : 'Confirmar e publicar'}</button></div></div>
           </>
         )}
 
