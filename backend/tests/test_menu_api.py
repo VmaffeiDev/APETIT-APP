@@ -1,5 +1,7 @@
 from fastapi.testclient import TestClient
+from sqlalchemy import text
 
+from app.db import engine
 from app.main import app
 
 
@@ -68,52 +70,69 @@ def test_publish_requires_explicit_period_confirmation():
 
 
 def test_publish_and_replace_existing_menu():
-    unit_id = "20000000-0000-4000-8000-000000000001"
+    company_id = "90000000-0000-4000-8000-000000000001"
+    unit_id = "90000000-0000-4000-8000-000000000002"
     headers = {"X-Apetit-Admin-Key": "change-me"}
     csv = b"Dia;ARROZ\n28;ARROZ BRANCO (100g) - 01.02.03.004 - 1.25\n"
 
-    first_preview = client.post(
-        "/api/admin/menu-imports/preview",
-        headers=headers,
-        data={"unit_id": unit_id, "meal_type": "almoco"},
-        files={"file": ("cardapio-correcao.csv", csv, "text/csv")},
-    )
-    assert first_preview.status_code == 200
+    with engine.begin() as conn:
+        conn.execute(
+            text("INSERT INTO companies(id,name) VALUES (:id,'Empresa Teste Menu')"),
+            {"id": company_id},
+        )
+        conn.execute(
+            text("INSERT INTO units(id,company_id,name) VALUES (:id,:company_id,'Unidade Teste Menu')"),
+            {"id": unit_id, "company_id": company_id},
+        )
 
-    first_publish = client.post(
-        f"/api/admin/menu-imports/{first_preview.json()['preview_id']}/publish",
-        headers=headers,
-        json={
-            "month": 12,
-            "year": 2098,
-            "confirm_period": True,
-            "replace_existing": False,
-            "operator_label": "Teste CI",
-        },
-    )
-    assert first_publish.status_code == 200
+    try:
+        first_preview = client.post(
+            "/api/admin/menu-imports/preview",
+            headers=headers,
+            data={"unit_id": unit_id, "meal_type": "almoco"},
+            files={"file": ("cardapio-correcao.csv", csv, "text/csv")},
+        )
+        assert first_preview.status_code == 200
 
-    second_preview = client.post(
-        "/api/admin/menu-imports/preview",
-        headers=headers,
-        data={"unit_id": unit_id, "meal_type": "almoco"},
-        files={"file": ("cardapio-correcao.csv", csv, "text/csv")},
-    )
-    assert second_preview.status_code == 200
+        first_publish = client.post(
+            f"/api/admin/menu-imports/{first_preview.json()['preview_id']}/publish",
+            headers=headers,
+            json={
+                "month": 12,
+                "year": 2098,
+                "confirm_period": True,
+                "replace_existing": False,
+                "operator_label": "Teste CI",
+            },
+        )
+        assert first_publish.status_code == 200
 
-    correction = client.post(
-        f"/api/admin/menu-imports/{second_preview.json()['preview_id']}/publish",
-        headers=headers,
-        json={
-            "month": 12,
-            "year": 2098,
-            "confirm_period": True,
-            "replace_existing": True,
-            "operator_label": "Teste CI",
-        },
-    )
-    assert correction.status_code == 200
-    payload = correction.json()
-    assert payload["status"] == "published"
-    assert payload["period_start"] == "2098-12-28"
-    assert payload["period_end"] == "2098-12-28"
+        second_preview = client.post(
+            "/api/admin/menu-imports/preview",
+            headers=headers,
+            data={"unit_id": unit_id, "meal_type": "almoco"},
+            files={"file": ("cardapio-correcao.csv", csv, "text/csv")},
+        )
+        assert second_preview.status_code == 200
+
+        correction = client.post(
+            f"/api/admin/menu-imports/{second_preview.json()['preview_id']}/publish",
+            headers=headers,
+            json={
+                "month": 12,
+                "year": 2098,
+                "confirm_period": True,
+                "replace_existing": True,
+                "operator_label": "Teste CI",
+            },
+        )
+        assert correction.status_code == 200
+        payload = correction.json()
+        assert payload["status"] == "published"
+        assert payload["period_start"] == "2098-12-28"
+        assert payload["period_end"] == "2098-12-28"
+    finally:
+        with engine.begin() as conn:
+            conn.execute(text("DELETE FROM menu_imports WHERE unit_id=:unit_id"), {"unit_id": unit_id})
+            conn.execute(text("DELETE FROM units WHERE id=:unit_id"), {"unit_id": unit_id})
+            conn.execute(text("DELETE FROM companies WHERE id=:company_id"), {"company_id": company_id})
