@@ -23,27 +23,35 @@ import './styles.css'
 function Root() {
   const [authRevision,setAuthRevision]=useState(0)
   const [authState,setAuthState]=useState<'checking'|'valid'|'invalid'|'forbidden'>('checking')
+  const [validatedHash,setValidatedHash]=useState<string|null>(null)
   const [hash, setHash] = useState(window.location.hash.replace('#', '') || 'visao-geral')
 
   useEffect(() => {
     const protectedRoute = !isPresentationMode || hash === 'usuarios'
     if (!protectedRoute) {
       setAuthState('valid')
+      setValidatedHash(hash)
       return
     }
     if (!getAdminToken()) {
+      setValidatedHash(null)
       setAuthState('invalid')
       return
     }
     let cancelled = false
     setAuthState('checking')
+    setValidatedHash(null)
     adminMe()
       .then(user => {
-        if (!cancelled) setAuthState(hash === 'usuarios' && user.role !== 'admin' ? 'forbidden' : 'valid')
+        if (!cancelled) {
+          setAuthState(hash === 'usuarios' && user.role !== 'admin' ? 'forbidden' : 'valid')
+          setValidatedHash(hash)
+        }
       })
       .catch(() => {
         if (!cancelled) {
           setAdminToken('')
+          setValidatedHash(null)
           setAuthState('invalid')
         }
       })
@@ -51,7 +59,7 @@ function Root() {
   }, [authRevision, hash])
 
   useEffect(() => {
-    const onExpired = () => { setAuthState('invalid'); setAuthRevision(v => v + 1) }
+    const onExpired = () => { setValidatedHash(null); setAuthState('invalid'); setAuthRevision(v => v + 1) }
     window.addEventListener('apetit-admin-session-expired', onExpired)
     return () => window.removeEventListener('apetit-admin-session-expired', onExpired)
   }, [])
@@ -94,7 +102,7 @@ function Root() {
   if (protectedRoute && (!getAdminToken() || authState === 'invalid')) {
     return <AdminLoginPage onSuccess={() => { setAuthState('checking'); setAuthRevision(v => v + 1) }} />
   }
-  if (protectedRoute && authState === 'checking') {
+  if (protectedRoute && (authState === 'checking' || validatedHash !== hash)) {
     return <main className="admin-login"><section className="login-card"><h1>Validando acesso...</h1></section></main>
   }
   if (protectedRoute && authState === 'forbidden') {
