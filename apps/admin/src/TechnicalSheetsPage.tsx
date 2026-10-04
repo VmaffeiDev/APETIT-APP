@@ -88,7 +88,7 @@ export function TechnicalSheetsPage({user}:{user:AdminUser|null}) {
       <section className="card content-card">
         <div className="form-grid">
           {isPresentationMode ? <div className="full presentation-access"><strong>Modo apresentação</strong><span>Acesso administrativo liberado automaticamente neste ambiente.</span></div> : !authenticated ? <label className="full"><span>Chave administrativa</span><input type="password" value={adminKey} onChange={(e) => setAdminKey(e.target.value)} placeholder="Chave de acesso da operação" /></label> : null}
-          <label className="full"><span>Buscar</span><div style={{display:'flex', gap:8}}><input readOnly={!canManage} value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Código ou nome" /><button className="secondary" onClick={load}>Buscar</button></div></label>
+          <label className="full"><span>Buscar</span><div style={{display:'flex', gap:8}}><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Código ou nome" /><button className="secondary" onClick={load}>Buscar</button></div></label>
         </div>
       </section>
 
