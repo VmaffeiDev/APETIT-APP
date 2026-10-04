@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 
 from sqlalchemy import text
@@ -63,11 +64,15 @@ def main() -> None:
                     'admin_user.master_provisioned',
                     'admin_user',
                     :resource_id,
-                    '{"role":"admin","global_access":true}'::jsonb
+                    CAST(:metadata AS jsonb)
                 )
                 """
             ),
-            {"id": row["id"], "resource_id": str(row["id"])},
+            {
+                "id": row["id"],
+                "resource_id": str(row["id"]),
+                "metadata": json.dumps({"role": "admin", "global_access": True}),
+            },
         )
 
     print(f"Master admin provisioned: {email}")
