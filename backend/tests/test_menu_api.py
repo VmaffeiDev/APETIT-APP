@@ -44,9 +44,24 @@ def test_preview_parses_real_planning_shape():
 
 
 def test_publish_requires_explicit_period_confirmation():
+    preview = client.post(
+        "/api/admin/menu-imports/preview",
+        headers={"X-Apetit-Admin-Key": "change-me"},
+        data={"unit_id": "11111111-1111-1111-1111-111111111111", "meal_type": "almoco"},
+        files={
+            "file": (
+                "cardapio.csv",
+                b"Dia;ARROZ\n17;ARROZ BRANCO (100g) - 01.02.03.004 - 1.25\n",
+                "text/csv",
+            )
+        },
+    )
+    assert preview.status_code == 200
+
     response = client.post(
-        "/api/admin/menu-imports/not-a-real-preview/publish",
+        f"/api/admin/menu-imports/{preview.json()['preview_id']}/publish",
         headers={"X-Apetit-Admin-Key": "change-me"},
         json={"month": 8, "year": 2026, "confirm_period": False, "operator_label": "Teste CI"},
     )
     assert response.status_code == 409
+    assert response.json()["detail"] == "confirme explicitamente o período antes de publicar"
