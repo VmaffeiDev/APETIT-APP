@@ -1,8 +1,10 @@
 import { FormEvent, useState } from 'react'
-import { adminLogout, changeAdminPassword, getAdminToken, isPresentationMode, setAdminToken } from './api'
+import { AdminUser, adminLogout, changeAdminPassword, getAdminToken, isPresentationMode, setAdminToken } from './api'
+import { hasAdminPermission } from './access'
 
-export function SettingsPage(){
+export function SettingsPage({user}:{user:AdminUser|null}){
   const hasSession=Boolean(getAdminToken())
+  const canManageUsers=hasAdminPermission(user,'manage_users')
   const [currentPassword,setCurrentPassword]=useState('')
   const [newPassword,setNewPassword]=useState('')
   const [confirmPassword,setConfirmPassword]=useState('')
@@ -53,8 +55,8 @@ export function SettingsPage(){
         <button className="nav-item" onClick={()=>location.hash='visao-geral'}>⌂ Visão geral</button>
         <div className="nav-label">Gestão</div>
         <button className="nav-item" onClick={()=>location.hash='unidades'}>□ Unidades</button>
-        <button className="nav-item" onClick={()=>location.hash='empresas'}>◫ Empresas</button>
-        <button className="nav-item" onClick={()=>location.hash='usuarios'}>♙ Usuários e acessos</button>
+        {canManageUsers&&<button className="nav-item" onClick={()=>location.hash='empresas'}>◫ Empresas</button>}
+        {canManageUsers&&<button className="nav-item" onClick={()=>location.hash='usuarios'}>♙ Usuários e acessos</button>}
         <button className="nav-item active">⚙ Configurações</button>
       </nav>
     </aside>
@@ -62,13 +64,13 @@ export function SettingsPage(){
       <header className="topbar"><div><span className="eyebrow">GESTÃO · CONFIGURAÇÕES</span><h1>Configurações do Admin</h1><p>Ambiente, segurança da conta e atalhos de gestão.</p></div></header>
 
       <section className="overview-grid">
-        <article className="card overview-card"><div className="overview-icon">⚙</div><h2>Ambiente</h2><p>{isPresentationMode?'Modo de apresentação ativo.':'Modo autenticado ativo.'}</p><span className="status-pill"><span className="status-dot" />{isPresentationMode?'Demonstração':'Autenticado'}</span></article>
+        <article className="card overview-card"><div className="overview-icon">⚙</div><h2>Ambiente</h2><p>{isPresentationMode?'Modo de apresentação ativo.':`Conta ${user?.role ?? 'autenticada'} ativa.`}</p><span className="status-pill"><span className="status-dot" />{isPresentationMode?'Demonstração':user?.name ?? 'Autenticado'}</span></article>
 
         <article className="card overview-card"><div className="overview-icon">♙</div><h2>Sessão administrativa</h2><p>{hasSession?'Existe uma sessão individual salva neste dispositivo.':'Nenhuma sessão individual salva neste dispositivo.'}</p>{hasSession?<button className="secondary" onClick={logout}>Sair da conta</button>:<button className="secondary" onClick={()=>location.hash='login'}>Entrar na conta</button>}</article>
 
         <article className="card overview-card"><div className="overview-icon">□</div><h2>Unidades</h2><p>Gerencie e consulte as unidades disponíveis no painel.</p><button className="secondary" onClick={()=>location.hash='unidades'}>Abrir unidades</button></article>
 
-        <article className="card overview-card"><div className="overview-icon">♙</div><h2>Usuários e permissões</h2><p>Gerencie contas individuais, perfis e acessos.</p><button className="secondary" onClick={()=>location.hash='usuarios'}>Abrir acessos</button></article>
+        {canManageUsers&&<article className="card overview-card"><div className="overview-icon">♙</div><h2>Usuários e permissões</h2><p>Gerencie contas individuais, perfis e acessos.</p><button className="secondary" onClick={()=>location.hash='usuarios'}>Abrir acessos</button></article>}
       </section>
 
       <section className="card content-card">
