@@ -97,7 +97,8 @@ export function OverviewPage({user}:{user:AdminUser|null}) {
           <div className="nav-label">Experiência</div>
           <button className="nav-item" onClick={() => go('feedbacks')}><span>♡</span>Feedbacks</button>
           <div className="nav-label">Gestão</div>
-          <button className="nav-item" onClick={() => go('unidades')}><span>□</span>Unidades</button>\n          <button className="nav-item" onClick={() => go('usuarios')}><span>♙</span>Usuários e acessos</button>
+          <button className="nav-item" onClick={() => go('unidades')}><span>□</span>Unidades</button>
+          {canManageUsers&&<button className="nav-item" onClick={() => go('usuarios')}><span>♙</span>Usuários e acessos</button>}
         </nav>
         <div className="privacy-note"><strong>Privacidade por padrão</strong><p>Prescrições, restrições e histórico alimentar individual não aparecem neste painel.</p></div>
       </aside>
@@ -120,7 +121,7 @@ export function OverviewPage({user}:{user:AdminUser|null}) {
             <h2>Resumo executivo da operação</h2>
             <p>Dados fictícios controlados para demonstrar como a gestão acompanhará o serviço quando a base oficial da Apetit estiver conectada.</p>
           </div>
-          {canPublishMenus?{canPublishMenus&&<button className="primary" onClick={() => go('cardapios')}>Gerenciar cardápios</button>}:<button className="primary" onClick={() => go('unidades')}>Ver unidades</button>}
+          {canPublishMenus?<button className="primary" onClick={() => go('cardapios')}>Gerenciar cardápios</button>:<button className="primary" onClick={() => go('unidades')}>Ver unidades</button>}
         </section>
 
         <section className="executive-kpis">
@@ -175,7 +176,7 @@ export function OverviewPage({user}:{user:AdminUser|null}) {
           <div className="comparison-actions">
             <button className="secondary" onClick={() => go('feedbacks')}>Analisar satisfação</button>
             <button className="secondary" onClick={() => go('fichas-tecnicas')}>Revisar cobertura técnica</button>
-            <button className="primary" onClick={() => go('cardapios')}>Gerenciar cardápios</button>
+            {canPublishMenus&&<button className="primary" onClick={() => go('cardapios')}>Gerenciar cardápios</button>}
           </div>
         </section>
 
