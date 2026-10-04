@@ -1,14 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
-import { AdminOverview, getAdminOverview, presentationAdminKey } from './api'
+import { AdminOverview, AdminUser, getAdminOverview, presentationAdminKey } from './api'
 import { DEMO_UNITS } from './demoUnits'
+import { hasAdminPermission } from './access'
 
-type Props = { unitId: string }
+type Props = { unitId: string; user: AdminUser | null }
 
 function go(hash:string){ window.location.hash=hash }
 
-export function UnitDetailPage({unitId}:Props){
+export function UnitDetailPage({unitId,user}:Props){
   const [data,setData]=useState<AdminOverview|null>(null)
   const [error,setError]=useState('')
+  const canPublishMenus=hasAdminPermission(user,'publish_menu')
+  const canManageSheets=hasAdminPermission(user,'manage_sheets')
 
   useEffect(()=>{
     getAdminOverview(presentationAdminKey)
@@ -28,38 +31,26 @@ export function UnitDetailPage({unitId}:Props){
         title:'Cobertura técnica abaixo do desejado',
         detail:`${unit.technical_coverage_percent}% dos itens possuem ficha técnica associada.`,
         hash:'fichas-tecnicas',
-        action:'Revisar fichas',
+        action:canManageSheets?'Revisar fichas':'Ver fichas',
       })
     }
     if(unit.satisfaction!=null && unit.satisfaction<4){
-      items.push({
-        level:'high',
-        title:'Satisfação requer atenção',
-        detail:`Média ${unit.satisfaction.toFixed(1)} nos últimos 5 dias.`,
-        hash:'feedbacks',
-        action:'Ver feedbacks',
-      })
+      items.push({level:'high',title:'Satisfação requer atenção',detail:`Média ${unit.satisfaction.toFixed(1)} nos últimos 5 dias.`,hash:'feedbacks',action:'Ver feedbacks'})
     }
     if(unit.feedback_responses<5){
-      items.push({
-        level:'medium',
-        title:'Baixo volume de feedback',
-        detail:`Apenas ${unit.feedback_responses} respostas no período.`,
-        hash:'feedbacks',
-        action:'Abrir satisfação',
-      })
+      items.push({level:'medium',title:'Baixo volume de feedback',detail:`Apenas ${unit.feedback_responses} respostas no período.`,hash:'feedbacks',action:'Abrir satisfação'})
     }
     if(unit.published_menus===0){
       items.push({
         level:'high',
         title:'Sem cardápio publicado',
         detail:'Nenhum cardápio publicado para esta unidade.',
-        hash:'cardapios',
-        action:'Publicar cardápio',
+        hash:canPublishMenus?'cardapios':`calendario-cardapios/${unitId}`,
+        action:canPublishMenus?'Publicar cardápio':'Ver calendário',
       })
     }
     return items
-  },[unit])
+  },[unit,unitId,canManageSheets,canPublishMenus])
 
   if(data && !unit){
     return <div className="app-shell"><main className="main"><section className="card content-card">
@@ -75,8 +66,8 @@ export function UnitDetailPage({unitId}:Props){
       <div className="brand"><span className="brand-mark">A</span><div><strong>APETIT</strong><small>Admin</small></div></div>
       <nav>
         <button className="nav-item" onClick={()=>go('visao-geral')}><span>⌂</span>Visão geral</button>
-        <button className="nav-item" onClick={()=>go('cardapios')}><span>▣</span>Cardápios</button>
-        <button className="nav-item" onClick={()=>go('importar-fichas')}><span>↥</span>Importações</button>
+        {canPublishMenus&&<button className="nav-item" onClick={()=>go('cardapios')}><span>▣</span>Cardápios</button>}
+        {canManageSheets&&<button className="nav-item" onClick={()=>go('importar-fichas')}><span>↥</span>Importações</button>}
         <button className="nav-item" onClick={()=>go('fichas-tecnicas')}><span>⌘</span>Fichas técnicas</button>
         <div className="nav-label">Experiência</div>
         <button className="nav-item" onClick={()=>go('feedbacks')}><span>♡</span>Feedbacks</button>
@@ -88,29 +79,15 @@ export function UnitDetailPage({unitId}:Props){
 
     <main className="main">
       <header className="topbar">
-        <div>
-          <span className="eyebrow">GESTÃO · UNIDADE</span>
-          <h1>{unit?.company_name ?? demo?.company ?? 'Unidade'}</h1>
-          <p>{unit?.unit_name ?? demo?.unitName ?? 'Carregando dados da unidade...'}</p>
-        </div>
-        <div className="topbar-actions">
-          <button className="secondary" onClick={()=>go('unidades')}>← Voltar às unidades</button>
-          <div className="status-pill"><span className="status-dot" />Operação ativa</div>
-        </div>
+        <div><span className="eyebrow">GESTÃO · UNIDADE</span><h1>{unit?.company_name ?? demo?.company ?? 'Unidade'}</h1><p>{unit?.unit_name ?? demo?.unitName ?? 'Carregando dados da unidade...'}</p></div>
+        <div className="topbar-actions"><button className="secondary" onClick={()=>go('unidades')}>← Voltar às unidades</button><div className="status-pill"><span className="status-dot" />{user?.role ?? 'Demonstração'}</div></div>
       </header>
 
       {error && <div className="alert error">{error}</div>}
 
       <section className="unit-detail-hero card">
-        <div>
-          <span className="badge">DEMO</span>
-          <h2>Visão consolidada da unidade</h2>
-          <p>Cardápios, qualidade técnica, satisfação e alertas em uma única tela.</p>
-        </div>
-        <div className="unit-restaurant">
-          <small>Refeitório</small>
-          <strong>{demo?.restaurantName ?? '—'}</strong>
-        </div>
+        <div><span className="badge">DEMO</span><h2>Visão consolidada da unidade</h2><p>Cardápios, qualidade técnica, satisfação e alertas em uma única tela.</p></div>
+        <div className="unit-restaurant"><small>Refeitório</small><strong>{demo?.restaurantName ?? '—'}</strong></div>
       </section>
 
       <section className="executive-kpis">
@@ -125,7 +102,7 @@ export function UnitDetailPage({unitId}:Props){
           <div className="panel-head"><div><span className="eyebrow">QUALIDADE DA BASE</span><h2>Cobertura técnica</h2></div><strong className="coverage-number">{unit?.technical_coverage_percent ?? 0}%</strong></div>
           <div className="coverage-track"><div style={{width:`${unit?.technical_coverage_percent ?? 0}%`}} /></div>
           <p>{unit?.enriched_items ?? 0} de {unit?.menu_items ?? 0} itens possuem ficha técnica associada.</p>
-          <div className="panel-actions"><button className="secondary" onClick={()=>go('fichas-tecnicas')}>Abrir fichas técnicas</button><button className="secondary" onClick={()=>go('importar-fichas')}>Importar fichas</button></div>
+          <div className="panel-actions"><button className="secondary" onClick={()=>go('fichas-tecnicas')}>{canManageSheets?'Abrir fichas técnicas':'Consultar fichas técnicas'}</button>{canManageSheets&&<button className="secondary" onClick={()=>go('importar-fichas')}>Importar fichas</button>}</div>
         </article>
 
         <article className="card executive-panel">
@@ -137,30 +114,17 @@ export function UnitDetailPage({unitId}:Props){
       </section>
 
       <section className="card alerts-card">
-        <div className="section-heading">
-          <div><span className="eyebrow">ALERTAS DA UNIDADE</span><h2>O que precisa de atenção</h2><p>Alertas calculados somente a partir dos indicadores desta unidade.</p></div>
-          <span className={alerts.length?'badge':'badge soft'}>{alerts.length?`${alerts.length} alerta(s)`:'Tudo em ordem'}</span>
-        </div>
-        {alerts.length ? <div className="alerts-list">
-          {alerts.map((alert,index)=><article className={`alert-item ${alert.level}`} key={index}>
-            <span className="alert-signal">{alert.level==='high'?'!':'•'}</span>
-            <div className="alert-copy"><strong>{alert.title}</strong><p>{alert.detail}</p></div>
-            <button className="secondary" onClick={()=>go(alert.hash)}>{alert.action}</button>
-          </article>)}
-        </div> : <div className="alerts-empty"><span>✓</span><div><strong>Nenhum alerta operacional nesta unidade</strong><p>Os indicadores da demonstração estão dentro dos parâmetros configurados.</p></div></div>}
+        <div className="section-heading"><div><span className="eyebrow">ALERTAS DA UNIDADE</span><h2>O que precisa de atenção</h2><p>Alertas calculados somente a partir dos indicadores desta unidade.</p></div><span className={alerts.length?'badge':'badge soft'}>{alerts.length?`${alerts.length} alerta(s)`:'Tudo em ordem'}</span></div>
+        {alerts.length ? <div className="alerts-list">{alerts.map((alert,index)=><article className={`alert-item ${alert.level}`} key={index}><span className="alert-signal">{alert.level==='high'?'!':'•'}</span><div className="alert-copy"><strong>{alert.title}</strong><p>{alert.detail}</p></div><button className="secondary" onClick={()=>go(alert.hash)}>{alert.action}</button></article>)}</div> : <div className="alerts-empty"><span>✓</span><div><strong>Nenhum alerta operacional nesta unidade</strong><p>Os indicadores da demonstração estão dentro dos parâmetros configurados.</p></div></div>}
       </section>
 
       <section className="card unit-action-card">
-        <div>
-          <span className="eyebrow">AÇÕES RÁPIDAS</span>
-          <h2>Gerenciar esta operação</h2>
-          <p>Acesse diretamente os módulos relacionados à unidade.</p>
-        </div>
+        <div><span className="eyebrow">AÇÕES RÁPIDAS</span><h2>{canPublishMenus?'Gerenciar esta operação':'Consultar esta operação'}</h2><p>Acesse diretamente os módulos permitidos para seu perfil.</p></div>
         <div className="unit-action-buttons">
           <button className="secondary" onClick={()=>go(`calendario-cardapios/${unitId}`)}>Ver calendário semanal</button>
-          <button className="secondary" onClick={()=>go('cardapios')}>Gerenciar cardápios</button>
+          {canPublishMenus&&<button className="secondary" onClick={()=>go('cardapios')}>Gerenciar cardápios</button>}
           <button className="secondary" onClick={()=>go('feedbacks')}>Analisar satisfação</button>
-          <button className="secondary" onClick={()=>go('fichas-tecnicas')}>Revisar fichas</button>
+          <button className="secondary" onClick={()=>go('fichas-tecnicas')}>{canManageSheets?'Revisar fichas':'Consultar fichas'}</button>
         </div>
       </section>
     </main>
