@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
 import secrets
 from datetime import datetime, timedelta, timezone
@@ -189,9 +190,12 @@ def create_user(payload: UserRequest, principal: AdminPrincipal = Depends(requir
         conn.execute(text("""
             INSERT INTO admin_audit_events(user_id,action,resource_type,resource_id,metadata)
             VALUES (:actor,'admin_user.created','admin_user',:target,
-                    jsonb_build_object('role',:role,'email',:email))
-        """), {"actor": principal.id, "target": str(row["id"]),
-               "role": payload.role, "email": str(payload.email)})
+                    CAST(:metadata AS jsonb))
+        """), {
+            "actor": principal.id,
+            "target": str(row["id"]),
+            "metadata": json.dumps({"role": payload.role, "email": str(payload.email)}),
+        })
     return {**public_user(row), "unit_ids": [str(id) for id in payload.unit_ids] if payload.role != "admin" else []}
 
 
@@ -247,9 +251,15 @@ def update_user_access(user_id: UUID, payload: UserAccessRequest,
         conn.execute(text("""
             INSERT INTO admin_audit_events(user_id,action,resource_type,resource_id,metadata)
             VALUES (:actor,'admin_user.access_updated','admin_user',:target,
-                    jsonb_build_object('role',:role,'unit_ids',:unit_ids))
-        """), {"actor": principal.id, "target": str(user_id), "role": payload.role,
-               "unit_ids": [str(v) for v in payload.unit_ids]})
+                    CAST(:metadata AS jsonb))
+        """), {
+            "actor": principal.id,
+            "target": str(user_id),
+            "metadata": json.dumps({
+                "role": payload.role,
+                "unit_ids": [str(v) for v in payload.unit_ids],
+            }),
+        })
     return {"status":"updated","id":str(user_id),"role":payload.role,
             "unit_ids":[] if payload.role=="admin" else [str(v) for v in payload.unit_ids]}
 
@@ -281,9 +291,13 @@ def update_user_status(user_id: UUID, payload: UserStatusRequest,
             conn.execute(text("UPDATE admin_sessions SET revoked_at=now() WHERE user_id=:id AND revoked_at IS NULL"), {"id": user_id})
         conn.execute(text("""
             INSERT INTO admin_audit_events(user_id,action,resource_type,resource_id,metadata)
-            VALUES (:actor,:action,'admin_user',:target,jsonb_build_object('active',:active))
-        """), {"actor": principal.id, "action": "admin_user.activated" if payload.active else "admin_user.deactivated",
-               "target": str(user_id), "active": payload.active})
+            VALUES (:actor,:action,'admin_user',:target,CAST(:metadata AS jsonb))
+        """), {
+            "actor": principal.id,
+            "action": "admin_user.activated" if payload.active else "admin_user.deactivated",
+            "target": str(user_id),
+            "metadata": json.dumps({"active": payload.active}),
+        })
     return public_user(row)
 
 
@@ -512,8 +526,11 @@ def register_admin_user(payload: SelfRegistrationRequest) -> dict:
         conn.execute(text("""
             INSERT INTO admin_audit_events(user_id,action,resource_type,resource_id,metadata)
             VALUES (NULL,'admin_user.registration_requested','admin_user',:target,
-                    jsonb_build_object('email',:email))
-        """), {"target": str(row["id"]), "email": email})
+                    CAST(:metadata AS jsonb))
+        """), {
+            "target": str(row["id"]),
+            "metadata": json.dumps({"email": email}),
+        })
     return {
         "status": "pending_approval",
         "message": "Cadastro recebido. Um administrador precisa aprovar seu acesso antes do primeiro login.",
