@@ -133,6 +133,13 @@ def test_publish_and_replace_existing_menu():
         assert payload["period_end"] == "2098-12-28"
     finally:
         with engine.begin() as conn:
+            conn.execute(
+                text(
+                    "DELETE FROM menu_version_snapshots "
+                    "WHERE menu_import_id IN (SELECT id FROM menu_imports WHERE unit_id=:unit_id)"
+                ),
+                {"unit_id": unit_id},
+            )
             conn.execute(text("DELETE FROM menu_imports WHERE unit_id=:unit_id"), {"unit_id": unit_id})
             conn.execute(text("DELETE FROM units WHERE id=:unit_id"), {"unit_id": unit_id})
             conn.execute(text("DELETE FROM companies WHERE id=:company_id"), {"company_id": company_id})
