@@ -225,7 +225,7 @@ def publish_staged_menu(*, preview_id: str, month: int, year: int, replace_exist
                      meal_type, operator_label, replaced_dates, item_count, operation_kind, actor_user_id)
                 VALUES
                     (:id, :unit_id, :file_name, 'published', :period_start, :period_end, now(),
-                     :meal_type, :operator_label, :replaced_dates, :item_count, :operation_kind)
+                     :meal_type, :operator_label, :replaced_dates, :item_count, :operation_kind, :actor_user_id)
                 """
             ),
             {
