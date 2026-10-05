@@ -66,7 +66,7 @@ export default function AuthenticatedApp({ token, person, options, onPersonChang
 
       <Text style={styles.pageTitle}>Perfil</Text>
       <View style={styles.identity}><View style={styles.avatar}><Text style={styles.avatarText}>{(name || person.email).slice(0,2).toUpperCase()}</Text></View><View style={{flex:1}}><Text style={styles.personName}>{name || 'Seu nome'}</Text><Text style={styles.personMeta}>{person.email}</Text><Text style={styles.personMeta}>{sector || 'Setor não informado'}</Text></View></View>
-      <View style={styles.accountStatus}><Ionicons name="checkmark-circle" size={14} color={colors.green}/><Text style={styles.accountStatusText}>Conta ativa · acesso por código temporário</Text></View>
+      <View style={styles.accountStatus}><Ionicons name="checkmark-circle" size={14} color={colors.green}/><Text style={styles.accountStatusText}>Conta de demonstração ativa · acesso direto</Text></View>
 
       <Text style={styles.sectionLabel}>DADOS PESSOAIS</Text>
       <View style={styles.panel}>
