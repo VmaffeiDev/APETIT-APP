@@ -63,7 +63,8 @@ def admin_overview(
         enriched_menu_items = int(conn.execute(text("""
             SELECT COUNT(*) FROM menu_items mitem
             JOIN menu_days md ON md.id=mitem.menu_day_id
-        """ + menu_scope + (" AND mitem.technical_sheet_code IS NOT NULL" if scoped else " WHERE mitem.technical_sheet_code IS NOT NULL")), params).scalar_one() or 0)
+            JOIN technical_sheets ts ON ts.code=mitem.technical_sheet_code
+        """ + menu_scope), params).scalar_one() or 0)
         total_menu_items = int(conn.execute(text("""
             SELECT COUNT(*) FROM menu_items mitem
             JOIN menu_days md ON md.id=mitem.menu_day_id
@@ -110,7 +111,7 @@ def admin_overview(
                 COUNT(DISTINCT CASE WHEN mi.status = 'published' THEN mi.id END) AS published_menus,
                 COUNT(DISTINCT md.id) AS menu_days,
                 COUNT(DISTINCT mitem.id) AS menu_items,
-                COUNT(DISTINCT CASE WHEN mitem.technical_sheet_code IS NOT NULL THEN mitem.id END) AS enriched_items,
+                COUNT(DISTINCT CASE WHEN ts.code IS NOT NULL THEN mitem.id END) AS enriched_items,
                 COUNT(DISTINCT f.id) FILTER (WHERE f.meal_date BETWEEN :start AND :end) AS feedback_responses,
                 ROUND(
                     AVG((f.food_rating + f.service_rating) / 2.0)
@@ -122,6 +123,7 @@ def admin_overview(
             LEFT JOIN menu_imports mi ON mi.unit_id = u.id
             LEFT JOIN menu_days md ON md.unit_id = u.id
             LEFT JOIN menu_items mitem ON mitem.menu_day_id = md.id
+            LEFT JOIN technical_sheets ts ON ts.code = mitem.technical_sheet_code
             LEFT JOIN feedback f ON f.unit_id = u.id
             WHERE TRUE
         """ + unit_filter + """
