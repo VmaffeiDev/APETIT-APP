@@ -60,6 +60,31 @@ export type TechnicalSheetImportPreview = {
   items: TechnicalSheetImportItem[]
 }
 export type TechnicalSheetImportResult = { status: 'published'; created: number; updated: number; count: number }
+export type TechnicalSheetCoveragePending = {
+  status:'missing'|'no_code'|'incomplete';
+  code:string|null;
+  name:string;
+  category:string|null;
+  occurrences:number;
+  first_date:string;
+  last_date:string;
+}
+export type TechnicalSheetCoverage = {
+  unit_id:string;
+  summary:{
+    total_items:number;
+    with_code:number;
+    matched:number;
+    complete:number;
+    incomplete:number;
+    missing:number;
+    no_code:number;
+    coverage_percent:number;
+    complete_coverage_percent:number;
+  };
+  pending:TechnicalSheetCoveragePending[];
+  pending_count:number;
+}
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
 const SESSION_KEY='apetit_admin_session'
@@ -104,6 +129,13 @@ export async function getFeedbackSummary(params: { unitId: string; restaurantId?
 export async function listTechnicalSheets(adminKey: string, search = ''): Promise<{ items: TechnicalSheetSummary[]; count: number }> {
   const query = new URLSearchParams({ search })
   return read(await fetch(`${API_URL}/api/admin/technical-sheets?${query.toString()}`, { headers: adminHeaders(adminKey) }), 'Não foi possível carregar as fichas técnicas.')
+}
+
+export async function getTechnicalSheetCoverage(adminKey:string, unitId:string):Promise<TechnicalSheetCoverage>{
+  const query=new URLSearchParams({unit_id:unitId})
+  return read(await fetch(`${API_URL}/api/admin/technical-sheets/coverage?${query.toString()}`,{
+    headers:adminHeaders(adminKey)
+  }),'Não foi possível carregar a cobertura de fichas técnicas.')
 }
 
 export async function getTechnicalSheet(adminKey: string, code: string): Promise<TechnicalSheet> {
