@@ -1,0 +1,40 @@
+[project]
+name = "apetit-backend"
+version = "0.1.0"
+description = "Backend do APETIT-APP"
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi>=0.116,<1",
+  "uvicorn[standard]>=0.35,<1",
+  "pydantic>=2.11,<3",
+  "pydantic-settings>=2.10,<3",
+  "email-validator>=2.2,<3",
+  "sqlalchemy>=2.0,<3",
+  "alembic>=1.16,<2",
+  "psycopg[binary]>=3.2,<4",
+  "python-multipart>=0.0.20,<1",
+  "openpyxl>=3.1,<4",
+  "pypdf>=6,<7",
+  "pymupdf>=1.24,<2",
+  "pillow>=11,<13",
+  "pillow-heif>=1,<2",
+  "reportlab>=4.2,<5"
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.4,<9",
+  "httpx>=0.28,<1",
+  "ruff>=0.12,<1"
+]
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+exclude = ["alembic*"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
