@@ -83,9 +83,10 @@ def main() -> None:
                     )
                     VALUES (
                         gen_random_uuid(),:person_id,:unit_id,:restaurant_id,
-                        CURRENT_DATE - :day_offset,
+                        CURRENT_DATE - CAST(:day_offset AS integer),
                         :food_rating,:service_rating,:comment,
-                        now() - (:day_offset || ' days')::interval + (:minute_offset || ' minutes')::interval
+                        now() - make_interval(days => CAST(:day_offset AS integer))
+                              + make_interval(mins => CAST(:minute_offset AS integer))
                     )
                     ON CONFLICT (person_id,restaurant_id,meal_date) DO UPDATE SET
                         food_rating=EXCLUDED.food_rating,
