@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
-import { AdminUser, getAdminToken, getTechnicalSheet, isPresentationMode, listTechnicalSheets, presentationAdminKey, saveTechnicalSheet, TechnicalSheet, TechnicalSheetSummary } from './api'
-import { hasAdminPermission } from './access'
+import { useEffect, useMemo, useState } from 'react'
+import { AdminUser, getAdminToken, getTechnicalSheet, getTechnicalSheetCoverage, isPresentationMode, listTechnicalSheets, presentationAdminKey, saveTechnicalSheet, TechnicalSheet, TechnicalSheetCoverage, TechnicalSheetSummary } from './api'
+import { filterUnitsForUser, hasAdminPermission } from './access'
+import { DEMO_UNITS } from './demoUnits'
 
 const emptySheet: Omit<TechnicalSheet, 'code' | 'updated_at'> = {
   name: '', category: '', portion_quantity: null, portion_unit: 'g', kcal: null,
@@ -14,6 +15,11 @@ export function TechnicalSheetsPage({user}:{user:AdminUser|null}) {
   const canManage=hasAdminPermission(user,'manage_sheets')
   const canPublishMenus=hasAdminPermission(user,'publish_menu')
   const authenticated=Boolean(getAdminToken())
+  const allowedUnits=useMemo(()=>filterUnitsForUser(DEMO_UNITS,user),[user])
+  const [unitId,setUnitId]=useState(allowedUnits[0]?.unitId ?? '')
+  const [coverage,setCoverage]=useState<TechnicalSheetCoverage|null>(null)
+  const [coverageBusy,setCoverageBusy]=useState(false)
+  const [coverageMessage,setCoverageMessage]=useState('')
   const [search, setSearch] = useState('')
   const [items, setItems] = useState<TechnicalSheetSummary[]>([])
   const [code, setCode] = useState('')
@@ -29,6 +35,39 @@ export function TechnicalSheetsPage({user}:{user:AdminUser|null}) {
     try { setItems((await listTechnicalSheets(adminKey.trim(), search)).items) }
     catch (error) { setMessage(error instanceof Error ? error.message : 'Falha ao carregar fichas.') }
     finally { setBusy(false) }
+  }
+
+  async function loadCoverage(targetUnitId=unitId) {
+    if (!targetUnitId || (!authenticated && !adminKey.trim())) return
+    setCoverageBusy(true); setCoverageMessage('')
+    try { setCoverage(await getTechnicalSheetCoverage(adminKey.trim(),targetUnitId)) }
+    catch (error) { setCoverageMessage(error instanceof Error ? error.message : 'Falha ao carregar cobertura.') }
+    finally { setCoverageBusy(false) }
+  }
+
+  function csv(value:unknown){
+    const text=String(value ?? '')
+    return /[;"\n\r]/.test(text) ? `"${text.replace(/"/g,'""')}"` : text
+  }
+
+  function downloadPendingCsv(){
+    if(!coverage) return
+    const rows=coverage.pending.filter(item=>item.status==='missing'&&item.code)
+    if(!rows.length){setCoverageMessage('Não há códigos pendentes com ficha ausente para exportar.');return}
+    const header=['codigo','preparacao','categoria','porcao','unidade','kcal','proteina_g','carboidratos_g','gordura_g','ingredientes','alergenicos']
+    const body=rows.map(item=>[
+      item.code,item.name,item.category ?? '','','','','','','',''
+    ].map(csv).join(';'))
+    const content='\uFEFF'+[header.join(';'),...body].join('\n')
+    const blob=new Blob([content],{type:'text/csv;charset=utf-8'})
+    const url=URL.createObjectURL(blob)
+    const link=document.createElement('a')
+    link.href=url
+    link.download=`fichas-pendentes-${unitId}.csv`
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(url)
   }
 
   async function open(itemCode: string) {
@@ -61,13 +100,18 @@ export function TechnicalSheetsPage({user}:{user:AdminUser|null}) {
         }).filter((x) => x.allergen),
       }
       await saveTechnicalSheet(adminKey.trim(), code.trim(), payload)
-      setMessage('Ficha técnica salva e pronta para enriquecer os próximos cardápios publicados.')
+      setMessage('Ficha técnica salva. A associação já aparece na cobertura; republique o cardápio para atualizar o snapshot nutricional.')
       await load()
+      await loadCoverage()
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Falha ao salvar ficha.') }
     finally { setBusy(false) }
   }
 
   useEffect(() => { if (authenticated || adminKey) void load() }, [])
+  useEffect(() => {
+    if (!allowedUnits.some((unit)=>unit.unitId===unitId)) setUnitId(allowedUnits[0]?.unitId ?? '')
+  }, [allowedUnits,unitId])
+  useEffect(() => { if ((authenticated || adminKey) && unitId) void loadCoverage(unitId) }, [unitId])
 
   return <div className="app-shell">
     <aside className="sidebar">
@@ -91,6 +135,50 @@ export function TechnicalSheetsPage({user}:{user:AdminUser|null}) {
           <label className="full"><span>Buscar</span><div style={{display:'flex', gap:8}}><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Código ou nome" /><button className="secondary" onClick={load}>Buscar</button></div></label>
         </div>
       </section>
+
+      {allowedUnits.length>0&&<section className="card content-card">
+        <div className="section-heading">
+          <div>
+            <span className="eyebrow">COBERTURA REAL DO CARDÁPIO</span>
+            <h2>Fichas técnicas da unidade</h2>
+            <p>Conta como coberto somente quando o código do item encontra uma ficha técnica cadastrada.</p>
+          </div>
+          <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
+            <select value={unitId} onChange={(e)=>setUnitId(e.target.value)}>
+              {allowedUnits.map((unit)=><option key={unit.unitId} value={unit.unitId}>{unit.company}</option>)}
+            </select>
+            <button className="secondary" disabled={coverageBusy} onClick={()=>loadCoverage()}>{coverageBusy?'Atualizando...':'Atualizar'}</button>
+          </div>
+        </div>
+
+        {coverage&&<><section className="metrics-grid">
+          <div className="metric"><small>Cobertura real</small><strong>{coverage.summary.coverage_percent}%</strong><span>{coverage.summary.matched} de {coverage.summary.total_items} itens com ficha encontrada</span></div>
+          <div className="metric"><small>Completas</small><strong>{coverage.summary.complete}</strong><span>{coverage.summary.complete_coverage_percent}% do cardápio com macros completos</span></div>
+          <div className="metric"><small>Códigos sem ficha</small><strong>{coverage.summary.missing}</strong><span>itens cujo código ainda não existe na biblioteca</span></div>
+          <div className="metric"><small>Sem código / incompletas</small><strong>{coverage.summary.no_code} / {coverage.summary.incomplete}</strong><span>exigem revisão da origem ou da ficha</span></div>
+        </section>
+
+        <div className="action-row">
+          <span className="helper">Depois de cadastrar/importar as fichas, republique o período para gravar os valores nutricionais como snapshot do cardápio.</span>
+          {canManage&&coverage.summary.missing>0&&<button className="secondary" onClick={downloadPendingCsv}>Baixar CSV dos códigos pendentes</button>}
+          {canManage&&<button className="primary" onClick={()=>{window.location.hash='importar-fichas'}}>Importar fichas</button>}
+        </div>
+
+        <div className="section-heading"><div><h3>Pendências encontradas</h3><p>{coverage.pending_count} preparação(ões) única(s) precisam de atenção.</p></div></div>
+        <div className="days-list">
+          {coverage.pending.length?coverage.pending.slice(0,30).map((item,index)=><button
+            key={`${item.status}-${item.code ?? 'sem-codigo'}-${item.name}-${index}`}
+            className="choice"
+            style={{textAlign:'left'}}
+            onClick={()=>{if(item.code){setSearch(item.code); if(item.status==='incomplete') void open(item.code); else {setCode(item.code); setForm({...emptySheet,name:item.name,category:item.category}); setIngredientsText(''); setAllergensText('')}}}}
+          >
+            <strong>{item.name}</strong>
+            <small style={{display:'block',marginTop:4}}>{item.code ?? 'SEM CÓDIGO'} · {item.status==='missing'?'ficha ausente':item.status==='no_code'?'código ausente':'ficha incompleta'} · {item.occurrences} ocorrência(s)</small>
+          </button>):<p className="muted">Nenhuma pendência técnica nesta unidade.</p>}
+        </div></>}
+
+        {!!coverageMessage&&<div className="alert warning">{coverageMessage}</div>}
+      </section>}
 
       <section className="metrics-grid">
         <div className="metric"><small>Fichas encontradas</small><strong>{items.length}</strong><span>cadastros técnicos</span></div>
