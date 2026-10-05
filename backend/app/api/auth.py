@@ -222,9 +222,9 @@ def demo_session() -> dict:
 def request_code(payload: RequestCodePayload) -> dict:
     email = str(payload.email).strip().lower()
     _check_rate_limit(email=email, event_type="request_code", limit=REQUEST_CODE_LIMIT)
-    _record_rate_event(email=email, event_type="request_code")
 
-    code = DEMO_CODE if settings.environment == "development" else f"{secrets.randbelow(1_000_000):06d}"
+    is_development = settings.environment.strip().lower() == "development"
+    code = DEMO_CODE if is_development else f"{secrets.randbelow(1_000_000):06d}"
     expires_at = datetime.now(timezone.utc) + timedelta(minutes=LOGIN_CODE_TTL_MINUTES)
 
     with engine.begin() as conn:
@@ -242,6 +242,7 @@ def request_code(payload: RequestCodePayload) -> dict:
             {"email": email, "code_hash": _hash(code), "expires_at": expires_at},
         )
 
+    delivery = "email"
     try:
         send_login_code(
             recipient=email,
@@ -254,22 +255,28 @@ def request_code(payload: RequestCodePayload) -> dict:
             settings.normalized_email_provider,
             exc,
         )
-        with engine.begin() as conn:
-            conn.execute(
-                text("DELETE FROM employee_login_codes WHERE email = :email AND code_hash = :code_hash AND used_at IS NULL"),
-                {"email": email, "code_hash": _hash(code)},
-            )
-        raise HTTPException(
-            status_code=503,
-            detail="não foi possível enviar o código de acesso; tente novamente em instantes",
-        ) from exc
+        if is_development:
+            # A demonstração não deve ficar indisponível por falha do provedor de e-mail.
+            # Em produção, nunca devolvemos o código ao cliente.
+            delivery = "development_fallback"
+        else:
+            with engine.begin() as conn:
+                conn.execute(
+                    text("DELETE FROM employee_login_codes WHERE email = :email AND code_hash = :code_hash AND used_at IS NULL"),
+                    {"email": email, "code_hash": _hash(code)},
+                )
+            raise HTTPException(
+                status_code=503,
+                detail="não foi possível enviar o código de acesso; tente novamente em instantes",
+            ) from exc
 
+    _record_rate_event(email=email, event_type="request_code")
     response = {
         "status": "code_sent",
         "expires_in_minutes": LOGIN_CODE_TTL_MINUTES,
-        "message": "Enviamos um código de acesso para o e-mail informado.",
+        "message": "Enviamos um código de acesso para o e-mail informado." if delivery == "email" else "Modo de apresentação ativo.",
     }
-    if settings.environment == "development" and settings.email_provider == "console":
+    if is_development and (settings.normalized_email_provider == "console" or delivery == "development_fallback"):
         response["demo_code"] = code
     return response
 
