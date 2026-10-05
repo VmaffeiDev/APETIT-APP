@@ -52,7 +52,7 @@ def test_technical_sheet_coverage_counts_real_matches():
             text(
                 """
                 INSERT INTO admin_users(id,email,name,password_hash,role,active)
-                VALUES (:id,:email,'Coverage Admin',:password,'admin',TRUE)
+                VALUES (:id,:email,'Coverage Nutrition',:password,'nutricao',TRUE)
                 """
             ),
             {
@@ -60,6 +60,10 @@ def test_technical_sheet_coverage_counts_real_matches():
                 "email": email,
                 "password": hash_password(password),
             },
+        )
+        conn.execute(
+            text("INSERT INTO admin_user_units(user_id,unit_id) VALUES (:user_id,:unit_id)"),
+            {"user_id": admin_id, "unit_id": unit_id},
         )
         conn.execute(
             text(
@@ -129,6 +133,9 @@ def test_technical_sheet_coverage_counts_real_matches():
         assert response.status_code == 200, response.text
         payload = response.json()
         assert payload["unit_id"] == str(unit_id)
+        assert payload["scope"]["file_name"] == "coverage.csv"
+        assert payload["scope"]["period_start"] == "2098-01-01"
+        assert payload["scope"]["period_end"] == "2098-01-01"
         assert payload["summary"] == {
             "total_items": 4,
             "with_code": 3,
@@ -143,6 +150,16 @@ def test_technical_sheet_coverage_counts_real_matches():
         statuses = {item["status"] for item in payload["pending"]}
         assert statuses == {"incomplete", "missing", "no_code"}
         assert payload["pending_count"] == 3
+
+        overview = client.get("/api/admin/overview", headers=auth(token))
+        assert overview.status_code == 200, overview.text
+        overview_payload = overview.json()
+        assert overview_payload["units"] == 1
+        assert overview_payload["menu_items"] == 4
+        assert overview_payload["enriched_menu_items"] == 2
+        assert overview_payload["technical_coverage_percent"] == 50
+        assert len(overview_payload["unit_comparison"]) == 1
+        assert overview_payload["unit_comparison"][0]["technical_coverage_percent"] == 50
     finally:
         with engine.begin() as conn:
             conn.execute(
