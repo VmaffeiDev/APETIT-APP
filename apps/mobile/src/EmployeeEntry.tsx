@@ -3,7 +3,7 @@ import { ActivityIndicator, Pressable, SafeAreaView, ScrollView, StyleSheet, Tex
 
 import AuthenticatedApp from './AuthenticatedApp'
 import { configureEmployeeAccessToken } from './api'
-import { AuthPerson, AuthSession, getMe, getOnboardingOptions, logout, OnboardingOptions, requestLoginCode, saveOnboarding, verifyLoginCode } from './authApi'
+import { AuthPerson, AuthSession, createDemoSession, getMe, getOnboardingOptions, logout, OnboardingOptions, requestLoginCode, saveOnboarding, verifyLoginCode } from './authApi'
 import { configureEmployeeContext } from './demo'
 import { clearStoredSession, loadStoredSession, saveStoredSession } from './sessionStore'
 import { colors, radius } from './theme'
@@ -44,10 +44,34 @@ export default function EmployeeEntry() {
     }
   }
 
+  async function openDemoSession() {
+    try {
+      const authenticated = await createDemoSession()
+      setSession(authenticated)
+      setPerson(authenticated.person)
+      configureEmployeeAccessToken(authenticated.access_token)
+      await saveStoredSession({ access_token: authenticated.access_token, expires_at: authenticated.expires_at })
+      applyPerson(authenticated.person, authenticated.access_token)
+      if (authenticated.person.onboarding_completed && authenticated.person.name) {
+        setStep('app')
+      } else {
+        setName(authenticated.person.name ?? '')
+        setUnitId(authenticated.person.unit_id ?? options?.units[0]?.unit_id ?? '')
+        setSector(authenticated.person.sector ?? '')
+        setGoal(authenticated.person.goal ?? 'seguir_prescricao')
+        setRestrictions(authenticated.person.restrictions ?? [])
+        setStep('onboarding')
+      }
+      return true
+    } catch {
+      return false
+    }
+  }
+
   async function restoreSession() {
     try {
       const stored = await loadStoredSession()
-      if (!stored) { setStep('email'); return }
+      if (!stored) { if (!(await openDemoSession())) setStep('email'); return }
       const restoredPerson = await getMe(stored.access_token)
       const restored: AuthSession = { access_token: stored.access_token, expires_at: stored.expires_at, person: restoredPerson }
       setSession(restored)
@@ -64,7 +88,7 @@ export default function EmployeeEntry() {
     } catch {
       await clearStoredSession()
       configureEmployeeAccessToken(null)
-      setStep('email')
+      if (!(await openDemoSession())) setStep('email')
     }
   }
 
@@ -135,7 +159,7 @@ export default function EmployeeEntry() {
   async function signOut() {
     const token = session?.access_token
     try { if (token) await logout(token) } catch {}
-    await clearStoredSession(); configureEmployeeAccessToken(null); setSession(null); setPerson(null); setCode(''); setStep('email')
+    await clearStoredSession(); configureEmployeeAccessToken(null); setSession(null); setPerson(null); setCode(''); if (!(await openDemoSession())) setStep('email')
   }
 
   function handlePersonChange(updated: AuthPerson) {
