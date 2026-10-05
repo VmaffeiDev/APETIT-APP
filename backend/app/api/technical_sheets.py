@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 from pathlib import Path
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from pydantic import BaseModel, Field
@@ -10,7 +11,7 @@ from sqlalchemy import text
 from app.db import engine
 from app.services.technical_sheet_import import preview_payload as import_preview_payload
 from app.services.technical_sheet_import import publish_import, stage_import
-from app.api.admin_auth import AdminPrincipal, require_admin, require_permission
+from app.api.admin_auth import AdminPrincipal, require_admin, require_permission, require_unit_access
 
 router = APIRouter()
 
@@ -121,6 +122,114 @@ def list_technical_sheets(
             {"term": term, "pattern": f"%{term}%"},
         ).mappings().all()
     return {"items": [dict(row) for row in rows], "count": len(rows)}
+
+
+@router.get("/api/admin/technical-sheets/coverage", tags=["admin-technical-sheets"])
+def technical_sheet_coverage(
+    unit_id: UUID,
+    principal: AdminPrincipal = Depends(require_admin),
+) -> dict:
+    require_permission(principal, "read")
+    require_unit_access(principal, unit_id)
+
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text(
+                """
+                SELECT
+                    mi.technical_sheet_code AS code,
+                    mi.name,
+                    mi.category,
+                    md.service_date,
+                    ts.code AS sheet_found,
+                    ts.kcal,
+                    ts.protein_g,
+                    ts.carbs_g,
+                    ts.fat_g
+                FROM menu_items mi
+                JOIN menu_days md ON md.id = mi.menu_day_id
+                LEFT JOIN technical_sheets ts ON ts.code = mi.technical_sheet_code
+                WHERE md.unit_id = :unit_id
+                ORDER BY md.service_date DESC, mi.category, mi.name
+                """
+            ),
+            {"unit_id": unit_id},
+        ).mappings().all()
+
+    summary = {
+        "total_items": len(rows),
+        "with_code": 0,
+        "matched": 0,
+        "complete": 0,
+        "incomplete": 0,
+        "missing": 0,
+        "no_code": 0,
+    }
+    pending: dict[tuple[str, str | None, str, str], dict] = {}
+
+    for row in rows:
+        code = row["code"]
+        if code:
+            summary["with_code"] += 1
+
+        if not code:
+            status = "no_code"
+            summary["no_code"] += 1
+        elif row["sheet_found"] is None:
+            status = "missing"
+            summary["missing"] += 1
+        else:
+            summary["matched"] += 1
+            if all(row[key] is not None for key in ("kcal", "protein_g", "carbs_g", "fat_g")):
+                status = "complete"
+                summary["complete"] += 1
+            else:
+                status = "incomplete"
+                summary["incomplete"] += 1
+
+        if status == "complete":
+            continue
+
+        key = (status, code, row["name"], row["category"] or "")
+        item = pending.setdefault(
+            key,
+            {
+                "status": status,
+                "code": code,
+                "name": row["name"],
+                "category": row["category"],
+                "occurrences": 0,
+                "first_date": row["service_date"].isoformat(),
+                "last_date": row["service_date"].isoformat(),
+            },
+        )
+        item["occurrences"] += 1
+        service_date = row["service_date"].isoformat()
+        if service_date < item["first_date"]:
+            item["first_date"] = service_date
+        if service_date > item["last_date"]:
+            item["last_date"] = service_date
+
+    total = summary["total_items"]
+    summary["coverage_percent"] = round((summary["matched"] / total) * 100) if total else 0
+    summary["complete_coverage_percent"] = round((summary["complete"] / total) * 100) if total else 0
+
+    priority = {"missing": 0, "no_code": 1, "incomplete": 2}
+    pending_items = sorted(
+        pending.values(),
+        key=lambda item: (
+            priority.get(item["status"], 9),
+            -item["occurrences"],
+            item["name"].casefold(),
+        ),
+    )
+
+    return {
+        "unit_id": str(unit_id),
+        "summary": summary,
+        "pending": pending_items[:200],
+        "pending_count": len(pending_items),
+    }
 
 
 @router.get("/api/admin/technical-sheets/{code}", tags=["admin-technical-sheets"])
