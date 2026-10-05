@@ -10,6 +10,19 @@ const emptySheet: Omit<TechnicalSheet, 'code' | 'updated_at'> = {
 
 const n = (value: string) => value.trim() === '' ? null : Number(value)
 
+const allergenStatusLabel = (status:string) => {
+  if (status === 'may_contain') return 'pode conter'
+  if (status === 'free_from') return 'livre de'
+  return 'contém'
+}
+
+const allergenStatusValue = (status:string): 'contains' | 'may_contain' | 'free_from' => {
+  const value=status.trim().toLowerCase()
+  if (value === 'pode conter' || value === 'may_contain') return 'may_contain'
+  if (value === 'livre de' || value === 'free_from') return 'free_from'
+  return 'contains'
+}
+
 export function TechnicalSheetsPage({user}:{user:AdminUser|null}) {
   const [adminKey, setAdminKey] = useState(presentationAdminKey)
   const canManage=hasAdminPermission(user,'manage_sheets')
@@ -77,7 +90,7 @@ export function TechnicalSheetsPage({user}:{user:AdminUser|null}) {
       setCode(sheet.code)
       setForm({ name: sheet.name, category: sheet.category, portion_quantity: sheet.portion_quantity, portion_unit: sheet.portion_unit, kcal: sheet.kcal, protein_g: sheet.protein_g, carbs_g: sheet.carbs_g, fat_g: sheet.fat_g, ingredients: sheet.ingredients, allergens: sheet.allergens })
       setIngredientsText(sheet.ingredients.join('\n'))
-      setAllergensText(sheet.allergens.map((a) => `${a.allergen}:${a.status}`).join('\n'))
+      setAllergensText(sheet.allergens.map((a) => `${a.allergen}: ${allergenStatusLabel(a.status)}`).join('\n'))
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Falha ao abrir ficha.') }
     finally { setBusy(false) }
   }
@@ -95,8 +108,8 @@ export function TechnicalSheetsPage({user}:{user:AdminUser|null}) {
         ...form,
         ingredients: ingredientsText.split('\n').map((x) => x.trim()).filter(Boolean),
         allergens: allergensText.split('\n').map((line) => {
-          const [allergen, status = 'contains'] = line.split(':').map((x) => x.trim())
-          return { allergen, status: (['contains','may_contain','free_from'].includes(status) ? status : 'contains') as 'contains' | 'may_contain' | 'free_from' }
+          const [allergen, status = 'contém'] = line.split(':').map((x) => x.trim())
+          return { allergen, status: allergenStatusValue(status) }
         }).filter((x) => x.allergen),
       }
       await saveTechnicalSheet(adminKey.trim(), code.trim(), payload)
@@ -204,7 +217,7 @@ export function TechnicalSheetsPage({user}:{user:AdminUser|null}) {
             <label><span>Carboidratos (g)</span><input type="number" readOnly={!canManage} value={form.carbs_g ?? ''} onChange={(e) => setForm({...form, carbs_g:n(e.target.value)})} /></label>
             <label><span>Gorduras (g)</span><input type="number" readOnly={!canManage} value={form.fat_g ?? ''} onChange={(e) => setForm({...form, fat_g:n(e.target.value)})} /></label>
             <label className="full"><span>Ingredientes · um por linha</span><textarea style={{width:'100%',boxSizing:'border-box'}} readOnly={!canManage} value={ingredientsText} onChange={(e) => setIngredientsText(e.target.value)} rows={6} placeholder={'Peito de frango\nAzeite\nErvas'} /></label>
-            <label className="full"><span>Alergênicos · formato alergênico:status</span><textarea style={{width:'100%',boxSizing:'border-box'}} readOnly={!canManage} value={allergensText} onChange={(e) => setAllergensText(e.target.value)} rows={5} placeholder={'leite:contains\nsoja:may_contain'} /><small style={{display:'block',marginTop:6}}>Status: contains, may_contain ou free_from.</small></label>
+            <label className="full"><span>Alergênicos</span><textarea style={{width:'100%',boxSizing:'border-box'}} readOnly={!canManage} value={allergensText} onChange={(e) => setAllergensText(e.target.value)} rows={5} placeholder={'leite: contém\nsoja: pode conter\nglúten: livre de'} /></label>
           </div>
           {!!message && <div className="alert warning">{message}</div>}
           <div className="action-row"><span className="helper">Ao publicar um cardápio, o código puxa estes valores como snapshot.</span>{canManage&&<button className="primary" disabled={busy} onClick={save}>{busy ? 'Salvando...' : 'Salvar ficha técnica'}</button>}</div>
