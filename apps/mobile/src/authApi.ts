@@ -60,6 +60,12 @@ async function parse<T>(response: Response): Promise<T> {
   return body as T
 }
 
+export async function createDemoSession(): Promise<AuthSession> {
+  return parse(await fetch(`${API_URL}/api/auth/demo-session`, {
+    method: 'POST',
+  }))
+}
+
 export async function requestLoginCode(email: string): Promise<{ demo_code?: string; message: string }> {
   return parse(await fetch(`${API_URL}/api/auth/request-code`, {
     method: 'POST',
