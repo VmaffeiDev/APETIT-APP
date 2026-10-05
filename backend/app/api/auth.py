@@ -136,6 +136,88 @@ def current_person(authorization: str | None) -> dict:
     return dict(person)
 
 
+@router.post("/api/auth/demo-session", tags=["employee-auth"])
+def demo_session() -> dict:
+    if settings.environment.strip().lower() != "development":
+        raise HTTPException(status_code=404, detail="indisponível")
+
+    email = "funcionario.demo@apetit.local"
+    token = secrets.token_urlsafe(32)
+    expires_at = datetime.now(timezone.utc) + timedelta(days=SESSION_TTL_DAYS)
+
+    with engine.begin() as conn:
+        unit = conn.execute(
+            text("""
+                SELECT u.id
+                FROM units u
+                JOIN companies c ON c.id = u.company_id
+                ORDER BY c.name, u.name
+                LIMIT 1
+            """)
+        ).scalar_one_or_none()
+        if unit is None:
+            raise HTTPException(status_code=503, detail="nenhuma unidade disponível para a demonstração")
+
+        person = conn.execute(
+            text("""
+                SELECT id, name, unit_id, sector, goal, onboarding_completed_at
+                FROM people
+                WHERE email = :email AND deleted_at IS NULL
+            """),
+            {"email": email},
+        ).mappings().first()
+
+        if person is None:
+            person = conn.execute(
+                text("""
+                    INSERT INTO people
+                        (email, name, unit_id, sector, goal, onboarding_completed_at)
+                    VALUES
+                        (:email, 'Funcionário Demo', :unit_id, 'Administrativo',
+                         'alimentacao_equilibrada', now())
+                    RETURNING id, name, unit_id, sector, goal, onboarding_completed_at
+                """),
+                {"email": email, "unit_id": unit},
+            ).mappings().one()
+        elif person["onboarding_completed_at"] is None or person["unit_id"] is None:
+            person = conn.execute(
+                text("""
+                    UPDATE people
+                    SET name = COALESCE(name, 'Funcionário Demo'),
+                        unit_id = COALESCE(unit_id, :unit_id),
+                        sector = COALESCE(sector, 'Administrativo'),
+                        goal = COALESCE(goal, 'alimentacao_equilibrada'),
+                        onboarding_completed_at = COALESCE(onboarding_completed_at, now())
+                    WHERE id = :person_id
+                    RETURNING id, name, unit_id, sector, goal, onboarding_completed_at
+                """),
+                {"unit_id": unit, "person_id": person["id"]},
+            ).mappings().one()
+
+        conn.execute(
+            text("""
+                INSERT INTO employee_sessions (person_id, token_hash, expires_at)
+                VALUES (:person_id, :token_hash, :expires_at)
+            """),
+            {"person_id": person["id"], "token_hash": _hash(token), "expires_at": expires_at},
+        )
+
+    return {
+        "status": "authenticated",
+        "access_token": token,
+        "expires_at": expires_at.isoformat(),
+        "person": {
+            "id": str(person["id"]),
+            "email": email,
+            "name": person["name"],
+            "unit_id": str(person["unit_id"]) if person["unit_id"] else None,
+            "sector": person["sector"],
+            "goal": person["goal"],
+            "onboarding_completed": True,
+        },
+    }
+
+
 @router.post("/api/auth/request-code", tags=["employee-auth"])
 def request_code(payload: RequestCodePayload) -> dict:
     email = str(payload.email).strip().lower()
