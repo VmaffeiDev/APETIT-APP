@@ -29,7 +29,7 @@ function Root() {
   const [hash, setHash] = useState(window.location.hash.replace('#', '') || 'visao-geral')
 
   useEffect(() => {
-    const protectedRoute = !isPresentationMode || hash === 'usuarios'
+    const protectedRoute = !isPresentationMode
     if (!protectedRoute) {
       setCurrentUser(null)
       setAuthState('valid')
@@ -104,7 +104,7 @@ function Root() {
   if (hash === 'redefinir-senha') return <AdminPasswordResetPage />
   if (hash === 'login') return <AdminLoginPage onSuccess={() => { window.location.hash='visao-geral'; setAuthState('checking'); setAuthRevision(v => v + 1) }} />
   if (hash === 'configurar-admin' && isPresentationMode) return <AdminSetupPage />
-  const protectedRoute = !isPresentationMode || hash === 'usuarios'
+  const protectedRoute = !isPresentationMode
   if (protectedRoute && (!getAdminToken() || authState === 'invalid')) {
     return <AdminLoginPage onSuccess={() => { window.location.hash='visao-geral'; setAuthState('checking'); setAuthRevision(v => v + 1) }} />
   }
