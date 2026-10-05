@@ -133,28 +133,48 @@ def technical_sheet_coverage(
     require_unit_access(principal, unit_id)
 
     with engine.connect() as conn:
-        rows = conn.execute(
+        target = conn.execute(
             text(
                 """
-                SELECT
-                    mi.technical_sheet_code AS code,
-                    mi.name,
-                    mi.category,
-                    md.service_date,
-                    ts.code AS sheet_found,
-                    ts.kcal,
-                    ts.protein_g,
-                    ts.carbs_g,
-                    ts.fat_g
-                FROM menu_items mi
-                JOIN menu_days md ON md.id = mi.menu_day_id
-                LEFT JOIN technical_sheets ts ON ts.code = mi.technical_sheet_code
-                WHERE md.unit_id = :unit_id
-                ORDER BY md.service_date DESC, mi.category, mi.name
+                SELECT id, file_name, period_start, period_end, published_at
+                FROM menu_imports
+                WHERE unit_id = :unit_id AND status = 'published'
+                ORDER BY
+                    CASE WHEN file_name ILIKE 'demo-%' THEN 1 ELSE 0 END,
+                    published_at DESC NULLS LAST,
+                    created_at DESC,
+                    id DESC
+                LIMIT 1
                 """
             ),
             {"unit_id": unit_id},
-        ).mappings().all()
+        ).mappings().one_or_none()
+
+        rows = []
+        if target is not None:
+            rows = conn.execute(
+                text(
+                    """
+                    SELECT
+                        mi.technical_sheet_code AS code,
+                        mi.name,
+                        mi.category,
+                        md.service_date,
+                        ts.code AS sheet_found,
+                        ts.kcal,
+                        ts.protein_g,
+                        ts.carbs_g,
+                        ts.fat_g
+                    FROM menu_items mi
+                    JOIN menu_days md ON md.id = mi.menu_day_id
+                    LEFT JOIN technical_sheets ts ON ts.code = mi.technical_sheet_code
+                    WHERE md.unit_id = :unit_id
+                      AND md.menu_import_id = :menu_import_id
+                    ORDER BY md.service_date, mi.category, mi.name
+                    """
+                ),
+                {"unit_id": unit_id, "menu_import_id": target["id"]},
+            ).mappings().all()
 
     summary = {
         "total_items": len(rows),
@@ -226,6 +246,13 @@ def technical_sheet_coverage(
 
     return {
         "unit_id": str(unit_id),
+        "scope": {
+            "menu_import_id": str(target["id"]) if target else None,
+            "file_name": target["file_name"] if target else None,
+            "period_start": target["period_start"].isoformat() if target and target["period_start"] else None,
+            "period_end": target["period_end"].isoformat() if target and target["period_end"] else None,
+            "published_at": target["published_at"].isoformat() if target and target["published_at"] else None,
+        },
         "summary": summary,
         "pending": pending_items[:200],
         "pending_count": len(pending_items),
