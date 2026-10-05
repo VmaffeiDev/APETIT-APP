@@ -221,9 +221,8 @@ def demo_session() -> dict:
 @router.post("/api/auth/request-code", tags=["employee-auth"])
 def request_code(payload: RequestCodePayload) -> dict:
     email = str(payload.email).strip().lower()
-    _check_rate_limit(email=email, event_type="request_code", limit=REQUEST_CODE_LIMIT)
-
     is_development = settings.environment.strip().lower() == "development"
+    _check_rate_limit(email=email, event_type="request_code", limit=20 if is_development else REQUEST_CODE_LIMIT)
     code = DEMO_CODE if is_development else f"{secrets.randbelow(1_000_000):06d}"
     expires_at = datetime.now(timezone.utc) + timedelta(minutes=LOGIN_CODE_TTL_MINUTES)
 
