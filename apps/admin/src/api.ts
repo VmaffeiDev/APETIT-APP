@@ -71,6 +71,13 @@ export type TechnicalSheetCoveragePending = {
 }
 export type TechnicalSheetCoverage = {
   unit_id:string;
+  scope:{
+    menu_import_id:string|null;
+    file_name:string|null;
+    period_start:string|null;
+    period_end:string|null;
+    published_at:string|null;
+  };
   summary:{
     total_items:number;
     with_code:number;
