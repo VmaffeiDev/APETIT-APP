@@ -60,15 +60,30 @@ def admin_overview(
         """)).scalar_one() or 0)
 
         menu_scope = " WHERE md.unit_id = ANY(:unit_ids)" if scoped else ""
+        latest_menu_join = """
+            JOIN LATERAL (
+                SELECT mi.id
+                FROM menu_imports mi
+                WHERE mi.unit_id = md.unit_id
+                  AND mi.status = 'published'
+                ORDER BY
+                    CASE WHEN mi.file_name ILIKE 'demo-%' THEN 1 ELSE 0 END,
+                    mi.published_at DESC NULLS LAST,
+                    mi.created_at DESC,
+                    mi.id DESC
+                LIMIT 1
+            ) latest_active ON latest_active.id = md.menu_import_id
+        """
         enriched_menu_items = int(conn.execute(text("""
             SELECT COUNT(*) FROM menu_items mitem
             JOIN menu_days md ON md.id=mitem.menu_day_id
+        """ + latest_menu_join + """
             JOIN technical_sheets ts ON ts.code=mitem.technical_sheet_code
         """ + menu_scope), params).scalar_one() or 0)
         total_menu_items = int(conn.execute(text("""
             SELECT COUNT(*) FROM menu_items mitem
             JOIN menu_days md ON md.id=mitem.menu_day_id
-        """ + menu_scope), params).scalar_one() or 0)
+        """ + latest_menu_join + menu_scope), params).scalar_one() or 0)
 
         feedback_where = "WHERE meal_date BETWEEN :start AND :end"
         if scoped:
@@ -121,7 +136,19 @@ def admin_overview(
             FROM units u
             LEFT JOIN companies c ON c.id = u.company_id
             LEFT JOIN menu_imports mi ON mi.unit_id = u.id
-            LEFT JOIN menu_days md ON md.unit_id = u.id
+            LEFT JOIN LATERAL (
+                SELECT current_import.id
+                FROM menu_imports current_import
+                WHERE current_import.unit_id = u.id
+                  AND current_import.status = 'published'
+                ORDER BY
+                    CASE WHEN current_import.file_name ILIKE 'demo-%' THEN 1 ELSE 0 END,
+                    current_import.published_at DESC NULLS LAST,
+                    current_import.created_at DESC,
+                    current_import.id DESC
+                LIMIT 1
+            ) latest_active ON TRUE
+            LEFT JOIN menu_days md ON md.unit_id = u.id AND md.menu_import_id = latest_active.id
             LEFT JOIN menu_items mitem ON mitem.menu_day_id = md.id
             LEFT JOIN technical_sheets ts ON ts.code = mitem.technical_sheet_code
             LEFT JOIN feedback f ON f.unit_id = u.id
