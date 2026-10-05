@@ -142,6 +142,7 @@ export function TechnicalSheetsPage({user}:{user:AdminUser|null}) {
             <span className="eyebrow">COBERTURA REAL DO CARDÁPIO</span>
             <h2>Fichas técnicas da unidade</h2>
             <p>Conta como coberto somente quando o código do item encontra uma ficha técnica cadastrada.</p>
+            {coverage?.scope.period_start&&<small style={{display:'block',marginTop:6}}>Período analisado: {coverage.scope.period_start} → {coverage.scope.period_end} · {coverage.scope.file_name}</small>}
           </div>
           <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
             <select value={unitId} onChange={(e)=>setUnitId(e.target.value)}>
@@ -202,8 +203,8 @@ export function TechnicalSheetsPage({user}:{user:AdminUser|null}) {
             <label><span>Proteína (g)</span><input type="number" readOnly={!canManage} value={form.protein_g ?? ''} onChange={(e) => setForm({...form, protein_g:n(e.target.value)})} /></label>
             <label><span>Carboidratos (g)</span><input type="number" readOnly={!canManage} value={form.carbs_g ?? ''} onChange={(e) => setForm({...form, carbs_g:n(e.target.value)})} /></label>
             <label><span>Gorduras (g)</span><input type="number" readOnly={!canManage} value={form.fat_g ?? ''} onChange={(e) => setForm({...form, fat_g:n(e.target.value)})} /></label>
-            <label className="full"><span>Ingredientes · um por linha</span><textarea readOnly={!canManage} value={ingredientsText} onChange={(e) => setIngredientsText(e.target.value)} rows={6} placeholder={'Peito de frango\nAzeite\nErvas'} /></label>
-            <label className="full"><span>Alergênicos · formato alergênico:status</span><textarea readOnly={!canManage} value={allergensText} onChange={(e) => setAllergensText(e.target.value)} rows={5} placeholder={'leite:contains\nsoja:may_contain'} /><small>Status: contains, may_contain ou free_from.</small></label>
+            <label className="full"><span>Ingredientes · um por linha</span><textarea style={{width:'100%',boxSizing:'border-box'}} readOnly={!canManage} value={ingredientsText} onChange={(e) => setIngredientsText(e.target.value)} rows={6} placeholder={'Peito de frango\nAzeite\nErvas'} /></label>
+            <label className="full"><span>Alergênicos · formato alergênico:status</span><textarea style={{width:'100%',boxSizing:'border-box'}} readOnly={!canManage} value={allergensText} onChange={(e) => setAllergensText(e.target.value)} rows={5} placeholder={'leite:contains\nsoja:may_contain'} /><small style={{display:'block',marginTop:6}}>Status: contains, may_contain ou free_from.</small></label>
           </div>
           {!!message && <div className="alert warning">{message}</div>}
           <div className="action-row"><span className="helper">Ao publicar um cardápio, o código puxa estes valores como snapshot.</span>{canManage&&<button className="primary" disabled={busy} onClick={save}>{busy ? 'Salvando...' : 'Salvar ficha técnica'}</button>}</div>
