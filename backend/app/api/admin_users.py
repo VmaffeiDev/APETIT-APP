@@ -17,6 +17,7 @@ from app.api.admin_auth import (
     require_permission, revoke_session, verify_password,
 )
 from app.db import engine
+from app.services.admin_login_rate import reserve_login_attempt
 from app.services.email_delivery import EmailDeliveryError, send_admin_password_reset
 from app.settings import settings
 
@@ -26,6 +27,8 @@ ADMIN_RESET_TTL_MINUTES = 15
 ADMIN_RESET_REQUEST_LIMIT = 3
 ADMIN_RESET_VERIFY_LIMIT = 5
 ADMIN_RESET_RATE_WINDOW_MINUTES = 15
+# Keep password verification work for unknown/inactive accounts as well.
+_DUMMY_PASSWORD_HASH = hash_password(secrets.token_urlsafe(32))
 
 
 class LoginRequest(BaseModel):
@@ -57,12 +60,17 @@ def public_user(row) -> dict:
 
 @router.post("/api/admin/auth/login", tags=["admin-auth"])
 def login(payload: LoginRequest) -> dict:
+    email = str(payload.email).strip().lower()
+    reserve_login_attempt(email)
     with engine.connect() as conn:
         row = conn.execute(text("""
             SELECT id,name,email,password_hash,role,active,last_login_at
             FROM admin_users WHERE email=:email
-        """), {"email": str(payload.email)}).mappings().one_or_none()
-    if not row or not row["active"] or not verify_password(payload.password, row["password_hash"]):
+        """), {"email": email}).mappings().one_or_none()
+    password_valid = verify_password(
+        payload.password, row["password_hash"] if row else _DUMMY_PASSWORD_HASH
+    )
+    if not row or not row["active"] or not password_valid:
         raise HTTPException(status_code=401, detail="E-mail ou senha inválidos")
     token, expires = create_session(row["id"])
     return {"token": token, "expires_at": expires.isoformat(),
