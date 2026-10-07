@@ -7,6 +7,7 @@ from uuid import UUID
 from sqlalchemy import text
 
 from app.db import engine
+from app.domain.allergens import assess_allergens
 from app.services.demo_menu import resolve_menu_service_date
 from app.services.prescription_workflow import current_prescription_meal
 
@@ -77,11 +78,10 @@ def evaluate_plate(*, person_id: str, unit_id: str, service_date: date, meal_typ
     for item_id in selected_ids:
         row = by_id[item_id]
         allergen_pairs = list(zip(row["allergens"] or [], row["allergen_statuses"] or []))
-        confirmed = {str(a).casefold() for a, status in allergen_pairs if status == "confirmed"}
-        unknown_relevant = {str(a).casefold() for a, status in allergen_pairs if status != "confirmed" and str(a).casefold() in restrictions}
-        if confirmed & restrictions:
+        assessment = assess_allergens(restrictions, allergen_pairs)
+        if assessment.contains:
             unsafe.append(row["name"])
-        if unknown_relevant:
+        if assessment.uncertain:
             uncertain.append(row["name"])
         if any(row[key] is None for key in totals):
             missing_nutrition.append(row["name"])
