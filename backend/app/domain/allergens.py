@@ -1,14 +1,15 @@
 """One conservative policy for the employee's declared dietary restrictions."""
 
+import unicodedata
 from collections.abc import Iterable
 from dataclasses import dataclass
-import unicodedata
 
 
 def _normalize(value: str) -> str:
     # Normalize spelling only: milk and lactose, for example, are not synonyms.
     return "".join(
-        char for char in unicodedata.normalize("NFD", value.strip().casefold())
+        char
+        for char in unicodedata.normalize("NFD", value.strip().casefold())
         if not unicodedata.combining(char)
     )
 
