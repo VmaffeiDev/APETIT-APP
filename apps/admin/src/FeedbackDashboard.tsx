@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import { FeedbackSummary, getFeedbackSummary, getAdminToken, isPresentationMode, presentationAdminKey } from './api'
+import { AdminUser, FeedbackSummary, getAdminToken, getFeedbackSummary, isPresentationMode, presentationAdminKey } from './api'
 import { DEMO_UNITS } from './demoUnits'
+import { filterUnitsForUser } from './access'
 
 const TAG_LABELS: Record<string, string> = {
   sabor: 'Sabor',
@@ -17,8 +18,10 @@ function formatDate(value: string) {
   return new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit' }).format(new Date(`${value}T12:00:00`))
 }
 
-export function FeedbackDashboard({ initialUnitId }: { initialUnitId?: string } = {}) {
-  const initialUnit = DEMO_UNITS.find((unit) => unit.unitId === initialUnitId) ?? DEMO_UNITS[0]
+export function FeedbackDashboard({ initialUnitId, user }: { initialUnitId?: string; user: AdminUser | null }) {
+  const allowedUnits = useMemo(()=>filterUnitsForUser(DEMO_UNITS,user),[user])
+  const initialUnit = allowedUnits.find((unit) => unit.unitId === initialUnitId) ?? allowedUnits[0] ?? DEMO_UNITS[0]
+  const authenticated=Boolean(getAdminToken())
   const today = new Date()
   const sevenDaysAgo = new Date(today)
   sevenDaysAgo.setDate(today.getDate() - 6)
@@ -32,12 +35,12 @@ export function FeedbackDashboard({ initialUnitId }: { initialUnitId?: string } 
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
-  const selectedUnit = useMemo(() => DEMO_UNITS.find((unit) => unit.unitId === unitId) ?? DEMO_UNITS[0], [unitId])
+  const selectedUnit = useMemo(() => allowedUnits.find((unit) => unit.unitId === unitId) ?? allowedUnits[0] ?? DEMO_UNITS[0], [allowedUnits,unitId])
   const maxTag = useMemo(() => Math.max(1, ...(summary?.tags.map((tag) => tag.count) ?? [1])), [summary])
 
   async function load() {
-    if (!unitId.trim() || (!adminKey.trim() && !getAdminToken())) {
-      setError(isPresentationMode ? 'Não foi possível iniciar o relatório de demonstração.' : 'Informe a unidade e a chave administrativa.')
+    if (!unitId.trim() || (!authenticated && !adminKey.trim())) {
+      setError(isPresentationMode ? 'Não foi possível iniciar o relatório de demonstração.' : 'Informe uma unidade válida.')
       return
     }
     setBusy(true)
@@ -59,7 +62,7 @@ export function FeedbackDashboard({ initialUnitId }: { initialUnitId?: string } 
   }
 
   useEffect(() => {
-    if (isPresentationMode || getAdminToken()) void load()
+    if (isPresentationMode || authenticated) void load()
   }, [])
 
   return (
@@ -79,11 +82,11 @@ export function FeedbackDashboard({ initialUnitId }: { initialUnitId?: string } 
           <span className="badge soft">mín. 5 pessoas</span>
         </div>
         <div className="form-grid feedback-filter-grid">
-          <label><span>Unidade</span><select value={unitId} onChange={(e) => { const next = DEMO_UNITS.find((unit) => unit.unitId === e.target.value) ?? DEMO_UNITS[0]; setUnitId(next.unitId); setRestaurantId(next.restaurantId); setSummary(null) }}>{DEMO_UNITS.map((unit) => <option key={unit.unitId} value={unit.unitId}>{unit.company} · {unit.unitName.replace(' — Demonstração','')}</option>)}</select></label>
+          <label><span>Unidade</span><select value={unitId} onChange={(e) => { const next = allowedUnits.find((unit) => unit.unitId === e.target.value) ?? allowedUnits[0] ?? DEMO_UNITS[0]; setUnitId(next.unitId); setRestaurantId(next.restaurantId); setSummary(null) }}>{allowedUnits.map((unit) => <option key={unit.unitId} value={unit.unitId}>{unit.company} · {unit.unitName.replace(' — Demonstração','')}</option>)}</select></label>
           <label><span>Refeitório</span><input value={selectedUnit.restaurantName} readOnly /></label>
           <label><span>De</span><input type="date" value={start} onChange={(e) => setStart(e.target.value)} /></label>
           <label><span>Até</span><input type="date" value={end} onChange={(e) => setEnd(e.target.value)} /></label>
-          {isPresentationMode ? <div className="full presentation-access"><strong>Modo apresentação</strong><span>Dados fictícios controlados de 15/09 a 19/09/2026. Se a API demo estiver indisponível, o painel usa uma amostra local identificada como demonstração.</span></div> : <label className="full"><span>Chave administrativa</span><input type="password" value={adminKey} onChange={(e) => setAdminKey(e.target.value)} placeholder="Chave de acesso da operação" /></label>}
+          {isPresentationMode ? <div className="full presentation-access"><strong>Modo apresentação</strong><span>Dados fictícios controlados de 15/09 a 19/09/2026. Se a API demo estiver indisponível, o painel usa uma amostra local identificada como demonstração.</span></div> : !authenticated ? <label className="full"><span>Chave administrativa</span><input type="password" value={adminKey} onChange={(e) => setAdminKey(e.target.value)} placeholder="Chave de acesso da operação" /></label> : <div className="full presentation-access"><strong>Conta autenticada</strong><span>Relatório limitado às unidades atribuídas a {user?.name}.</span></div>}
         </div>
         {error && <div className="alert error">{error}</div>}
         <div className="action-row"><span className="helper">{isPresentationMode ? 'Dados fictícios para demonstração · nenhum funcionário real é usado.' : 'Nenhum identificador de funcionário é retornado neste relatório.'}</span><button className="primary" disabled={busy} onClick={load}>{busy ? 'Carregando...' : 'Atualizar relatório'}</button></div>

@@ -1,24 +1,13 @@
-import { useEffect, useState } from 'react'
-import { adminMe, getAdminToken } from './api'
+import { AdminUser } from './api'
 import { DEMO_UNITS } from './demoUnits'
+import { filterUnitsForUser, hasAdminPermission } from './access'
 import './units.css'
 
-export function UnitsPage() {
-  const [visibleUnits,setVisibleUnits]=useState(DEMO_UNITS)
-  const [scopeLoading,setScopeLoading]=useState(Boolean(getAdminToken()))
-  const [scopeError,setScopeError]=useState('')
-
-  useEffect(()=>{
-    if(!getAdminToken()){ setVisibleUnits(DEMO_UNITS); setScopeLoading(false); return }
-    let cancelled=false
-    adminMe().then(user=>{
-      if(cancelled)return
-      setVisibleUnits(user.role==='admin' ? DEMO_UNITS : DEMO_UNITS.filter(unit=>(user.unit_ids??[]).includes(unit.unitId)))
-    }).catch(err=>{
-      if(!cancelled)setScopeError(err instanceof Error?err.message:'Não foi possível carregar suas unidades.')
-    }).finally(()=>{if(!cancelled)setScopeLoading(false)})
-    return()=>{cancelled=true}
-  },[])
+export function UnitsPage({user}:{user:AdminUser|null}) {
+  const visibleUnits=filterUnitsForUser(DEMO_UNITS,user)
+  const canPublishMenus=hasAdminPermission(user,'publish_menu')
+  const canManageSheets=hasAdminPermission(user,'manage_sheets')
+  const canManageUsers=hasAdminPermission(user,'manage_users')
 
   return (
     <div className="app-shell">
@@ -26,17 +15,17 @@ export function UnitsPage() {
         <div className="brand"><span className="brand-mark">A</span><div><strong>APETIT</strong><small>Admin</small></div></div>
         <nav>
           <button className="nav-item" onClick={() => { window.location.hash = 'visao-geral' }}><span>⌂</span>Visão geral</button>
-          <button className="nav-item" onClick={() => { window.location.hash = 'cardapios' }}><span>▣</span>Cardápios</button>
-          <button className="nav-item" onClick={() => { window.location.hash = 'importar-fichas' }}><span>↥</span>Importações</button>
+          {canPublishMenus&&<button className="nav-item" onClick={() => { window.location.hash = 'cardapios' }}><span>▣</span>Cardápios</button>}
+          {canManageSheets&&<button className="nav-item" onClick={() => { window.location.hash = 'importar-fichas' }}><span>↥</span>Importações</button>}
+          <button className="nav-item" onClick={() => { window.location.hash = 'fichas-tecnicas' }}><span>⌘</span>Fichas técnicas</button>
           <div className="nav-label">Experiência</div>
           <button className="nav-item" onClick={() => { window.location.hash = 'feedbacks' }}><span>♡</span>Feedbacks</button>
-          <button className="nav-item" onClick={() => { window.location.hash = 'feedbacks' }}><span>⌁</span>Satisfação</button>
           <div className="nav-label">Gestão</div>
           <button className="nav-item active"><span>□</span>Unidades</button>
-          <button className="nav-item"><span>◫</span>Empresas</button>
-          <button className="nav-item"><span>⚙</span>Configurações</button>
+          {canManageUsers&&<button className="nav-item" onClick={() => { window.location.hash='empresas' }}><span>◫</span>Empresas</button>}
+          <button className="nav-item" onClick={() => { window.location.hash='configuracoes' }}><span>⚙</span>Configurações</button>
         </nav>
-        <div className="privacy-note"><strong>Ambiente de demonstração</strong><p>Copel, Sanepar e Coca-Cola são cadastros temporários e serão substituídos pela base oficial.</p></div>
+        <div className="privacy-note"><strong>Escopo da sua conta</strong><p>Somente unidades atribuídas ao seu perfil aparecem neste painel.</p></div>
       </aside>
 
       <main className="main">
@@ -44,24 +33,23 @@ export function UnitsPage() {
           <div>
             <span className="eyebrow">GESTÃO · UNIDADES</span>
             <h1>Unidades atendidas</h1>
-            <p>Base fictícia para apresentação do APETIT-APP até a chegada do relatório oficial.</p>
+            <p>Visualização limitada ao escopo definido para sua conta.</p>
           </div>
-          <span className="badge">{scopeLoading?'Carregando...':`${visibleUnits.length} unidade(s)`}</span>
+          <span className="badge">{visibleUnits.length} unidade(s)</span>
         </header>
 
         <section className="units-summary">
-          <div className="metric"><small>Empresas</small><strong>{visibleUnits.length}</strong><span>visíveis para sua conta</span></div>
+          <div className="metric"><small>Empresas</small><strong>{new Set(visibleUnits.map(unit=>unit.company)).size}</strong><span>visíveis para sua conta</span></div>
           <div className="metric"><small>Unidades</small><strong>{visibleUnits.length}</strong><span>conforme suas permissões</span></div>
           <div className="metric"><small>Refeitórios</small><strong>{visibleUnits.length}</strong><span>ligados às unidades autorizadas</span></div>
         </section>
 
         <section className="demo-notice">
           <div><span>i</span></div>
-          <p><strong>Dados de demonstração.</strong> Os nomes abaixo servem apenas para validar o produto. Quando a Apetit enviar a relação oficial de empresas, unidades e refeitórios, substituiremos esses registros mantendo a mesma arquitetura.</p>
+          <p><strong>Dados de demonstração.</strong> Estes cadastros serão substituídos pela base oficial da Apetit mantendo a mesma estrutura de permissões.</p>
         </section>
 
-        {scopeError&&<div className="alert error">{scopeError}</div>}
-        {!scopeLoading&&visibleUnits.length===0&&<section className="card content-card"><h2>Nenhuma unidade atribuída</h2><p>Sua conta está ativa, mas ainda não possui acesso a nenhuma unidade. Um Administrador precisa atribuir pelo menos uma unidade ao seu perfil.</p></section>}
+        {visibleUnits.length===0&&<section className="card content-card"><h2>Nenhuma unidade atribuída</h2><p>Sua conta está ativa, mas ainda não possui acesso a nenhuma unidade. Um Administrador precisa atribuir pelo menos uma unidade ao seu perfil.</p></section>}
         <section className="units-grid">
           {visibleUnits.map((unit, index) => (
             <article className="unit-card" key={unit.unitId}>
@@ -83,7 +71,7 @@ export function UnitsPage() {
 
               <div className="unit-actions">
                 <button className="primary" onClick={() => { window.location.hash = `unidade/${unit.unitId}` }}>Abrir unidade</button>
-                <button className="secondary" onClick={() => { window.location.hash = 'cardapios' }}>Publicar cardápio</button>
+                {canPublishMenus&&<button className="secondary" onClick={() => { window.location.hash = 'cardapios' }}>Publicar cardápio</button>}
                 <button className="secondary" onClick={() => { window.location.hash = `feedbacks/${unit.unitId}` }}>Ver satisfação</button>
               </div>
 
@@ -96,14 +84,14 @@ export function UnitsPage() {
           ))}
         </section>
 
-        <section className="card units-next">
+        {visibleUnits.length>0&&<section className="card units-next">
           <div>
-            <span className="eyebrow">PRÓXIMA ETAPA</span>
-            <h2>Substituição simples pela base oficial</h2>
-            <p>Quando o relatório da Apetit chegar, importaremos as empresas, unidades e refeitórios reais e removeremos estes três registros de demonstração.</p>
+            <span className="eyebrow">ACESSO</span>
+            <h2>{canPublishMenus?'Operação liberada para suas unidades':'Consulta das unidades autorizadas'}</h2>
+            <p>{canPublishMenus?'Você pode publicar cardápios somente nas unidades atribuídas ao seu perfil.':'Seu perfil é de consulta e não pode publicar ou alterar dados operacionais.'}</p>
           </div>
-          <button className="primary" onClick={() => { window.location.hash = 'cardapios' }}>Ir para cardápios</button>
-        </section>
+          {canPublishMenus?<button className="primary" onClick={() => { window.location.hash = 'cardapios' }}>Ir para cardápios</button>:<button className="primary" onClick={() => { window.location.hash = `unidade/${visibleUnits[0].unitId}` }}>Abrir unidade</button>}
+        </section>}
       </main>
     </div>
   )

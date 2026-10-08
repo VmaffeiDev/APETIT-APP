@@ -24,3 +24,9 @@ O transporte de e-mail é substituído somente no teste para capturar o código.
 Não inserir dados pessoais reais no ambiente development: há login por código fixo e criação pública de visitantes. Sessões de oito horas não removem os dados demo. Retenção, limitação de visitas e inferência por consultas sobrepostas permanecem pendentes.
 
 Resultado do CI, status de integração e publicação estão registrados no PR desta versão. A conclusão dos testes não equivale à conclusão da auditoria de segurança nem do ensaio visual.
+
+## Conciliação do painel publicado
+
+A inspeção do Railway mostrou API/PWA em foundation/v1 e painel em staging. As melhorias exclusivas do frontend staging foram conciliadas nesta versão: navegação por perfil, filtros por unidades autorizadas, cobertura de fichas, rótulos de alergênicos em português e importação autenticada. Foram mantidas as correções novas: prioridade do token individual, autenticação obrigatória na gestão de usuários, relatórios sem números inventados e gestão de vínculos. O backend de staging não foi importado, pois contém versões anteriores da autorização e da API.
+
+A publicação deve usar o mesmo commit validado nos três serviços. Não atualizar somente foundation/v1 esperando que o painel, ainda ligado a staging, acompanhe automaticamente.

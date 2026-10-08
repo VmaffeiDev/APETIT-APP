@@ -1,21 +1,41 @@
-import { useRef, useState } from 'react'
-import { isPresentationMode, presentationAdminKey, previewTechnicalSheetImport, publishTechnicalSheetImport, TechnicalSheetImportPreview } from './api'
+import { DragEvent, useRef, useState } from 'react'
+import { getAdminToken, previewTechnicalSheetImport, publishTechnicalSheetImport, TechnicalSheetImportPreview } from './api'
 
 export function TechnicalSheetImportPage() {
   const inputRef = useRef<HTMLInputElement>(null)
-  const [adminKey, setAdminKey] = useState(presentationAdminKey)
+  const authenticated = Boolean(getAdminToken())
   const [file, setFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<TechnicalSheetImportPreview | null>(null)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
 
+  function selectFile(nextFile: File | null) {
+    if (!nextFile) return
+    const extension = nextFile.name.toLowerCase().split('.').pop()
+    if (!['xlsx','csv'].includes(extension ?? '')) {
+      setFile(null); setPreview(null)
+      setMessage('Formato não suportado. Selecione um arquivo .xlsx ou .csv.')
+      return
+    }
+    setFile(nextFile); setPreview(null); setMessage('')
+  }
+
+  function onDrop(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault()
+    selectFile(event.dataTransfer.files?.[0] ?? null)
+  }
+
   async function validate() {
-    if (!adminKey.trim() || !file) {
-      setMessage('Informe a chave administrativa e selecione um XLSX ou CSV.')
+    if (!file) {
+      setMessage('Selecione um arquivo XLSX ou CSV.')
+      return
+    }
+    if (!authenticated) {
+      setMessage('Sua sessão expirou. Entre novamente no Admin para importar fichas.')
       return
     }
     setBusy(true); setMessage('')
-    try { setPreview(await previewTechnicalSheetImport(adminKey.trim(), file)) }
+    try { setPreview(await previewTechnicalSheetImport('', file)) }
     catch (error) { setMessage(error instanceof Error ? error.message : 'Falha ao validar arquivo.') }
     finally { setBusy(false) }
   }
@@ -24,7 +44,7 @@ export function TechnicalSheetImportPage() {
     if (!preview) return
     setBusy(true); setMessage('')
     try {
-      const result = await publishTechnicalSheetImport(adminKey.trim(), preview.preview_id)
+      const result = await publishTechnicalSheetImport('', preview.preview_id)
       setMessage(`${result.count} ficha(s) importadas: ${result.created} novas e ${result.updated} atualizadas.`)
       setPreview(null); setFile(null)
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Falha ao importar fichas.') }
@@ -49,12 +69,17 @@ export function TechnicalSheetImportPage() {
 
       <section className="card content-card">
         <div className="form-grid">
-          {isPresentationMode ? <div className="full presentation-access"><strong>Modo apresentação</strong><span>Acesso administrativo liberado automaticamente neste ambiente.</span></div> : <label className="full"><span>Chave administrativa</span><input type="password" value={adminKey} onChange={(e) => setAdminKey(e.target.value)} placeholder="Chave de acesso da operação" /></label>}
+          <div className="full presentation-access"><strong>Conta autenticada</strong><span>A importação será autorizada pela sua sessão de Nutrição. Não é necessária chave administrativa.</span></div>
         </div>
-        <div className={`dropzone ${file ? 'has-file' : ''}`} onClick={() => inputRef.current?.click()}>
-          <input ref={inputRef} hidden type="file" accept=".xlsx,.csv" onChange={(e) => { setFile(e.target.files?.[0] ?? null); setPreview(null); setMessage('') }} />
+        <div
+          className={`dropzone ${file ? 'has-file' : ''}`}
+          onClick={() => inputRef.current?.click()}
+          onDragOver={(event) => event.preventDefault()}
+          onDrop={onDrop}
+        >
+          <input ref={inputRef} hidden type="file" accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" onChange={(e) => selectFile(e.target.files?.[0] ?? null)} />
           <div className="upload-icon">↥</div>
-          {file ? <><strong>{file.name}</strong><p>{(file.size / 1024).toFixed(1)} KB · pronto para validar</p><span className="linkish">Trocar arquivo</span></> : <><strong>Selecione a planilha de fichas técnicas</strong><p>XLSX ou CSV com código, preparação e dados nutricionais.</p><span className="file-hint">Ingredientes e alergênicos podem ser separados por ;</span></>}
+          {file ? <><strong>{file.name}</strong><p>{(file.size / 1024).toFixed(1)} KB · pronto para validar</p><span className="linkish">Trocar arquivo</span></> : <><strong>Selecione ou arraste a planilha de fichas técnicas</strong><p>XLSX ou CSV com código, preparação e dados nutricionais.</p><span className="file-hint">O arquivo de amostra do APETIT pode ser enviado diretamente aqui.</span></>}
         </div>
         <div className="action-row"><span className="helper">Colunas mínimas: código e preparação/nome.</span><button className="primary" disabled={busy} onClick={validate}>{busy ? 'Validando...' : 'Validar arquivo'}</button></div>
       </section>
