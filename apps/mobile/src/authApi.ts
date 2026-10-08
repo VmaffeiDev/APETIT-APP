@@ -23,6 +23,7 @@ export type OnboardingOptions = {
     company_name: string
     unit_id: string
     unit_name: string
+    restaurant_id: string | null
   }>
   goals: string[]
 }
@@ -82,8 +83,10 @@ export async function verifyLoginCode(email: string, code: string): Promise<Auth
   }))
 }
 
-export async function getOnboardingOptions(): Promise<OnboardingOptions> {
-  return parse(await fetch(`${API_URL}/api/auth/options`))
+export async function getOnboardingOptions(token: string): Promise<OnboardingOptions> {
+  return parse(await fetch(`${API_URL}/api/auth/options`, {
+    headers: { Authorization: `Bearer ${token}` },
+  }))
 }
 
 export async function getMe(token: string): Promise<AuthPerson> {

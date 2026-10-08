@@ -22,7 +22,7 @@ export function FeedbackPage({ initialUnitId }: { initialUnitId?: string } = {})
           <button className="nav-item"><span>◫</span>Empresas</button>
           <button className="nav-item"><span>⚙</span>Configurações</button>
         </nav>
-        <div className="privacy-note"><strong>Privacidade por padrão</strong><p>Recortes pequenos são ocultados e nenhum comentário inclui identidade do funcionário.</p></div>
+        <div className="privacy-note"><strong>Privacidade por padrão</strong><p>Indicadores exigem ao menos 5 pessoas distintas. Comentários livres ficam ocultos até revisão de privacidade.</p></div>
       </aside>
       <main className="main"><FeedbackDashboard initialUnitId={initialUnitId} /></main>
     </div>

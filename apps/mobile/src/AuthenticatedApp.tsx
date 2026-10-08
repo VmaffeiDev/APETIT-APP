@@ -54,7 +54,14 @@ export default function AuthenticatedApp({ token, person, options, onPersonChang
   }
 
   if (prescriptionOpen) return <PrescriptionReview personId={person.id} onClose={() => setPrescriptionOpen(false)} />
-  if (!accountOpen) return <DemoApp goal={person.goal} onProfile={() => setAccountOpen(true)} />
+  const assignedUnit = options?.units.find((item) => item.unit_id === person.unit_id)
+  if (!accountOpen && assignedUnit?.restaurant_id) return <DemoApp key={assignedUnit.unit_id} goal={person.goal} onProfile={() => setAccountOpen(true)} units={[{id: assignedUnit.unit_id, restaurantId: assignedUnit.restaurant_id, company: assignedUnit.company_name, label: assignedUnit.unit_name}]} />
+  if (!accountOpen) return <SafeAreaView style={styles.safe}><View style={styles.content}>
+    <Text style={styles.pageTitle}>Minha unidade</Text>
+    <Text style={styles.privateText}>{!options ? 'Não foi possível confirmar sua unidade ainda. Aguarde ou entre novamente.' : 'Sua unidade ou refeitório ainda precisa ser vinculado pela administração.'}</Text>
+    <Pressable style={styles.primary} onPress={() => setAccountOpen(true)}><Text style={styles.primaryText}>Abrir perfil</Text></Pressable>
+    <Pressable style={styles.logout} onPress={onLogout}><Text style={styles.logoutText}>Sair da conta</Text></Pressable>
+  </View></SafeAreaView>
 
   return <SafeAreaView style={styles.safe}>
     <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
@@ -66,7 +73,7 @@ export default function AuthenticatedApp({ token, person, options, onPersonChang
 
       <Text style={styles.pageTitle}>Perfil</Text>
       <View style={styles.identity}><View style={styles.avatar}><Text style={styles.avatarText}>{(name || person.email).slice(0,2).toUpperCase()}</Text></View><View style={{flex:1}}><Text style={styles.personName}>{name || 'Seu nome'}</Text><Text style={styles.personMeta}>{person.email}</Text><Text style={styles.personMeta}>{sector || 'Setor não informado'}</Text></View></View>
-      <View style={styles.accountStatus}><Ionicons name="checkmark-circle" size={14} color={colors.green}/><Text style={styles.accountStatusText}>Conta de demonstração ativa · acesso direto</Text></View>
+      <View style={styles.accountStatus}><Ionicons name="checkmark-circle" size={14} color={colors.green}/><Text style={styles.accountStatusText}>Sessão autenticada</Text></View>
 
       <Text style={styles.sectionLabel}>DADOS PESSOAIS</Text>
       <View style={styles.panel}>

@@ -28,13 +28,14 @@ import {
   registerSelectedMeal,
   submitFeedback,
 } from './api'
-import { DEMO_PERSON, DEMO_UNITS } from './demo'
+import { DEMO_PERSON } from './demo'
 import { colors, radius, shadow } from './theme'
 
 type Screen = 'home' | 'menu' | 'recommendation' | 'builder' | 'feedback' | 'done' | 'progress'
 type SelectedMap = Record<string, number>
 
-type DemoAppProps = { goal?: string | null; onProfile?: () => void }
+type EmployeeUnit = { id: string; restaurantId: string; company: string; label: string }
+type DemoAppProps = { goal?: string | null; onProfile?: () => void; units: EmployeeUnit[] }
 
 const today = () => { const now = new Date(); const y = now.getFullYear(); const m = String(now.getMonth()+1).padStart(2,'0'); const d = String(now.getDate()).padStart(2,'0'); return `${y}-${m}-${d}` }
 const fmt = (value: number | null | undefined, suffix = '') => value == null ? '—' : `${Math.round(value)}${suffix}`
@@ -52,9 +53,9 @@ const foodPhotos = [
 ]
 const platePhoto = 'https://images.unsplash.com/photo-1547592180-85f173990554?auto=format&fit=crop&w=520&q=85'
 
-export default function DemoApp({ goal, onProfile }: DemoAppProps) {
+export default function DemoApp({ goal, onProfile, units }: DemoAppProps) {
   const [screen, setScreen] = useState<Screen>('home')
-  const [unitId, setUnitId] = useState(DEMO_UNITS[0].id)
+  const [unitId, setUnitId] = useState(units[0].id)
   const [menu, setMenu] = useState<PublishedMenu | null>(null)
   const [recommendation, setRecommendation] = useState<Recommendation | null>(null)
   const [plate, setPlate] = useState<PlateEvaluation | null>(null)
@@ -69,7 +70,7 @@ export default function DemoApp({ goal, onProfile }: DemoAppProps) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
-  const unit = useMemo(() => DEMO_UNITS.find((item) => item.id === unitId) ?? DEMO_UNITS[0], [unitId])
+  const unit = useMemo(() => units.find((item) => item.id === unitId) ?? units[0], [unitId, units])
   const selectedCount = Object.values(selected).filter((quantity) => quantity > 0).length
 
   async function ensureMenu() {
@@ -207,7 +208,7 @@ export default function DemoApp({ goal, onProfile }: DemoAppProps) {
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {screen === 'home' && <Home
-          unitId={unitId}
+          units={units} unitId={unitId}
           setUnitId={(id) => { setUnitId(id); setMenu(null) }}
           onMenu={openMenu}
           onRecommendation={openRecommendation}
@@ -237,7 +238,7 @@ export default function DemoApp({ goal, onProfile }: DemoAppProps) {
   )
 }
 
-function Home({ unitId, setUnitId, onMenu, onRecommendation, onBuilder, onProgress, onFeedback }: { unitId:string;setUnitId:(id:string)=>void;onMenu:()=>void;onRecommendation:()=>void;onBuilder:()=>void;onProgress:()=>void;onFeedback:()=>void }) {
+function Home({ units, unitId, setUnitId, onMenu, onRecommendation, onBuilder, onProgress, onFeedback }: { units:EmployeeUnit[];unitId:string;setUnitId:(id:string)=>void;onMenu:()=>void;onRecommendation:()=>void;onBuilder:()=>void;onProgress:()=>void;onFeedback:()=>void }) {
   return <>
     <View style={styles.homeHero}>
       <View style={styles.homeHeroTop}><View><Text style={styles.homeBrand}>Apetit</Text><Text style={styles.homeTag}>ALIMENTA O QUE TE FAZ BEM</Text></View><Ionicons name="sparkles-outline" size={28} color="#fff"/></View>
@@ -260,7 +261,7 @@ function Home({ unitId, setUnitId, onMenu, onRecommendation, onBuilder, onProgre
     </View>
 
     <Text style={styles.sectionLabel}>UNIDADE</Text>
-    <View style={styles.unitRow}>{DEMO_UNITS.map((item)=><Pressable key={item.id} style={[styles.chip, unitId===item.id&&styles.chipActive]} onPress={()=>setUnitId(item.id)}><Text style={[styles.chipText,unitId===item.id&&styles.chipTextActive]}>{item.company}</Text></Pressable>)}</View>
+    <View style={styles.unitRow}>{units.map((item)=><Pressable key={item.id} style={[styles.chip, unitId===item.id&&styles.chipActive]} onPress={()=>setUnitId(item.id)}><Text style={[styles.chipText,unitId===item.id&&styles.chipTextActive]}>{item.company}</Text></Pressable>)}</View>
     <Pressable style={styles.progressShortcut} onPress={onProgress}><View><Text style={styles.progressShortcutText}>Seu progresso da semana</Text><Text style={styles.progressShortcutSub}>Veja pontos, refeições e metas</Text></View><Ionicons name="arrow-forward-circle-outline" size={25} color={colors.red}/></Pressable>
   </>
 }

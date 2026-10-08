@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { FeedbackSummary, getFeedbackSummary, isPresentationMode, presentationAdminKey } from './api'
+import { FeedbackSummary, getFeedbackSummary, getAdminToken, isPresentationMode, presentationAdminKey } from './api'
 import { DEMO_UNITS } from './demoUnits'
 
 const TAG_LABELS: Record<string, string> = {
@@ -35,45 +35,8 @@ export function FeedbackDashboard({ initialUnitId }: { initialUnitId?: string } 
   const selectedUnit = useMemo(() => DEMO_UNITS.find((unit) => unit.unitId === unitId) ?? DEMO_UNITS[0], [unitId])
   const maxTag = useMemo(() => Math.max(1, ...(summary?.tags.map((tag) => tag.count) ?? [1])), [summary])
 
-  function demoFallback(): FeedbackSummary {
-    const unitIndex = Math.max(0, DEMO_UNITS.findIndex((unit) => unit.unitId === unitId))
-    const ratings = [
-      { overall: 4.2, food: 4.1, service: 4.3, responses: 25 },
-      { overall: 4.3, food: 4.2, service: 4.4, responses: 25 },
-      { overall: 4.3, food: 4.2, service: 4.4, responses: 26 },
-    ][unitIndex] ?? { overall: 4.3, food: 4.2, service: 4.4, responses: 25 }
-    return {
-      unit_id: unitId,
-      restaurant_id: restaurantId || null,
-      period_start: '2026-09-15',
-      period_end: '2026-09-19',
-      responses: ratings.responses,
-      minimum_group: 5,
-      suppressed: false,
-      message: null,
-      ratings: { overall: ratings.overall, food: ratings.food, service: ratings.service },
-      tags: [
-        { tag: 'atendimento', count: 13 },
-        { tag: 'sabor', count: 10 },
-        { tag: 'variedade', count: 7 },
-        { tag: 'temperatura', count: 5 },
-      ],
-      trend: [
-        { date: '2026-09-15', responses: 5, rating: 4.1 },
-        { date: '2026-09-16', responses: 5, rating: 4.2 },
-        { date: '2026-09-17', responses: 5, rating: 4.3 },
-        { date: '2026-09-18', responses: 5, rating: 4.4 },
-        { date: '2026-09-19', responses: ratings.responses - 20, rating: ratings.overall },
-      ],
-      comments: [
-        { date: '2026-09-19', comment: 'Atendimento rápido e equipe atenciosa.' },
-        { date: '2026-09-18', comment: 'Boa variedade no almoço.' },
-      ],
-    }
-  }
-
   async function load() {
-    if (!unitId.trim() || !adminKey.trim()) {
+    if (!unitId.trim() || (!adminKey.trim() && !getAdminToken())) {
       setError(isPresentationMode ? 'Não foi possível iniciar o relatório de demonstração.' : 'Informe a unidade e a chave administrativa.')
       return
     }
@@ -88,19 +51,15 @@ export function FeedbackDashboard({ initialUnitId }: { initialUnitId?: string } 
         adminKey: adminKey.trim(),
       }))
     } catch (err) {
-      if (isPresentationMode) {
-        setSummary(demoFallback())
-        setError('')
-      } else {
-        setError(err instanceof Error ? err.message : 'Falha ao carregar os feedbacks.')
-      }
+      setSummary(null)
+      setError(err instanceof Error ? err.message : 'Falha ao carregar os feedbacks.')
     } finally {
       setBusy(false)
     }
   }
 
   useEffect(() => {
-    if (isPresentationMode) void load()
+    if (isPresentationMode || getAdminToken()) void load()
   }, [])
 
   return (
@@ -116,8 +75,8 @@ export function FeedbackDashboard({ initialUnitId }: { initialUnitId?: string } 
 
       <section className="card feedback-filters">
         <div className="section-heading">
-          <div><h2>Filtros do relatório</h2><p>Recortes com menos de 5 respostas têm detalhes ocultados automaticamente.</p></div>
-          <span className="badge soft">mín. 5 respostas</span>
+          <div><h2>Filtros do relatório</h2><p>Recortes com menos de 5 pessoas distintas têm detalhes ocultados automaticamente.</p></div>
+          <span className="badge soft">mín. 5 pessoas</span>
         </div>
         <div className="form-grid feedback-filter-grid">
           <label><span>Unidade</span><select value={unitId} onChange={(e) => { const next = DEMO_UNITS.find((unit) => unit.unitId === e.target.value) ?? DEMO_UNITS[0]; setUnitId(next.unitId); setRestaurantId(next.restaurantId); setSummary(null) }}>{DEMO_UNITS.map((unit) => <option key={unit.unitId} value={unit.unitId}>{unit.company} · {unit.unitName.replace(' — Demonstração','')}</option>)}</select></label>
@@ -184,7 +143,7 @@ export function FeedbackDashboard({ initialUnitId }: { initialUnitId?: string } 
             <div className="comments-list">
               {summary.comments.length ? summary.comments.map((comment, index) => (
                 <article className="comment-item" key={`${comment.date}-${index}`}><div className="quote-mark">“</div><div><p>{comment.comment}</p><small>{formatDate(comment.date)}</small></div></article>
-              )) : <div className="empty-inline">Não há comentários textuais neste período.</div>}
+              )) : <div className="empty-inline">Comentários livres ficam ocultos até revisão de privacidade.</div>}
             </div>
           </section>
         </>
