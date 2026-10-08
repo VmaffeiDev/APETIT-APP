@@ -268,3 +268,16 @@ export async function getAdminAudit():Promise<{events:AdminAuditEvent[]}>{
 export async function registerAdminUser(payload:{name:string;email:string;password:string}):Promise<{status:string;message:string;user:AdminUser}>{
  return read(await fetch(`${API_URL}/api/admin/auth/register`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}),'Não foi possível concluir o cadastro.')
 }
+
+export type EmployeeAccess = {id:string;name:string|null;email:string|null;unit_id:string|null;unit_name:string|null;company_name:string|null}
+export type EmployeeUnit = {id:string;name:string;company_name:string}
+export async function listEmployees(q:string,unassigned:boolean,offset:number):Promise<{employees:EmployeeAccess[];has_more:boolean}>{
+ const query=new URLSearchParams({q,unassigned:String(unassigned),offset:String(offset),limit:'25'})
+ return read(await fetch(`${API_URL}/api/admin/employees?${query}`,{headers:adminHeaders('')}),'Não foi possível carregar os funcionários.')
+}
+export async function getEmployeeUnits():Promise<{units:EmployeeUnit[]}>{
+ return read(await fetch(`${API_URL}/api/admin/employees/unit-options`,{headers:adminHeaders('')}),'Não foi possível carregar as unidades.')
+}
+export async function assignEmployeeUnit(id:string,unitId:string):Promise<void>{
+ await read(await fetch(`${API_URL}/api/admin/employees/${encodeURIComponent(id)}/unit`,{method:'PUT',headers:adminHeaders('',{'Content-Type':'application/json'}),body:JSON.stringify({unit_id:unitId})}),'Não foi possível vincular o funcionário.')
+}
