@@ -346,3 +346,104 @@ def test_daily_trend_counts_distinct_people_within_each_day(case):
     data = summary(case)
     assert data["suppressed"] is False
     assert data["trend"] == []
+
+
+@pytest.mark.parametrize("path", ["/api/admin/employees", "/api/admin/employees/unit-options"])
+def test_employee_directory_requires_individual_admin(case, path):
+    assert client.get(path).status_code == 401
+    assert client.get(path, headers=case["headers"][0]).status_code == 401
+    assert client.get(path, headers=case["viewer"]).status_code == 403
+    assert client.get(path, headers={"X-Apetit-Admin-Key": settings.api_secret}).status_code == 403
+    assert client.get(path, headers=case["admin"]).status_code == 200
+
+
+def test_employee_directory_filters_paginates_and_minimizes_data(case):
+    marker = uuid4().hex
+    with engine.begin() as conn:
+        conn.execute(
+            text("UPDATE people SET name=:name WHERE id=ANY(:ids)"),
+            {"name": marker, "ids": case["people"]},
+        )
+        conn.execute(
+            text("UPDATE people SET deleted_at=now() WHERE id=:id"), {"id": case["people"][5]}
+        )
+    query = {"q": marker, "limit": 2}
+    first = client.get("/api/admin/employees", params=query, headers=case["admin"]).json()
+    second = client.get(
+        "/api/admin/employees", params={**query, "offset": 2}, headers=case["admin"]
+    ).json()
+    assert first["has_more"] and second["has_more"]
+    assert len(first["employees"]) == 2
+    assert {p["id"] for p in first["employees"]}.isdisjoint(p["id"] for p in second["employees"])
+    assert set(first["employees"][0]) == {
+        "id",
+        "name",
+        "email",
+        "unit_id",
+        "unit_name",
+        "company_name",
+    }
+    all_rows = client.get(
+        "/api/admin/employees", params={"q": marker}, headers=case["admin"]
+    ).json()
+    assert len(all_rows["employees"]) == 6
+    assert not all_rows["has_more"]
+    pending = client.get(
+        "/api/admin/employees", params={"q": marker, "unassigned": True}, headers=case["admin"]
+    ).json()
+    assert [p["id"] for p in pending["employees"]] == [str(case["people"][6])]
+    literal = client.get(
+        "/api/admin/employees", params={"q": "%'; --"}, headers=case["admin"]
+    ).json()
+    assert literal["employees"] == []
+    assert (
+        client.get("/api/admin/employees", params={"limit": 101}, headers=case["admin"]).status_code
+        == 422
+    )
+    options = client.get("/api/admin/employees/unit-options", headers=case["admin"]).json()["units"]
+    assert set(map(str, case["units"])).issubset({u["id"] for u in options})
+
+
+def test_demo_sessions_are_separate_short_lived_and_development_only(case, monkeypatch):
+    from datetime import datetime, timezone
+
+    assert client.post("/api/auth/demo-session").status_code == 404
+    monkeypatch.setattr(settings, "environment", "development")
+    created = []
+    try:
+        for _ in range(2):
+            response = client.post("/api/auth/demo-session")
+            assert response.status_code == 200
+            created.append(response.json())
+        first, second = created
+        assert first["person"]["id"] != second["person"]["id"]
+        assert first["person"]["email"] != second["person"]["email"]
+        assert first["access_token"] != second["access_token"]
+        assert (
+            0
+            < (
+                datetime.fromisoformat(first["expires_at"]) - datetime.now(timezone.utc)
+            ).total_seconds()
+            <= 8 * 3600
+        )
+        headers = {"Authorization": f"Bearer {first['access_token']}"}
+        other = {"Authorization": f"Bearer {second['access_token']}"}
+        assert client.get("/api/me", headers=headers).json()["id"] == first["person"]["id"]
+        assert client.get("/api/me", headers=other).json()["id"] == second["person"]["id"]
+        assert (
+            client.get(
+                "/api/meals/history", params={"person_id": second["person"]["id"]}, headers=headers
+            ).status_code
+            == 403
+        )
+        assert client.post("/api/auth/logout", headers=headers).status_code == 200
+        assert client.get("/api/me", headers=headers).status_code == 401
+        assert client.get("/api/me", headers=other).status_code == 200
+    finally:
+        from uuid import UUID
+
+        with engine.begin() as conn:
+            for entry in created:
+                conn.execute(
+                    text("DELETE FROM people WHERE id=:id"), {"id": UUID(entry["person"]["id"])}
+                )
