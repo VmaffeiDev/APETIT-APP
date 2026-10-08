@@ -1,5 +1,5 @@
 import { DragEvent, useEffect, useMemo, useRef, useState } from 'react'
-import { isPresentationMode, MenuPreview, presentationAdminKey, PublicationStatus, PublishResult, getPublicationStatus, previewMenu, publishMenu } from './api'
+import { getAdminToken, isPresentationMode, MenuPreview, presentationAdminKey, PublicationStatus, PublishResult, getPublicationStatus, previewMenu, publishMenu } from './api'
 import { DEMO_UNITS } from './demoUnits'
 
 type Stage = 'upload' | 'preview' | 'published'
@@ -100,8 +100,8 @@ function App() {
   }
 
   async function handlePreview() {
-    if (!file || !unitId.trim() || !adminKey.trim()) {
-      setError('Informe a unidade, a chave administrativa e selecione a planilha.')
+    if (!file || !unitId.trim() || (!getAdminToken() && !adminKey.trim())) {
+      setError('Selecione a unidade e a planilha e entre com uma conta administrativa.')
       return
     }
     setBusy(true)
@@ -186,7 +186,7 @@ function App() {
               <label><span>Unidade</span><select value={unitId} onChange={(e) => setUnitId(e.target.value)}>{DEMO_UNITS.map((unit) => <option key={unit.unitId} value={unit.unitId}>{unit.company} · {unit.unitName.replace(' — Demonstração', '')}</option>)}</select><small>Base fictícia temporária para apresentação.</small></label>
               <label><span>Refeição</span><select value={mealType} onChange={(e) => setMealType(e.target.value)}><option value="almoco">Almoço</option><option value="jantar">Jantar</option><option value="cafe">Café</option></select></label>
               <label className="full"><span>Refeitório da unidade</span><input value={selectedUnit.restaurantName} readOnly /></label>
-              {isPresentationMode ? <div className="full presentation-access"><strong>Modo apresentação</strong><span>Acesso administrativo liberado automaticamente neste ambiente.</span></div> : <label className="full"><span>Chave administrativa</span><input type="password" value={adminKey} onChange={(e) => setAdminKey(e.target.value)} placeholder="Chave de acesso da operação" /></label>}
+              {getAdminToken() ? <div className="full presentation-access"><strong>Sessão autenticada</strong><span>A publicação será vinculada à sua conta administrativa.</span></div> : isPresentationMode ? <div className="full presentation-access"><strong>Modo apresentação</strong><span>Acesso administrativo liberado automaticamente neste ambiente.</span></div> : <label className="full"><span>Chave administrativa</span><input type="password" value={adminKey} onChange={(e) => setAdminKey(e.target.value)} placeholder="Chave de acesso da operação" /></label>}
             </div>
             <section className="card period-card"><div><h2>Verificar publicações existentes</h2><p>Selecione mês e ano antes de enviar outro cardápio para esta unidade.</p></div><div className="period-fields"><label><span>Mês</span><select value={month} onChange={e=>setMonth(Number(e.target.value))}>{Array.from({length:12},(_,i)=><option value={i+1} key={i+1}>{String(i+1).padStart(2,'0')}</option>)}</select></label><label><span>Ano</span><input type="number" min="2020" max="2100" value={year} onChange={e=>setYear(Number(e.target.value))}/></label></div></section>
             {publicationNotice}
@@ -219,7 +219,7 @@ function App() {
               <div className="days-list">{preview.days.map((day) => <details key={day.day} open><summary><div><strong>Dia {day.day}</strong><span>{day.items.length} itens</span></div><span className="chevron">⌄</span></summary><div className="items-table"><div className="table-row header"><span>Categoria</span><span>Prato</span><span>Porção</span><span>Ficha técnica</span></div>{day.items.map((item, index) => <div className="table-row" key={`${day.day}-${item.name}-${index}`}><span><i className="category-dot" />{categoryLabel[item.category] ?? item.category}</span><strong>{item.name}</strong><span>{item.portion ?? '—'}</span><span className={item.technical_sheet_status === 'complete' ? '' : 'muted'}>{item.technical_sheet_code ? `${item.technical_sheet_code} · ${sheetStatusLabel[item.technical_sheet_status ?? 'missing']}` : sheetStatusLabel.no_code}</span></div>)}</div></details>)}</div>
             </section>
             {error && <div className="alert error">{error}</div>}
-            <label className="operator-field"><span>Funcionário responsável (nome informado pelo operador)</span><input value={operatorLabel} onChange={e=>setOperatorLabel(e.target.value)} maxLength={100} placeholder="Informe seu nome para registrar esta ação"/><small>O modo demonstração não possui login individual: este nome não é identidade verificada.</small></label>
+            <label className="operator-field"><span>Funcionário responsável (nome informado pelo operador)</span><input value={operatorLabel} onChange={e=>setOperatorLabel(e.target.value)} maxLength={100} placeholder="Informe seu nome para registrar esta ação"/><small>Este campo registra o nome informado; a auditoria também identifica a conta autenticada.</small></label>
             {overlappingDates.length>0 && <label className="replacement-confirm"><input type="checkbox" checked={replaceExisting} onChange={e=>setReplaceExisting(e.target.checked)}/><span>Estou corrigindo uma publicação existente e autorizo substituir os cardápios das datas indicadas.</span></label>}
             <div className="sticky-actions"><button className="secondary" onClick={() => setStage('upload')}>Voltar e trocar arquivo</button><div><small>Uma publicação já existente só será substituída mediante confirmação explícita.</small><button className="primary" disabled={busy||statusBusy||operatorLabel.trim().length<2||(overlappingDates.length>0&&!replaceExisting)} onClick={handlePublish}>{busy ? 'Publicando...' : 'Confirmar e publicar'}</button></div></div>
           </>

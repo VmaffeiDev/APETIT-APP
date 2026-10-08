@@ -64,13 +64,27 @@ def _presentation_allowed(value: str | None) -> bool:
         )
     return not has_users
 
+def _legacy_key_allowed(value: str | None) -> bool:
+    """Compatibility for explicitly opted-in local development only."""
+    secret = settings.api_secret
+    if (
+        settings.environment.strip().lower() != "development"
+        or not settings.allow_legacy_admin_key
+        or len(secret.strip()) < 32
+        or secret.strip() == "change-me"
+        or not value
+    ):
+        return False
+    return hmac.compare_digest(value.strip().encode(), secret.encode())
+
+
 def require_admin(
     authorization: str | None = Header(default=None),
     x_apetit_admin_key: str | None = Header(default=None),
 ) -> AdminPrincipal:
     if _presentation_allowed(x_apetit_admin_key):
         return AdminPrincipal(None, "Operador da demonstração", None, "admin", True)
-    if (x_apetit_admin_key or "").strip() == settings.api_secret:
+    if _legacy_key_allowed(x_apetit_admin_key):
         return AdminPrincipal(None, "Administrador legado", None, "admin", True)
     prefix = "Bearer "
     if not authorization or not authorization.startswith(prefix):
@@ -98,8 +112,7 @@ def require_permission(principal: AdminPrincipal, permission: str) -> None:
 
 
 def require_admin_key(value: str | None) -> None:
-    normalized = (value or "").strip()
-    if normalized == settings.api_secret or _presentation_allowed(value):
+    if _legacy_key_allowed(value) or _presentation_allowed(value):
         return
     raise HTTPException(status_code=401, detail="credencial administrativa inválida")
 

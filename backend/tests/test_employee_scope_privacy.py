@@ -353,7 +353,7 @@ def test_employee_directory_requires_individual_admin(case, path):
     assert client.get(path).status_code == 401
     assert client.get(path, headers=case["headers"][0]).status_code == 401
     assert client.get(path, headers=case["viewer"]).status_code == 403
-    assert client.get(path, headers={"X-Apetit-Admin-Key": settings.api_secret}).status_code == 403
+    assert client.get(path, headers={"X-Apetit-Admin-Key": settings.api_secret}).status_code == 401
     assert client.get(path, headers=case["admin"]).status_code == 200
 
 
@@ -447,3 +447,92 @@ def test_demo_sessions_are_separate_short_lived_and_development_only(case, monke
                 conn.execute(
                     text("DELETE FROM people WHERE id=:id"), {"id": UUID(entry["person"]["id"])}
                 )
+
+
+def test_integrated_employee_journey_from_email_login_to_report(case, monkeypatch):
+    from app.api import auth as auth_module
+
+    email = f"journey-{uuid4().hex}@example.com"
+    person_id = case["people"][6]
+    delivered = []
+    monkeypatch.setattr(auth_module, "send_login_code", lambda **payload: delivered.append(payload))
+    with engine.begin() as conn:
+        conn.execute(
+            text("UPDATE people SET email=:email WHERE id=:id"), {"email": email, "id": person_id}
+        )
+    try:
+        requested = client.post("/api/auth/request-code", json={"email": email})
+        assert requested.status_code == 200 and "demo_code" not in requested.json()
+        assert len(delivered) == 1 and delivered[0]["recipient"] == email
+        verified = client.post(
+            "/api/auth/verify-code", json={"email": email, "code": delivered[0]["code"]}
+        )
+        assert verified.status_code == 200
+        headers = {"Authorization": f"Bearer {verified.json()['access_token']}"}
+        assert client.get("/api/auth/options", headers=headers).json()["units"] == []
+        assert (
+            client.put(
+                f"/api/admin/employees/{person_id}/unit",
+                headers=case["admin"],
+                json={"unit_id": str(case["units"][0])},
+            ).status_code
+            == 200
+        )
+        options = client.get("/api/auth/options", headers=headers).json()["units"]
+        assert options[0]["unit_id"] == str(case["units"][0])
+        assert (
+            client.put(
+                "/api/me/onboarding",
+                headers=headers,
+                json={"name": "Ensaio integrado", "unit_id": str(case["units"][0])},
+            ).status_code
+            == 200
+        )
+        assert client.get("/api/me", headers=headers).json()["onboarding_completed"] is True
+        menu = client.get(
+            "/api/menu",
+            headers=headers,
+            params={"unit_id": str(case["units"][0]), "service_date": str(case["today"])},
+        )
+        assert menu.status_code == 200
+        payload = {**meal_payload(case), "person_id": str(person_id)}
+        assert client.post("/api/meals", headers=headers, json=payload).status_code == 200
+        history = client.get(
+            "/api/meals/history", headers=headers, params={"person_id": str(person_id)}
+        ).json()
+        assert len(history["meals"]) == 1
+        for index in [6, 0, 1, 2, 3]:
+            response = client.post(
+                "/api/feedback",
+                headers=headers if index == 6 else case["headers"][index],
+                json={
+                    "person_id": str(case["people"][index]),
+                    "unit_id": str(case["units"][0]),
+                    "restaurant_id": str(case["restaurants"][0]),
+                    "meal_date": str(case["today"]),
+                    "food_rating": 4,
+                    "service_rating": 4,
+                    "tags": ["sabor"],
+                    "comment": "Sintético, não divulgar",
+                },
+            )
+            assert response.status_code == 200
+            if index == 6:
+                assert summary(case)["suppressed"] is True
+        report = summary(case)
+        assert report["responses"] == 5 and report["suppressed"] is False
+        assert report["ratings"]["overall"] == 4 and report["comments"] == []
+        assert client.get("/api/admin/overview.pdf", headers=headers).status_code == 401
+        pdf = client.get("/api/admin/overview.pdf", headers=case["viewer"])
+        assert pdf.status_code == 200 and pdf.content.startswith(b"%PDF")
+        assert client.post("/api/auth/logout", headers=headers).status_code == 200
+        assert client.get("/api/me", headers=headers).status_code == 401
+    finally:
+        with engine.begin() as conn:
+            conn.execute(
+                text("DELETE FROM employee_login_codes WHERE email=:email"), {"email": email}
+            )
+            conn.execute(
+                text("DELETE FROM auth_rate_events WHERE key_hash=:key"),
+                {"key": auth_module._rate_key(email)},
+            )

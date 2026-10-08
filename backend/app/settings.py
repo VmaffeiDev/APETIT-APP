@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     environment: str = "development"
     database_url: str = "postgresql+psycopg://apetit:apetit@localhost:5432/apetit"
     api_secret: str = "change-me"
+    allow_legacy_admin_key: bool = False
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
 
     email_provider: str = "console"
