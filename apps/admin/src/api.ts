@@ -60,12 +60,44 @@ export type TechnicalSheetImportPreview = {
   items: TechnicalSheetImportItem[]
 }
 export type TechnicalSheetImportResult = { status: 'published'; created: number; updated: number; count: number }
+export type TechnicalSheetCoveragePending = {
+  status:'missing'|'no_code'|'incomplete';
+  code:string|null;
+  name:string;
+  category:string|null;
+  occurrences:number;
+  first_date:string;
+  last_date:string;
+}
+export type TechnicalSheetCoverage = {
+  unit_id:string;
+  scope:{
+    menu_import_id:string|null;
+    file_name:string|null;
+    period_start:string|null;
+    period_end:string|null;
+    published_at:string|null;
+  };
+  summary:{
+    total_items:number;
+    with_code:number;
+    matched:number;
+    complete:number;
+    incomplete:number;
+    missing:number;
+    no_code:number;
+    coverage_percent:number;
+    complete_coverage_percent:number;
+  };
+  pending:TechnicalSheetCoveragePending[];
+  pending_count:number;
+}
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
 const SESSION_KEY='apetit_admin_session'
 export const getAdminToken=()=>localStorage.getItem(SESSION_KEY)??''
 export const setAdminToken=(token:string)=>token?localStorage.setItem(SESSION_KEY,token):localStorage.removeItem(SESSION_KEY)
-function adminHeaders(adminKey:string,extra:Record<string,string>={}):Record<string,string>{const token=getAdminToken();const usePresentation=isPresentationMode&&adminKey==='presentation';return {...extra,...(usePresentation?{'X-Apetit-Admin-Key':'presentation'}:(token?{Authorization:`Bearer ${token}`}:(adminKey?{'X-Apetit-Admin-Key':adminKey}:{})))}}
+function adminHeaders(adminKey:string,extra:Record<string,string>={}):Record<string,string>{const token=getAdminToken();const usePresentation=isPresentationMode&&adminKey==='presentation'&&!token;return {...extra,...(usePresentation?{'X-Apetit-Admin-Key':'presentation'}:(token?{Authorization:`Bearer ${token}`}:(adminKey?{'X-Apetit-Admin-Key':adminKey}:{})))}}
 export const isPresentationMode = import.meta.env.VITE_PRESENTATION_MODE === 'true'
 export const presentationAdminKey = isPresentationMode ? 'presentation' : ''
 
@@ -104,6 +136,13 @@ export async function getFeedbackSummary(params: { unitId: string; restaurantId?
 export async function listTechnicalSheets(adminKey: string, search = ''): Promise<{ items: TechnicalSheetSummary[]; count: number }> {
   const query = new URLSearchParams({ search })
   return read(await fetch(`${API_URL}/api/admin/technical-sheets?${query.toString()}`, { headers: adminHeaders(adminKey) }), 'Não foi possível carregar as fichas técnicas.')
+}
+
+export async function getTechnicalSheetCoverage(adminKey:string, unitId:string):Promise<TechnicalSheetCoverage>{
+  const query=new URLSearchParams({unit_id:unitId})
+  return read(await fetch(`${API_URL}/api/admin/technical-sheets/coverage?${query.toString()}`,{
+    headers:adminHeaders(adminKey)
+  }),'Não foi possível carregar a cobertura de fichas técnicas.')
 }
 
 export async function getTechnicalSheet(adminKey: string, code: string): Promise<TechnicalSheet> {
@@ -267,4 +306,17 @@ export async function getAdminAudit():Promise<{events:AdminAuditEvent[]}>{
 
 export async function registerAdminUser(payload:{name:string;email:string;password:string}):Promise<{status:string;message:string;user:AdminUser}>{
  return read(await fetch(`${API_URL}/api/admin/auth/register`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}),'Não foi possível concluir o cadastro.')
+}
+
+export type EmployeeAccess = {id:string;name:string|null;email:string|null;unit_id:string|null;unit_name:string|null;company_name:string|null}
+export type EmployeeUnit = {id:string;name:string;company_name:string}
+export async function listEmployees(q:string,unassigned:boolean,offset:number):Promise<{employees:EmployeeAccess[];has_more:boolean}>{
+ const query=new URLSearchParams({q,unassigned:String(unassigned),offset:String(offset),limit:'25'})
+ return read(await fetch(`${API_URL}/api/admin/employees?${query}`,{headers:adminHeaders('')}),'Não foi possível carregar os funcionários.')
+}
+export async function getEmployeeUnits():Promise<{units:EmployeeUnit[]}>{
+ return read(await fetch(`${API_URL}/api/admin/employees/unit-options`,{headers:adminHeaders('')}),'Não foi possível carregar as unidades.')
+}
+export async function assignEmployeeUnit(id:string,unitId:string):Promise<void>{
+ await read(await fetch(`${API_URL}/api/admin/employees/${encodeURIComponent(id)}/unit`,{method:'PUT',headers:adminHeaders('',{'Content-Type':'application/json'}),body:JSON.stringify({unit_id:unitId})}),'Não foi possível vincular o funcionário.')
 }

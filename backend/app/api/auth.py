@@ -11,6 +11,7 @@ from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import text
 
 from app.db import engine
+from app.api.employee_access import require_employee_unit
 from app.services.email_delivery import EmailDeliveryError, send_login_code
 from app.settings import settings
 
@@ -141,11 +142,18 @@ def demo_session() -> dict:
     if settings.environment.strip().lower() != "development":
         raise HTTPException(status_code=404, detail="indisponível")
 
-    email = "funcionario.demo@apetit.local"
+    email = f"visitante.{secrets.token_hex(16)}@apetit.local"
     token = secrets.token_urlsafe(32)
-    expires_at = datetime.now(timezone.utc) + timedelta(days=SESSION_TTL_DAYS)
+    expires_at = datetime.now(timezone.utc) + timedelta(hours=8)
 
     with engine.begin() as conn:
+        # Retire the former shared identity when the first isolated visit starts.
+        conn.execute(text("""
+            UPDATE employee_sessions SET revoked_at=now()
+            WHERE revoked_at IS NULL AND person_id IN (
+                SELECT id FROM people WHERE email='funcionario.demo@apetit.local'
+            )
+        """))
         unit = conn.execute(
             text("""
                 SELECT u.id
@@ -160,39 +168,15 @@ def demo_session() -> dict:
 
         person = conn.execute(
             text("""
-                SELECT id, name, unit_id, sector, goal, onboarding_completed_at
-                FROM people
-                WHERE email = :email AND deleted_at IS NULL
+                INSERT INTO people
+                    (email, name, unit_id, sector, goal, onboarding_completed_at)
+                VALUES
+                    (:email, 'Visitante Demo', :unit_id, 'Demonstração',
+                     'alimentacao_equilibrada', now())
+                RETURNING id, name, unit_id, sector, goal, onboarding_completed_at
             """),
-            {"email": email},
-        ).mappings().first()
-
-        if person is None:
-            person = conn.execute(
-                text("""
-                    INSERT INTO people
-                        (email, name, unit_id, sector, goal, onboarding_completed_at)
-                    VALUES
-                        (:email, 'Funcionário Demo', :unit_id, 'Administrativo',
-                         'alimentacao_equilibrada', now())
-                    RETURNING id, name, unit_id, sector, goal, onboarding_completed_at
-                """),
-                {"email": email, "unit_id": unit},
-            ).mappings().one()
-        elif person["onboarding_completed_at"] is None or person["unit_id"] is None:
-            person = conn.execute(
-                text("""
-                    UPDATE people
-                    SET name = COALESCE(name, 'Funcionário Demo'),
-                        unit_id = COALESCE(unit_id, :unit_id),
-                        sector = COALESCE(sector, 'Administrativo'),
-                        goal = COALESCE(goal, 'alimentacao_equilibrada'),
-                        onboarding_completed_at = COALESCE(onboarding_completed_at, now())
-                    WHERE id = :person_id
-                    RETURNING id, name, unit_id, sector, goal, onboarding_completed_at
-                """),
-                {"unit_id": unit, "person_id": person["id"]},
-            ).mappings().one()
+            {"email": email, "unit_id": unit},
+        ).mappings().one()
 
         conn.execute(
             text("""
@@ -346,18 +330,22 @@ def verify_code(payload: VerifyCodePayload) -> dict:
 
 
 @router.get("/api/auth/options", tags=["employee-auth"])
-def onboarding_options() -> dict:
+def onboarding_options(authorization: str | None = Header(default=None)) -> dict:
+    person = current_person(authorization)
     with engine.connect() as conn:
         rows = conn.execute(
             text(
                 """
                 SELECT c.id AS company_id, c.name AS company_name,
-                       u.id AS unit_id, u.name AS unit_name
+                       u.id AS unit_id, u.name AS unit_name,
+                       (SELECT r.id FROM restaurants r WHERE r.unit_id=u.id
+                        ORDER BY r.name,r.id LIMIT 1) AS restaurant_id
                 FROM companies c
                 JOIN units u ON u.company_id = c.id
+                WHERE u.id = :unit_id
                 ORDER BY c.name, u.name
                 """
-            )
+            ), {"unit_id": person["unit_id"]}
         ).mappings().all()
     return {
         "units": [
@@ -366,6 +354,7 @@ def onboarding_options() -> dict:
                 "company_name": row["company_name"],
                 "unit_id": str(row["unit_id"]),
                 "unit_name": row["unit_name"],
+                "restaurant_id": str(row["restaurant_id"]) if row["restaurant_id"] else None,
             }
             for row in rows
         ],
@@ -399,6 +388,10 @@ def save_onboarding(payload: OnboardingPayload, authorization: str | None = Head
     restrictions = sorted({item.strip().lower() for item in payload.restrictions if item.strip()})
 
     with engine.begin() as conn:
+        assigned = conn.execute(text(
+            "SELECT unit_id FROM people WHERE id=:id AND deleted_at IS NULL FOR UPDATE"
+        ), {"id": person["id"]}).mappings().one_or_none()
+        require_employee_unit(dict(assigned) if assigned else {}, payload.unit_id)
         unit_exists = conn.execute(text("SELECT 1 FROM units WHERE id = :id"), {"id": payload.unit_id}).scalar_one_or_none()
         if unit_exists is None:
             raise HTTPException(status_code=422, detail="unidade não encontrada")

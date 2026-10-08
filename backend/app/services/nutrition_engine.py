@@ -9,6 +9,7 @@ from uuid import UUID
 from sqlalchemy import text
 
 from app.db import engine
+from app.domain.allergens import assess_allergens
 from app.services.demo_menu import resolve_menu_service_date
 from app.services.prescription_workflow import current_prescription_meal
 from app.settings import settings
@@ -108,12 +109,11 @@ def recommend_meal(
 
     for row in rows:
         allergen_pairs = list(zip(row["allergens"] or [], row["allergen_statuses"] or []))
-        confirmed_allergens = {str(a).casefold() for a, status in allergen_pairs if status == "confirmed"}
-        unknown_relevant = {str(a).casefold() for a, status in allergen_pairs if status != "confirmed" and str(a).casefold() in restrictions}
-        if confirmed_allergens & restrictions:
+        assessment = assess_allergens(restrictions, allergen_pairs)
+        if assessment.contains:
             excluded_for_restriction.append(row["name"])
             continue
-        if unknown_relevant:
+        if assessment.uncertain:
             uncertain_allergens.append(row["name"])
             continue
         if any(row[key] is None for key in ("kcal", "protein_g", "carbs_g", "fat_g")):

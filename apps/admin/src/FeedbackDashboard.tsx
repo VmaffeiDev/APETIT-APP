@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import { FeedbackSummary, getFeedbackSummary, isPresentationMode, presentationAdminKey } from './api'
+import { AdminUser, FeedbackSummary, getAdminToken, getFeedbackSummary, isPresentationMode, presentationAdminKey } from './api'
 import { DEMO_UNITS } from './demoUnits'
+import { filterUnitsForUser } from './access'
 
 const TAG_LABELS: Record<string, string> = {
   sabor: 'Sabor',
@@ -17,8 +18,10 @@ function formatDate(value: string) {
   return new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit' }).format(new Date(`${value}T12:00:00`))
 }
 
-export function FeedbackDashboard({ initialUnitId }: { initialUnitId?: string } = {}) {
-  const initialUnit = DEMO_UNITS.find((unit) => unit.unitId === initialUnitId) ?? DEMO_UNITS[0]
+export function FeedbackDashboard({ initialUnitId, user }: { initialUnitId?: string; user: AdminUser | null }) {
+  const allowedUnits = useMemo(()=>filterUnitsForUser(DEMO_UNITS,user),[user])
+  const initialUnit = allowedUnits.find((unit) => unit.unitId === initialUnitId) ?? allowedUnits[0] ?? DEMO_UNITS[0]
+  const authenticated=Boolean(getAdminToken())
   const today = new Date()
   const sevenDaysAgo = new Date(today)
   sevenDaysAgo.setDate(today.getDate() - 6)
@@ -32,49 +35,12 @@ export function FeedbackDashboard({ initialUnitId }: { initialUnitId?: string } 
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
-  const selectedUnit = useMemo(() => DEMO_UNITS.find((unit) => unit.unitId === unitId) ?? DEMO_UNITS[0], [unitId])
+  const selectedUnit = useMemo(() => allowedUnits.find((unit) => unit.unitId === unitId) ?? allowedUnits[0] ?? DEMO_UNITS[0], [allowedUnits,unitId])
   const maxTag = useMemo(() => Math.max(1, ...(summary?.tags.map((tag) => tag.count) ?? [1])), [summary])
 
-  function demoFallback(): FeedbackSummary {
-    const unitIndex = Math.max(0, DEMO_UNITS.findIndex((unit) => unit.unitId === unitId))
-    const ratings = [
-      { overall: 4.2, food: 4.1, service: 4.3, responses: 25 },
-      { overall: 4.3, food: 4.2, service: 4.4, responses: 25 },
-      { overall: 4.3, food: 4.2, service: 4.4, responses: 26 },
-    ][unitIndex] ?? { overall: 4.3, food: 4.2, service: 4.4, responses: 25 }
-    return {
-      unit_id: unitId,
-      restaurant_id: restaurantId || null,
-      period_start: '2026-09-15',
-      period_end: '2026-09-19',
-      responses: ratings.responses,
-      minimum_group: 5,
-      suppressed: false,
-      message: null,
-      ratings: { overall: ratings.overall, food: ratings.food, service: ratings.service },
-      tags: [
-        { tag: 'atendimento', count: 13 },
-        { tag: 'sabor', count: 10 },
-        { tag: 'variedade', count: 7 },
-        { tag: 'temperatura', count: 5 },
-      ],
-      trend: [
-        { date: '2026-09-15', responses: 5, rating: 4.1 },
-        { date: '2026-09-16', responses: 5, rating: 4.2 },
-        { date: '2026-09-17', responses: 5, rating: 4.3 },
-        { date: '2026-09-18', responses: 5, rating: 4.4 },
-        { date: '2026-09-19', responses: ratings.responses - 20, rating: ratings.overall },
-      ],
-      comments: [
-        { date: '2026-09-19', comment: 'Atendimento rápido e equipe atenciosa.' },
-        { date: '2026-09-18', comment: 'Boa variedade no almoço.' },
-      ],
-    }
-  }
-
   async function load() {
-    if (!unitId.trim() || !adminKey.trim()) {
-      setError(isPresentationMode ? 'Não foi possível iniciar o relatório de demonstração.' : 'Informe a unidade e a chave administrativa.')
+    if (!unitId.trim() || (!authenticated && !adminKey.trim())) {
+      setError(isPresentationMode ? 'Não foi possível iniciar o relatório de demonstração.' : 'Informe uma unidade válida.')
       return
     }
     setBusy(true)
@@ -88,19 +54,15 @@ export function FeedbackDashboard({ initialUnitId }: { initialUnitId?: string } 
         adminKey: adminKey.trim(),
       }))
     } catch (err) {
-      if (isPresentationMode) {
-        setSummary(demoFallback())
-        setError('')
-      } else {
-        setError(err instanceof Error ? err.message : 'Falha ao carregar os feedbacks.')
-      }
+      setSummary(null)
+      setError(err instanceof Error ? err.message : 'Falha ao carregar os feedbacks.')
     } finally {
       setBusy(false)
     }
   }
 
   useEffect(() => {
-    if (isPresentationMode) void load()
+    if (isPresentationMode || authenticated) void load()
   }, [])
 
   return (
@@ -116,15 +78,15 @@ export function FeedbackDashboard({ initialUnitId }: { initialUnitId?: string } 
 
       <section className="card feedback-filters">
         <div className="section-heading">
-          <div><h2>Filtros do relatório</h2><p>Recortes com menos de 5 respostas têm detalhes ocultados automaticamente.</p></div>
-          <span className="badge soft">mín. 5 respostas</span>
+          <div><h2>Filtros do relatório</h2><p>Recortes com menos de 5 pessoas distintas têm detalhes ocultados automaticamente.</p></div>
+          <span className="badge soft">mín. 5 pessoas</span>
         </div>
         <div className="form-grid feedback-filter-grid">
-          <label><span>Unidade</span><select value={unitId} onChange={(e) => { const next = DEMO_UNITS.find((unit) => unit.unitId === e.target.value) ?? DEMO_UNITS[0]; setUnitId(next.unitId); setRestaurantId(next.restaurantId); setSummary(null) }}>{DEMO_UNITS.map((unit) => <option key={unit.unitId} value={unit.unitId}>{unit.company} · {unit.unitName.replace(' — Demonstração','')}</option>)}</select></label>
+          <label><span>Unidade</span><select value={unitId} onChange={(e) => { const next = allowedUnits.find((unit) => unit.unitId === e.target.value) ?? allowedUnits[0] ?? DEMO_UNITS[0]; setUnitId(next.unitId); setRestaurantId(next.restaurantId); setSummary(null) }}>{allowedUnits.map((unit) => <option key={unit.unitId} value={unit.unitId}>{unit.company} · {unit.unitName.replace(' — Demonstração','')}</option>)}</select></label>
           <label><span>Refeitório</span><input value={selectedUnit.restaurantName} readOnly /></label>
           <label><span>De</span><input type="date" value={start} onChange={(e) => setStart(e.target.value)} /></label>
           <label><span>Até</span><input type="date" value={end} onChange={(e) => setEnd(e.target.value)} /></label>
-          {isPresentationMode ? <div className="full presentation-access"><strong>Modo apresentação</strong><span>Dados fictícios controlados de 15/09 a 19/09/2026. Se a API demo estiver indisponível, o painel usa uma amostra local identificada como demonstração.</span></div> : <label className="full"><span>Chave administrativa</span><input type="password" value={adminKey} onChange={(e) => setAdminKey(e.target.value)} placeholder="Chave de acesso da operação" /></label>}
+          {isPresentationMode ? <div className="full presentation-access"><strong>Modo apresentação</strong><span>Dados fictícios controlados de 15/09 a 19/09/2026. Se a API demo estiver indisponível, o painel usa uma amostra local identificada como demonstração.</span></div> : !authenticated ? <label className="full"><span>Chave administrativa</span><input type="password" value={adminKey} onChange={(e) => setAdminKey(e.target.value)} placeholder="Chave de acesso da operação" /></label> : <div className="full presentation-access"><strong>Conta autenticada</strong><span>Relatório limitado às unidades atribuídas a {user?.name}.</span></div>}
         </div>
         {error && <div className="alert error">{error}</div>}
         <div className="action-row"><span className="helper">{isPresentationMode ? 'Dados fictícios para demonstração · nenhum funcionário real é usado.' : 'Nenhum identificador de funcionário é retornado neste relatório.'}</span><button className="primary" disabled={busy} onClick={load}>{busy ? 'Carregando...' : 'Atualizar relatório'}</button></div>
@@ -184,7 +146,7 @@ export function FeedbackDashboard({ initialUnitId }: { initialUnitId?: string } 
             <div className="comments-list">
               {summary.comments.length ? summary.comments.map((comment, index) => (
                 <article className="comment-item" key={`${comment.date}-${index}`}><div className="quote-mark">“</div><div><p>{comment.comment}</p><small>{formatDate(comment.date)}</small></div></article>
-              )) : <div className="empty-inline">Não há comentários textuais neste período.</div>}
+              )) : <div className="empty-inline">Comentários livres ficam ocultos até revisão de privacidade.</div>}
             </div>
           </section>
         </>

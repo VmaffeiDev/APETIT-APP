@@ -38,7 +38,7 @@ def feedback_summary(
         totals = conn.execute(
             text(
                 f"""
-                SELECT COUNT(*) AS responses,
+                SELECT COUNT(*) AS responses, COUNT(DISTINCT person_id) AS participants,
                        ROUND(AVG(food_rating)::numeric, 2) AS food_rating,
                        ROUND(AVG(service_rating)::numeric, 2) AS service_rating,
                        ROUND(AVG((food_rating + service_rating) / 2.0)::numeric, 2) AS overall_rating
@@ -52,7 +52,7 @@ def feedback_summary(
         ).mappings().one()
 
         response_count = int(totals["responses"] or 0)
-        suppressed = response_count < MIN_REPORT_GROUP
+        suppressed = int(totals["participants"] or 0) < MIN_REPORT_GROUP
         if suppressed:
             return {
                 "unit_id": unit_id,
@@ -79,11 +79,12 @@ def feedback_summary(
                   AND f.meal_date BETWEEN :start AND :end
                   {restaurant_clause}
                 GROUP BY ft.tag
+                HAVING COUNT(DISTINCT f.person_id) >= :minimum_group
                 ORDER BY count DESC, ft.tag
                 LIMIT 10
                 """
             ),
-            params,
+            {**params, "minimum_group": MIN_REPORT_GROUP},
         ).mappings().all()
 
         trend = conn.execute(
@@ -97,28 +98,15 @@ def feedback_summary(
                   AND f.meal_date BETWEEN :start AND :end
                   {restaurant_clause}
                 GROUP BY f.meal_date
-                HAVING COUNT(*) >= :minimum_group
+                HAVING COUNT(DISTINCT f.person_id) >= :minimum_group
                 ORDER BY f.meal_date
                 """
             ),
             {**params, "minimum_group": MIN_REPORT_GROUP},
         ).mappings().all()
 
-        comments = conn.execute(
-            text(
-                f"""
-                SELECT f.meal_date, f.comment
-                FROM feedback f
-                WHERE f.unit_id = :unit_id
-                  AND f.meal_date BETWEEN :start AND :end
-                  {restaurant_clause}
-                  AND NULLIF(BTRIM(f.comment), '') IS NOT NULL
-                ORDER BY f.created_at DESC
-                LIMIT 20
-                """
-            ),
-            params,
-        ).mappings().all()
+        # Free text can identify people even when a group has five participants.
+        # Keep the response contract; release comments only through a future review flow.
 
     return {
         "unit_id": unit_id,
@@ -143,8 +131,6 @@ def feedback_summary(
             }
             for row in trend
         ],
-        "comments": [
-            {"date": row["meal_date"].isoformat(), "comment": row["comment"]}
-            for row in comments
-        ],
+        "comments": [],
+        "comments_message": "Comentários livres ficam ocultos até revisão de privacidade.",
     }

@@ -9,6 +9,7 @@ from fastapi import APIRouter, File, Form, Header, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
 from app.api.auth import current_person
+from app.api.employee_access import require_employee_unit
 from app.domain.prescription import NutritionTarget, PortionInstruction
 from app.services.nutrition_engine import recommend_meal
 from app.services.plate_evaluation import evaluate_plate
@@ -151,7 +152,7 @@ def get_nutrition_recommendation(
     meal_type: str = "almoco",
     authorization: str | None = Header(default=None),
 ) -> dict:
-    _require_self(person_id, authorization)
+    require_employee_unit(_require_self(person_id, authorization), unit_id)
     try:
         return recommend_meal(
             person_id=str(person_id),
@@ -170,7 +171,7 @@ def evaluate_manual_plate(
     payload: PlateEvaluationRequest,
     authorization: str | None = Header(default=None),
 ) -> dict:
-    _require_self(payload.person_id, authorization)
+    require_employee_unit(_require_self(payload.person_id, authorization), payload.unit_id)
     try:
         return evaluate_plate(
             person_id=str(payload.person_id),

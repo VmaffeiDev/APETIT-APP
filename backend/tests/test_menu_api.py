@@ -1,11 +1,21 @@
 from fastapi.testclient import TestClient
+import pytest
 from sqlalchemy import text
 
 from app.db import engine
 from app.main import app
+from app.settings import settings
 
 
 client = TestClient(app)
+TEST_ADMIN_KEY = "test-only-menu-api-key-not-a-real-secret-2026"
+
+
+@pytest.fixture(autouse=True)
+def local_legacy_key(monkeypatch):
+    monkeypatch.setattr(settings, "environment", "development")
+    monkeypatch.setattr(settings, "allow_legacy_admin_key", True)
+    monkeypatch.setattr(settings, "api_secret", TEST_ADMIN_KEY)
 
 
 def test_preview_requires_admin_key():
@@ -20,7 +30,7 @@ def test_preview_requires_admin_key():
 def test_preview_parses_real_planning_shape():
     response = client.post(
         "/api/admin/menu-imports/preview",
-        headers={"X-Apetit-Admin-Key": "change-me"},
+        headers={"X-Apetit-Admin-Key": TEST_ADMIN_KEY},
         data={"unit_id": "11111111-1111-1111-1111-111111111111", "meal_type": "almoco"},
         files={
             "file": (
@@ -48,7 +58,7 @@ def test_preview_parses_real_planning_shape():
 def test_publish_requires_explicit_period_confirmation():
     preview = client.post(
         "/api/admin/menu-imports/preview",
-        headers={"X-Apetit-Admin-Key": "change-me"},
+        headers={"X-Apetit-Admin-Key": TEST_ADMIN_KEY},
         data={"unit_id": "11111111-1111-1111-1111-111111111111", "meal_type": "almoco"},
         files={
             "file": (
@@ -62,7 +72,7 @@ def test_publish_requires_explicit_period_confirmation():
 
     response = client.post(
         f"/api/admin/menu-imports/{preview.json()['preview_id']}/publish",
-        headers={"X-Apetit-Admin-Key": "change-me"},
+        headers={"X-Apetit-Admin-Key": TEST_ADMIN_KEY},
         json={"month": 8, "year": 2026, "confirm_period": False, "operator_label": "Teste CI"},
     )
     assert response.status_code == 409
@@ -72,7 +82,7 @@ def test_publish_requires_explicit_period_confirmation():
 def test_publish_and_replace_existing_menu():
     company_id = "90000000-0000-4000-8000-000000000001"
     unit_id = "90000000-0000-4000-8000-000000000002"
-    headers = {"X-Apetit-Admin-Key": "change-me"}
+    headers = {"X-Apetit-Admin-Key": TEST_ADMIN_KEY}
     csv = b"Dia;ARROZ\n28;ARROZ BRANCO (100g) - 01.02.03.004 - 1.25\n"
 
     with engine.begin() as conn:

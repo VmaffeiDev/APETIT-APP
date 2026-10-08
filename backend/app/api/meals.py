@@ -9,15 +9,17 @@ from pydantic import BaseModel, Field
 from sqlalchemy import text
 
 from app.api.auth import current_person
+from app.api.employee_access import require_employee_unit
 from app.db import engine
 from app.services.prescription_workflow import current_prescription_meal
+from app.services.demo_menu import resolve_menu_service_date
 
 router = APIRouter()
 
 
 class MealItemCreate(BaseModel):
     menu_item_id: UUID
-    quantity: Decimal = Field(default=Decimal("1"), gt=0)
+    quantity: Decimal = Field(default=Decimal("1"), gt=0, le=10)
     unit: str | None = None
 
 
@@ -51,28 +53,38 @@ def _target_ratio(value: Decimal, target: Decimal | None) -> float | None:
 
 @router.post("/api/meals", tags=["meals"])
 def register_meal(payload: MealCreate, authorization: str | None = Header(default=None)) -> dict:
-    _require_self(payload.person_id, authorization)
+    person = _require_self(payload.person_id, authorization)
+    unit_id = require_employee_unit(person, person["unit_id"])
     meal_type = payload.meal_type.strip().lower()
     meal_id = uuid4()
 
     with engine.begin() as conn:
         menu_ids = [item.menu_item_id for item in payload.items]
+        if len(set(menu_ids)) != len(menu_ids):
+            raise HTTPException(status_code=422, detail="Não repita itens na mesma refeição.")
+        effective_date = resolve_menu_service_date(
+            conn, unit_id=str(unit_id), requested_date=payload.meal_date, meal_type=meal_type
+        )
         rows = conn.execute(
             text(
                 """
-                SELECT id, name, category, standard_portion,
-                       kcal, protein_g, carbs_g, fat_g
-                FROM menu_items
-                WHERE id = ANY(:ids)
+                SELECT mi.id, mi.name, mi.category, mi.standard_portion,
+                       mi.kcal, mi.protein_g, mi.carbs_g, mi.fat_g
+                FROM menu_items mi
+                JOIN menu_days md ON md.id=mi.menu_day_id
+                JOIN menu_imports imp ON imp.id=md.menu_import_id
+                WHERE mi.id = ANY(:ids) AND md.unit_id=:unit
+                  AND md.service_date=:day AND md.meal_type=:meal_type
+                  AND imp.status='published'
                 """
             ),
-            {"ids": menu_ids},
+            {"ids": menu_ids, "unit": unit_id, "day": effective_date, "meal_type": meal_type},
         ).mappings().all()
         by_id = {row["id"]: row for row in rows}
 
         missing = [str(item.menu_item_id) for item in payload.items if item.menu_item_id not in by_id]
         if missing:
-            raise HTTPException(status_code=422, detail=f"item(ns) de cardápio não encontrado(s): {', '.join(missing)}")
+            raise HTTPException(status_code=422, detail="Itens devem pertencer ao cardápio publicado da sua unidade, data e refeição.")
 
         existing = conn.execute(
             text(

@@ -1,14 +1,19 @@
 import { useEffect, useState } from 'react'
-import { getAdminToken, getMenuHistory, getMenuVersion, restoreMenuVersion, MenuHistoryEvent, MenuVersion, presentationAdminKey } from './api'
+import { AdminUser, getAdminToken, getMenuHistory, getMenuVersion, restoreMenuVersion, MenuHistoryEvent, MenuVersion, presentationAdminKey } from './api'
 import { DEMO_UNITS } from './demoUnits'
+import { filterUnitsForUser, hasAdminPermission } from './access'
 
 const formatDate=(value:string|null)=>value?new Intl.DateTimeFormat('pt-BR',{dateStyle:'short'}).format(new Date(value+'T12:00:00')):'—'
 const formatTime=(value:string|null)=>value?new Intl.DateTimeFormat('pt-BR',{dateStyle:'short',timeStyle:'short',timeZone:'America/Sao_Paulo'}).format(new Date(value)):'Data indisponível'
 const mealLabel:Record<string,string>={almoco:'Almoço',jantar:'Jantar',cafe:'Café'}
 const title=(event:MenuHistoryEvent)=>event.operation_kind==='backup'?'Backup anterior à substituição':event.operation_kind==='restore'?'Restauração de cardápio':event.operation_kind==='correction'?'Correção de cardápio':event.operation_kind==='legacy_publication'?'Publicação anterior ao histórico':'Publicação de cardápio'
 
-export function MenuHistoryPage({initialUnitId}:{initialUnitId?:string}){
-  const [unitId,setUnitId]=useState(DEMO_UNITS.some(u=>u.unitId===initialUnitId)?initialUnitId!:DEMO_UNITS[0].unitId)
+export function MenuHistoryPage({initialUnitId,user}:{initialUnitId?:string;user:AdminUser|null}){
+  const allowedUnits=filterUnitsForUser(DEMO_UNITS,user)
+  const initialUnit=allowedUnits.find(u=>u.unitId===initialUnitId)??allowedUnits[0]??DEMO_UNITS[0]
+  const [unitId,setUnitId]=useState(initialUnit.unitId)
+  const canPublishMenus=hasAdminPermission(user,'publish_menu')
+  const canRestore=hasAdminPermission(user,'restore_menu')
   const [events,setEvents]=useState<MenuHistoryEvent[]>([])
   const [loading,setLoading]=useState(true)
   const [error,setError]=useState('')
@@ -38,7 +43,7 @@ export function MenuHistoryPage({initialUnitId}:{initialUnitId?:string}){
     finally{setDetailBusy(false)}
   }
   async function restore(){
-    if(!selectedVersion||!selectedVersion.restorable||!confirmRestore||(!authenticated&&operatorLabel.trim().length<2))return
+    if(!canRestore||!selectedVersion||!selectedVersion.restorable||!confirmRestore||(!authenticated&&operatorLabel.trim().length<2))return
     setRestoring(true);setDetailError('')
     try{
       await restoreMenuVersion({unitId,version:selectedVersion,operatorLabel:authenticated?undefined:operatorLabel.trim(),adminKey:presentationAdminKey})
@@ -47,13 +52,13 @@ export function MenuHistoryPage({initialUnitId}:{initialUnitId?:string}){
     finally{setRestoring(false)}
   }
 
-  const selected=DEMO_UNITS.find(u=>u.unitId===unitId)
+  const selected=allowedUnits.find(u=>u.unitId===unitId)??allowedUnits[0]
   return <div className="app-shell">
     <aside className="sidebar">
       <div className="brand"><span className="brand-mark">A</span><div><strong>APETIT</strong><small>Admin</small></div></div>
       <nav>
         <button className="nav-item" onClick={()=>window.location.hash='visao-geral'}>⌂ Visão geral</button>
-        <button className="nav-item" onClick={()=>window.location.hash='cardapios'}>▣ Cardápios</button>
+        {canPublishMenus&&<button className="nav-item" onClick={()=>window.location.hash='cardapios'}>▣ Cardápios</button>}
         <button className="nav-item active">◷ Histórico de publicações</button>
         <button className="nav-item" onClick={()=>window.location.hash='unidades'}>□ Unidades</button>
       </nav>
@@ -65,9 +70,9 @@ export function MenuHistoryPage({initialUnitId}:{initialUnitId?:string}){
         <span className="badge">DEMONSTRAÇÃO</span>
       </header>
       <section className="card content-card history-controls">
-        <label><span>Unidade</span><select value={unitId} onChange={e=>setUnitId(e.target.value)}>{DEMO_UNITS.map(u=><option value={u.unitId} key={u.unitId}>{u.company}</option>)}</select></label>
+        <label><span>Unidade</span><select value={unitId} onChange={e=>setUnitId(e.target.value)}>{allowedUnits.map(u=><option value={u.unitId} key={u.unitId}>{u.company}</option>)}</select></label>
         <button className="secondary" onClick={()=>window.location.hash=`calendario-cardapios/${unitId}`}>Ver calendário</button>
-        <button className="primary" onClick={()=>window.location.hash='cardapios'}>Nova publicação</button>
+        {canPublishMenus&&<button className="primary" onClick={()=>window.location.hash='cardapios'}>Nova publicação</button>}
       </section>
       <div className={authenticated?'alert success':'alert warning'}><strong>Identificação do operador</strong> {authenticated?'Sua conta individual está ativa. Novas publicações e restaurações serão vinculadas ao usuário autenticado.':'O modo de apresentação usa identificação declarada. Entre com uma conta individual para registrar ações com usuário verificado.'}</div>
       {loading&&<p>Carregando histórico de {selected?.company}...</p>}
@@ -95,7 +100,7 @@ export function MenuHistoryPage({initialUnitId}:{initialUnitId?:string}){
           <button className="secondary" onClick={()=>setSelectedVersion(null)}>Fechar</button>
         </div>
         {!selectedVersion.restorable&&<div className="alert warning"><strong>Versão histórica incompleta</strong>Esta publicação é anterior ao arquivamento completo. O conteúdo disponível pode ser parcial e não pode ser restaurado.</div>}
-        {selectedVersion.restorable&&<div className="alert warning"><strong>Restauração com confirmação</strong>Restaurar republica TODOS os dias desta versão para esta unidade e refeição, substituindo os cardápios atuais dessas datas. A versão atual será preservada no histórico quando tiver sido arquivada integralmente.</div>}
+        {selectedVersion.restorable&&(canRestore?<div className="alert warning"><strong>Restauração com confirmação</strong>Restaurar republica TODOS os dias desta versão para esta unidade e refeição, substituindo os cardápios atuais dessas datas. A versão atual será preservada no histórico quando tiver sido arquivada integralmente.</div>:<div className="alert warning"><strong>Somente consulta</strong>Seu perfil pode comparar esta versão, mas não possui permissão para restaurar cardápios.</div>)}
         <div className="version-days">{selectedVersion.days.map(day=>{
           const diff=selectedVersion.comparison.find(row=>row.date===day.date)
           return <article className="version-day" key={day.date}>
@@ -109,7 +114,7 @@ export function MenuHistoryPage({initialUnitId}:{initialUnitId?:string}){
             </div>}
           </article>
         })}</div>
-        {selectedVersion.restorable&&<>
+        {selectedVersion.restorable&&canRestore&&<>
           {authenticated?<div className="alert success"><strong>Usuário verificado</strong>A restauração será registrada automaticamente no histórico com sua conta.</div>:<label className="operator-field"><span>Seu nome para registrar a restauração (declarado)</span>
             <input value={operatorLabel} maxLength={100} onChange={e=>setOperatorLabel(e.target.value)} placeholder="Nome do operador"/>
             <small>Entre com uma conta individual para que a identidade seja verificada automaticamente.</small></label>}

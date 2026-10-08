@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { AdminOverview, getAdminOverview, presentationAdminKey } from './api'
+import { AdminOverview, AdminUser, getAdminOverview, presentationAdminKey } from './api'
+import { hasAdminPermission } from './access'
 
 function go(hash: string) {
   window.location.hash = hash
@@ -18,8 +19,11 @@ function periodLabel(start?: string | null, end?: string | null) {
   return `${fmt(start)} → ${fmt(end)}`
 }
 
-export function OverviewPage() {
+export function OverviewPage({user}:{user:AdminUser|null}) {
   const [data,setData] = useState<AdminOverview|null>(null)
+  const canPublishMenus=hasAdminPermission(user,'publish_menu')
+  const canManageSheets=hasAdminPermission(user,'manage_sheets')
+  const canManageUsers=hasAdminPermission(user,'manage_users')
   const [error,setError] = useState('')
 
   useEffect(() => {
@@ -37,7 +41,7 @@ export function OverviewPage() {
         level: unit.technical_coverage_percent < 50 ? 'high' : 'medium',
         title: `${unit.company_name} · cobertura técnica baixa`,
         detail: `${unit.technical_coverage_percent}% dos itens possuem ficha técnica associada.`,
-        action: 'Revisar fichas',
+        action: canManageSheets ? 'Revisar fichas' : 'Ver fichas',
         hash: 'fichas-tecnicas',
       })
     }
@@ -64,8 +68,8 @@ export function OverviewPage() {
         level: 'high',
         title: `${unit.company_name} · sem cardápio publicado`,
         detail: 'Nenhum cardápio publicado para esta unidade.',
-        action: 'Publicar cardápio',
-        hash: 'cardapios',
+        action: canPublishMenus ? 'Publicar cardápio' : 'Ver unidades',
+        hash: canPublishMenus ? 'cardapios' : 'unidades',
       })
     }
     return items
@@ -76,7 +80,7 @@ export function OverviewPage() {
       level: 'medium',
       title: 'Fichas técnicas incompletas',
       detail: `${data.technical_sheets - data.complete_sheets} ficha(s) ainda têm macros incompletos.`,
-      action: 'Revisar biblioteca',
+      action: canManageSheets ? 'Revisar biblioteca' : 'Ver biblioteca',
       hash: 'fichas-tecnicas',
     })
   }
@@ -87,13 +91,14 @@ export function OverviewPage() {
         <div className="brand"><span className="brand-mark">A</span><div><strong>APETIT</strong><small>Admin</small></div></div>
         <nav>
           <button className="nav-item active" onClick={() => go('visao-geral')}><span>⌂</span>Visão geral</button>
-          <button className="nav-item" onClick={() => go('cardapios')}><span>▣</span>Cardápios</button>
-          <button className="nav-item" onClick={() => go('importar-fichas')}><span>↥</span>Importações</button>
+          {canPublishMenus&&<button className="nav-item" onClick={() => go('cardapios')}><span>▣</span>Cardápios</button>}
+          {canManageSheets&&<button className="nav-item" onClick={() => go('importar-fichas')}><span>↥</span>Importações</button>}
           <button className="nav-item" onClick={() => go('fichas-tecnicas')}><span>⌘</span>Fichas técnicas</button>
           <div className="nav-label">Experiência</div>
           <button className="nav-item" onClick={() => go('feedbacks')}><span>♡</span>Feedbacks</button>
           <div className="nav-label">Gestão</div>
           <button className="nav-item" onClick={() => go('unidades')}><span>□</span>Unidades</button>
+          {canManageUsers&&<button className="nav-item" onClick={() => go('usuarios')}><span>♙</span>Usuários e acessos</button>}
         </nav>
         <div className="privacy-note"><strong>Privacidade por padrão</strong><p>Prescrições, restrições e histórico alimentar individual não aparecem neste painel.</p></div>
       </aside>
@@ -105,7 +110,7 @@ export function OverviewPage() {
             <h1>Operação em um só lugar</h1>
             <p>Indicadores agregados da demonstração: operação, nutrição, experiência e qualidade da base.</p>
           </div>
-          <div className="topbar-actions"><button className="secondary" onClick={() => go('relatorio-executivo')}>Relatório executivo</button><div className="status-pill"><span className="status-dot" />Ambiente de demonstração</div></div>
+          <div className="topbar-actions"><button className="secondary" onClick={() => go('relatorio-executivo')}>Relatório executivo</button>{canManageUsers&&<button className="secondary" onClick={() => go('usuarios')}>Usuários e acessos</button>}<div className="status-pill"><span className="status-dot" />{user?.name ?? 'Ambiente de demonstração'}</div></div>
         </header>
 
         {error && <div className="alert error">{error}</div>}
@@ -116,7 +121,7 @@ export function OverviewPage() {
             <h2>Resumo executivo da operação</h2>
             <p>Dados fictícios controlados para demonstrar como a gestão acompanhará o serviço quando a base oficial da Apetit estiver conectada.</p>
           </div>
-          <button className="primary" onClick={() => go('cardapios')}>Gerenciar cardápios</button>
+          {canPublishMenus?<button className="primary" onClick={() => go('cardapios')}>Gerenciar cardápios</button>:<button className="primary" onClick={() => go('unidades')}>Ver unidades</button>}
         </section>
 
         <section className="executive-kpis">
@@ -131,7 +136,7 @@ export function OverviewPage() {
             <div className="panel-head"><div><span className="eyebrow">QUALIDADE DA BASE</span><h2>Cobertura de fichas técnicas</h2></div><strong className="coverage-number">{coverage}%</strong></div>
             <div className="coverage-track"><div style={{width:`${coverage}%`}} /></div>
             <p>{data?.enriched_menu_items ?? 0} de {data?.menu_items ?? 0} itens do cardápio possuem ficha técnica associada.</p>
-            <div className="panel-actions"><button className="secondary" onClick={() => go('fichas-tecnicas')}>Ver fichas técnicas</button><button className="secondary" onClick={() => go('importar-fichas')}>Importar fichas</button></div>
+            <div className="panel-actions"><button className="secondary" onClick={() => go('fichas-tecnicas')}>Ver fichas técnicas</button>{canManageSheets&&<button className="secondary" onClick={() => go('importar-fichas')}>Importar fichas</button>}</div>
           </article>
 
           <article className="card executive-panel">
@@ -171,7 +176,7 @@ export function OverviewPage() {
           <div className="comparison-actions">
             <button className="secondary" onClick={() => go('feedbacks')}>Analisar satisfação</button>
             <button className="secondary" onClick={() => go('fichas-tecnicas')}>Revisar cobertura técnica</button>
-            <button className="primary" onClick={() => go('cardapios')}>Gerenciar cardápios</button>
+            {canPublishMenus&&<button className="primary" onClick={() => go('cardapios')}>Gerenciar cardápios</button>}
           </div>
         </section>
 
@@ -217,7 +222,7 @@ export function OverviewPage() {
         </section>
 
         <section className="overview-grid">
-          <article className="card overview-card"><div className="overview-icon">▣</div><span className="eyebrow">ÚLTIMA PUBLICAÇÃO</span><h2>{data?.latest_menu?.unit_name ?? 'Nenhuma publicação'}</h2><p>{data?.latest_menu ? `Período ${periodLabel(data.latest_menu.period_start,data.latest_menu.period_end)}` : 'Publique um cardápio para iniciar a operação.'}</p><button className="secondary" onClick={() => go('cardapios')}>Abrir cardápios</button></article>
+          <article className="card overview-card"><div className="overview-icon">▣</div><span className="eyebrow">ÚLTIMA PUBLICAÇÃO</span><h2>{data?.latest_menu?.unit_name ?? 'Nenhuma publicação'}</h2><p>{data?.latest_menu ? `Período ${periodLabel(data.latest_menu.period_start,data.latest_menu.period_end)}` : 'Ainda não há cardápio publicado.'}</p>{canPublishMenus?<button className="secondary" onClick={() => go('cardapios')}>Abrir cardápios</button>:<button className="secondary" onClick={() => go('unidades')}>Ver unidades</button>}</article>
           <article className="card overview-card"><div className="overview-icon">♡</div><span className="eyebrow">EXPERIÊNCIA</span><h2>Feedbacks e satisfação</h2><p>Veja tendências, motivos mais citados e comentários anonimizados.</p><button className="secondary" onClick={() => go('feedbacks')}>Ver relatório</button></article>
         </section>
       </main>

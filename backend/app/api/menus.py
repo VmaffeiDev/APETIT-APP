@@ -9,6 +9,8 @@ from pydantic import BaseModel, Field
 from sqlalchemy import text
 
 from app.db import engine
+from app.api.auth import current_person
+from app.api.employee_access import require_employee_unit
 
 from app.services.menu_import import read_planning_csv, read_planning_xlsx_bytes
 from app.services.menu_versions import get_version, restore_version
@@ -111,7 +113,9 @@ def get_published_menu(
     unit_id: UUID,
     service_date: date,
     meal_type: str = "almoco",
+    authorization: str | None = Header(default=None),
 ) -> dict:
+    require_employee_unit(current_person(authorization), unit_id)
     try:
         return published_menu_for_day(
             unit_id=str(unit_id),

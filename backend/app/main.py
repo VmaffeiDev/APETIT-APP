@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 
 from app.api.auth import router as auth_router
+from app.api.employee_access import router as employee_access_router
 from app.api.admin_overview import router as admin_overview_router
 from app.api.admin_users import router as admin_users_router
 from app.api.feedback import router as feedback_router
@@ -28,6 +29,7 @@ app.add_middleware(
 )
 
 app.include_router(auth_router)
+app.include_router(employee_access_router)
 app.include_router(admin_overview_router)
 app.include_router(admin_users_router)
 app.include_router(profile_router)
