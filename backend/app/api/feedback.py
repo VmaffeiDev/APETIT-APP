@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import text
 
 from app.api.auth import current_person
+from app.api.employee_access import require_employee_unit
 from app.db import engine
 from app.services.feedback_reporting import feedback_summary
 from app.api.admin_auth import AdminPrincipal, require_admin, require_permission, require_unit_access
@@ -32,6 +33,7 @@ def create_feedback(payload: FeedbackCreate, authorization: str | None = Header(
     person = current_person(authorization)
     if person["id"] != payload.person_id:
         raise HTTPException(status_code=403, detail="você só pode enviar feedback em seu próprio nome")
+    require_employee_unit(person, payload.unit_id)
 
     feedback_id = uuid4()
     cleaned_tags = sorted({tag.strip().lower() for tag in payload.tags if tag.strip()})

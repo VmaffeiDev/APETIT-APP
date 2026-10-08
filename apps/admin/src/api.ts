@@ -65,7 +65,7 @@ const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
 const SESSION_KEY='apetit_admin_session'
 export const getAdminToken=()=>localStorage.getItem(SESSION_KEY)??''
 export const setAdminToken=(token:string)=>token?localStorage.setItem(SESSION_KEY,token):localStorage.removeItem(SESSION_KEY)
-function adminHeaders(adminKey:string,extra:Record<string,string>={}):Record<string,string>{const token=getAdminToken();const usePresentation=isPresentationMode&&adminKey==='presentation';return {...extra,...(usePresentation?{'X-Apetit-Admin-Key':'presentation'}:(token?{Authorization:`Bearer ${token}`}:(adminKey?{'X-Apetit-Admin-Key':adminKey}:{})))}}
+function adminHeaders(adminKey:string,extra:Record<string,string>={}):Record<string,string>{const token=getAdminToken();const usePresentation=isPresentationMode&&adminKey==='presentation'&&!token;return {...extra,...(usePresentation?{'X-Apetit-Admin-Key':'presentation'}:(token?{Authorization:`Bearer ${token}`}:(adminKey?{'X-Apetit-Admin-Key':adminKey}:{})))}}
 export const isPresentationMode = import.meta.env.VITE_PRESENTATION_MODE === 'true'
 export const presentationAdminKey = isPresentationMode ? 'presentation' : ''
 

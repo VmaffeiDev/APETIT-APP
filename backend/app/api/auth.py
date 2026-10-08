@@ -11,6 +11,7 @@ from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import text
 
 from app.db import engine
+from app.api.employee_access import require_employee_unit
 from app.services.email_delivery import EmailDeliveryError, send_login_code
 from app.settings import settings
 
@@ -346,18 +347,22 @@ def verify_code(payload: VerifyCodePayload) -> dict:
 
 
 @router.get("/api/auth/options", tags=["employee-auth"])
-def onboarding_options() -> dict:
+def onboarding_options(authorization: str | None = Header(default=None)) -> dict:
+    person = current_person(authorization)
     with engine.connect() as conn:
         rows = conn.execute(
             text(
                 """
                 SELECT c.id AS company_id, c.name AS company_name,
-                       u.id AS unit_id, u.name AS unit_name
+                       u.id AS unit_id, u.name AS unit_name,
+                       (SELECT r.id FROM restaurants r WHERE r.unit_id=u.id
+                        ORDER BY r.name,r.id LIMIT 1) AS restaurant_id
                 FROM companies c
                 JOIN units u ON u.company_id = c.id
+                WHERE u.id = :unit_id
                 ORDER BY c.name, u.name
                 """
-            )
+            ), {"unit_id": person["unit_id"]}
         ).mappings().all()
     return {
         "units": [
@@ -366,6 +371,7 @@ def onboarding_options() -> dict:
                 "company_name": row["company_name"],
                 "unit_id": str(row["unit_id"]),
                 "unit_name": row["unit_name"],
+                "restaurant_id": str(row["restaurant_id"]) if row["restaurant_id"] else None,
             }
             for row in rows
         ],
@@ -399,6 +405,10 @@ def save_onboarding(payload: OnboardingPayload, authorization: str | None = Head
     restrictions = sorted({item.strip().lower() for item in payload.restrictions if item.strip()})
 
     with engine.begin() as conn:
+        assigned = conn.execute(text(
+            "SELECT unit_id FROM people WHERE id=:id AND deleted_at IS NULL FOR UPDATE"
+        ), {"id": person["id"]}).mappings().one_or_none()
+        require_employee_unit(dict(assigned) if assigned else {}, payload.unit_id)
         unit_exists = conn.execute(text("SELECT 1 FROM units WHERE id = :id"), {"id": payload.unit_id}).scalar_one_or_none()
         if unit_exists is None:
             raise HTTPException(status_code=422, detail="unidade não encontrada")

@@ -27,14 +27,22 @@ export default function EmployeeEntry() {
   const [error, setError] = useState('')
 
   useEffect(() => {
-    getOnboardingOptions()
-      .then((loaded) => {
-        setOptions(loaded)
-        setUnitId((current) => current || loaded.units[0]?.unit_id || '')
-      })
-      .catch(() => undefined)
     restoreSession()
   }, [])
+
+  useEffect(() => {
+    setOptions(null)
+    if (!session?.access_token) return
+    let cancelled = false
+    getOnboardingOptions(session.access_token)
+      .then((loaded) => {
+        if (cancelled) return
+        setOptions(loaded)
+        setUnitId(loaded.units[0]?.unit_id || '')
+      })
+      .catch(() => { if (!cancelled) setError('Não foi possível carregar sua unidade. Entre novamente para tentar de novo.') })
+    return () => { cancelled = true }
+  }, [session?.access_token, person?.unit_id])
 
   function applyPerson(authenticatedPerson: AuthPerson, token: string) {
     setPerson(authenticatedPerson)
@@ -219,13 +227,14 @@ export default function EmployeeEntry() {
         <Text style={styles.label}>Como podemos te chamar?</Text><TextInput style={styles.input} value={name} onChangeText={(value) => { setName(value); if (error) setError('') }} placeholder="Seu nome" placeholderTextColor={colors.muted2}/>
         <Text style={styles.label}>Empresa / unidade</Text>
         <View style={styles.choiceList}>{options?.units.map((item) => <Pressable key={item.unit_id} style={[styles.choice, unitId === item.unit_id && styles.choiceActive]} onPress={() => { setUnitId(item.unit_id); if (error) setError('') }}><View style={{flex:1}}><Text style={styles.choiceTitle}>{item.company_name}</Text><Text style={styles.choiceText}>{item.unit_name}</Text></View><Text style={[styles.choiceCheck,unitId===item.unit_id&&styles.choiceCheckActive]}>{unitId===item.unit_id?'✓':'○'}</Text></Pressable>)}</View>
+        {options && options.units.length === 0 && <Text style={styles.noteText}>Seu acesso aguarda o vínculo de unidade pela administração. Após a liberação, entre novamente.</Text>}
         <Text style={styles.label}>Setor</Text><TextInput style={styles.input} value={sector} onChangeText={setSector} placeholder="Ex.: Administrativo" placeholderTextColor={colors.muted2}/>
         <Text style={styles.label}>Seu objetivo</Text>
         <View style={styles.choiceList}>{[['seguir_prescricao','Seguir minha prescrição'],['alimentacao_equilibrada','Manter o equilíbrio'],['melhorar_habitos','Melhorar meus hábitos']].map(([value,label])=><Pressable key={value} style={[styles.choice,goal===value&&styles.choiceActive]} onPress={()=>setGoal(value)}><Text style={styles.choiceTitle}>{label}</Text><Text style={[styles.choiceCheck,goal===value&&styles.choiceCheckActive]}>{goal===value?'✓':'○'}</Text></Pressable>)}</View>
         <Text style={styles.label}>Restrições ou alergias</Text>
         <View style={styles.tags}>{['gluten','lactose','amendoim','castanhas','ovo','soja'].map(item=><Pressable key={item} style={[styles.tag,restrictions.includes(item)&&styles.tagActive]} onPress={()=>toggleRestriction(item)}><Text style={[styles.tagText,restrictions.includes(item)&&styles.tagTextActive]}>{restrictions.includes(item)?'⚠ ':''}{item}</Text></Pressable>)}</View>
         <View style={styles.privacy}><Text style={styles.noteTitle}>🔒 Privacidade</Text><Text style={styles.noteText}>Restrições, prescrições e histórico alimentar são privados. A empresa recebe apenas dados agregados.</Text></View>
-        <Pressable style={[styles.primary, busy && styles.primaryDisabled]} onPress={finishOnboarding} disabled={busy}><Text style={styles.primaryText}>{busy ? 'Salvando…' : 'Concluir e entrar no app'}</Text></Pressable>
+        <Pressable style={[styles.primary, busy && styles.primaryDisabled]} onPress={finishOnboarding} disabled={busy || !unitId}><Text style={styles.primaryText}>{busy ? 'Salvando…' : 'Concluir e entrar no app'}</Text></Pressable>
       </>}
 
       {!!error && <View style={styles.error}><Text style={styles.errorText}>{error}</Text></View>}

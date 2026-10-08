@@ -224,7 +224,7 @@ export async function getRecommendation(params: { personId: string; unitId: stri
 
 export async function getPublishedMenu(params: { unitId: string; serviceDate: string }): Promise<PublishedMenu> {
   const query = new URLSearchParams({ unit_id: params.unitId, service_date: params.serviceDate, meal_type: 'almoco' })
-  return parseResponse<PublishedMenu>(await fetch(`${API_URL}/api/menu?${query.toString()}`))
+  return parseResponse<PublishedMenu>(await fetch(`${API_URL}/api/menu?${query.toString()}`, { headers: privateHeaders(false) }))
 }
 
 export async function evaluatePlate(params: {

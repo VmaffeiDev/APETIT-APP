@@ -15,6 +15,7 @@ from sqlalchemy import text
 
 from app.api.admin_auth import AdminPrincipal, allowed_unit_ids, require_admin, require_permission
 from app.db import engine
+from app.services.feedback_reporting import MIN_REPORT_GROUP
 
 router = APIRouter()
 
@@ -29,7 +30,7 @@ def admin_overview(
     end = date.today()
     granted_units = allowed_unit_ids(principal)
     scoped = granted_units is not None
-    params = {"start": start, "end": end, "unit_ids": granted_units or []}
+    params = {"start": start, "end": end, "unit_ids": granted_units or [], "minimum_group": MIN_REPORT_GROUP}
     unit_filter = " AND u.id = ANY(:unit_ids)" if scoped else ""
     direct_unit_filter = " AND unit_id = ANY(:unit_ids)" if scoped else ""
 
@@ -89,7 +90,7 @@ def admin_overview(
         if scoped:
             feedback_where += " AND unit_id = ANY(:unit_ids)"
         feedback = conn.execute(text(f"""
-            SELECT COUNT(*) AS responses,
+            SELECT COUNT(*) AS responses, COUNT(DISTINCT person_id) AS participants,
                    ROUND(AVG((food_rating + service_rating) / 2.0)::numeric, 2) AS overall
             FROM feedback
             {feedback_where}
@@ -103,6 +104,7 @@ def admin_overview(
             WHERE f.meal_date BETWEEN :start AND :end
         """ + tag_scope + """
             GROUP BY ft.tag
+            HAVING COUNT(DISTINCT f.person_id) >= :minimum_group
             ORDER BY count DESC, ft.tag
             LIMIT 1
         """), params).mappings().one_or_none()
@@ -127,6 +129,7 @@ def admin_overview(
                 COUNT(DISTINCT md.id) AS menu_days,
                 COUNT(DISTINCT mitem.id) AS menu_items,
                 COUNT(DISTINCT CASE WHEN ts.code IS NOT NULL THEN mitem.id END) AS enriched_items,
+                COUNT(DISTINCT f.person_id) FILTER (WHERE f.meal_date BETWEEN :start AND :end) AS feedback_participants,
                 COUNT(DISTINCT f.id) FILTER (WHERE f.meal_date BETWEEN :start AND :end) AS feedback_responses,
                 ROUND(
                     AVG((f.food_rating + f.service_rating) / 2.0)
@@ -163,6 +166,7 @@ def admin_overview(
     for row in unit_rows:
         menu_items_count = int(row["menu_items"] or 0)
         enriched_count = int(row["enriched_items"] or 0)
+        suppressed = int(row["feedback_participants"] or 0) < MIN_REPORT_GROUP
         unit_comparison.append({
             "unit_id": str(row["unit_id"]),
             "unit_name": row["unit_name"],
@@ -173,9 +177,14 @@ def admin_overview(
             "enriched_items": enriched_count,
             "technical_coverage_percent": round((enriched_count / menu_items_count) * 100) if menu_items_count else 0,
             "feedback_responses": int(row["feedback_responses"] or 0),
-            "satisfaction": float(row["satisfaction"]) if row["satisfaction"] is not None else None,
+            "satisfaction": float(row["satisfaction"]) if not suppressed and row["satisfaction"] is not None else None,
+            "feedback_suppressed": suppressed,
         })
 
+    # Also hide totals if they could reveal a small unit by subtracting visible units.
+    overall_suppressed = int(feedback["participants"] or 0) < MIN_REPORT_GROUP or any(
+        0 < int(row["feedback_participants"] or 0) < MIN_REPORT_GROUP for row in unit_rows
+    )
     return {
         "units": units,
         "restaurants": restaurants,
@@ -188,8 +197,10 @@ def admin_overview(
         "feedback_period_start": start.isoformat(),
         "feedback_period_end": end.isoformat(),
         "feedback_responses": int(feedback["responses"] or 0),
-        "satisfaction_overall": float(feedback["overall"]) if feedback["overall"] is not None else None,
-        "top_feedback_tag": dict(top_tag) if top_tag else None,
+        "satisfaction_overall": float(feedback["overall"]) if not overall_suppressed and feedback["overall"] is not None else None,
+        "feedback_suppressed": overall_suppressed,
+        "minimum_group": MIN_REPORT_GROUP,
+        "top_feedback_tag": dict(top_tag) if top_tag and not overall_suppressed else None,
         "unit_comparison": unit_comparison,
         "latest_menu": {
             "unit_name": latest_menu["unit_name"],
