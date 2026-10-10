@@ -1,3 +1,4 @@
+import { AdminSidebar } from './AdminSidebar'
 import { DragEvent, useRef, useState } from 'react'
 import { getAdminToken, previewTechnicalSheetImport, publishTechnicalSheetImport, TechnicalSheetImportPreview } from './api'
 
@@ -52,18 +53,7 @@ export function TechnicalSheetImportPage() {
   }
 
   return <div className="app-shell">
-    <aside className="sidebar">
-      <div className="brand"><span className="brand-mark">A</span><div><strong>APETIT</strong><small>Admin</small></div></div>
-      <nav>
-        <button className="nav-item" onClick={() => { window.location.hash = 'visao-geral' }}>⌂ Visão geral</button>
-        <button className="nav-item" onClick={() => { window.location.hash = 'cardapios' }}>▣ Cardápios</button>
-        <button className="nav-item" onClick={() => { window.location.hash = 'fichas-tecnicas' }}>⌘ Fichas técnicas</button>
-        <button className="nav-item active">↥ Importar fichas</button>
-        <button className="nav-item" onClick={() => { window.location.hash = 'feedbacks' }}>♡ Feedbacks</button>
-        <button className="nav-item" onClick={() => { window.location.hash = 'unidades' }}>□ Unidades</button>
-      </nav>
-      <div className="privacy-note"><strong>Importação controlada</strong><p>Nada é gravado antes da prévia e confirmação da operação.</p></div>
-    </aside>
+    <AdminSidebar />
     <main className="main">
       <header className="topbar"><div><span className="eyebrow">OPERAÇÃO · NUTRIÇÃO</span><h1>Importar fichas técnicas</h1><p>Carregue XLSX ou CSV, valide a composição e só então publique na biblioteca nutricional.</p></div><button className="secondary" onClick={() => { window.location.hash = 'fichas-tecnicas' }}>Voltar à biblioteca</button></header>
 

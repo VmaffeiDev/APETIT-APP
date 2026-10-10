@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Ionicons } from '@expo/vector-icons'
 import { StatusBar } from 'expo-status-bar'
 import {
@@ -35,7 +35,7 @@ type Screen = 'home' | 'menu' | 'recommendation' | 'builder' | 'feedback' | 'don
 type SelectedMap = Record<string, number>
 
 type EmployeeUnit = { id: string; restaurantId: string; company: string; label: string }
-type DemoAppProps = { goal?: string | null; onProfile?: () => void; units: EmployeeUnit[] }
+type DemoAppProps = { isDemo?: boolean; goal?: string | null; onProfile?: () => void; units: EmployeeUnit[] }
 
 const today = () => { const now = new Date(); const y = now.getFullYear(); const m = String(now.getMonth()+1).padStart(2,'0'); const d = String(now.getDate()).padStart(2,'0'); return `${y}-${m}-${d}` }
 const fmt = (value: number | null | undefined, suffix = '') => value == null ? '—' : `${Math.round(value)}${suffix}`
@@ -43,18 +43,10 @@ const fmtPortion = (quantity: number, unit?: string | null) => { const q = Numbe
 const shortDate = (value: string) => new Intl.DateTimeFormat('pt-BR', { weekday: 'short' }).format(new Date(`${value}T12:00:00`)).replace('.', '')
 const weekday = () => new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date())
 
-const foodPhotos = [
-  'https://images.unsplash.com/photo-1547592180-85f173990554?auto=format&fit=crop&w=240&q=80',
-  'https://images.unsplash.com/photo-1569058242253-92a9c755a0ec?auto=format&fit=crop&w=240&q=80',
-  'https://images.unsplash.com/photo-1473093295043-cdd812d0e601?auto=format&fit=crop&w=240&q=80',
-  'https://images.unsplash.com/photo-1512058564366-18510be2db19?auto=format&fit=crop&w=240&q=80',
-  'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=240&q=80',
-  'https://images.unsplash.com/photo-1607532941433-304659e8198a?auto=format&fit=crop&w=240&q=80',
-]
 const platePhoto = 'https://images.unsplash.com/photo-1547592180-85f173990554?auto=format&fit=crop&w=520&q=85'
 
-export default function DemoApp({ goal, onProfile, units }: DemoAppProps) {
-  const [screen, setScreen] = useState<Screen>('home')
+export default function DemoApp({ goal, onProfile, units, isDemo }: DemoAppProps) {
+  const [screen, setCurrentScreen] = useState<Screen>('home')
   const [unitId, setUnitId] = useState(units[0].id)
   const [menu, setMenu] = useState<PublishedMenu | null>(null)
   const [recommendation, setRecommendation] = useState<Recommendation | null>(null)
@@ -68,7 +60,17 @@ export default function DemoApp({ goal, onProfile, units }: DemoAppProps) {
   const [comment, setComment] = useState('')
   const [registeredMeal, setRegisteredMeal] = useState<{ itemCount:number; kcal:number|null } | null>(null)
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState('')
+  const [errorState, setErrorState] = useState<{screen: Screen; message: string} | null>(null)
+  const error = errorState?.screen === screen ? errorState.message : ''
+  const setError = (message: string) => setErrorState(message ? {screen, message} : null)
+  const setScreen = (next: Screen) => { setErrorState(null); setCurrentScreen(next) }
+
+  useEffect(() => {
+    if (screen !== 'home') return
+    let cancelled = false
+    getMealProgress(DEMO_PERSON.id).then(data => { if (!cancelled) setProgress(data) }).catch(() => { if (!cancelled) setProgress(null) })
+    return () => { cancelled = true }
+  }, [screen])
 
   const unit = useMemo(() => units.find((item) => item.id === unitId) ?? units[0], [unitId, units])
   const selectedCount = Object.values(selected).filter((quantity) => quantity > 0).length
@@ -207,7 +209,8 @@ export default function DemoApp({ goal, onProfile, units }: DemoAppProps) {
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {screen === 'home' && <Home
+        {isDemo && <Text style={styles.pageSub}>Demonstração com metas fictícias. Não é uma prescrição nutricional.</Text>}
+        {screen === 'home' && <Home progress={progress}
           units={units} unitId={unitId}
           setUnitId={(id) => { setUnitId(id); setMenu(null) }}
           onMenu={openMenu}
@@ -227,7 +230,7 @@ export default function DemoApp({ goal, onProfile, units }: DemoAppProps) {
 
         {screen === 'feedback' && <FeedbackScreen registeredMeal={registeredMeal} foodRating={foodRating} setFoodRating={setFoodRating} serviceRating={serviceRating} setServiceRating={setServiceRating} tags={tags} toggleTag={toggleTag} comment={comment} setComment={setComment} onSend={sendFeedback}/>} 
 
-        {screen === 'done' && <View style={styles.done}><View style={styles.doneIcon}><Ionicons name="checkmark" size={38} color="#07130D"/></View><Text style={styles.doneTitle}>Refeição registrada!</Text><Text style={styles.doneText}>Sua avaliação foi enviada e seu progresso já foi atualizado.</Text><View style={styles.rewardCard}><Ionicons name="sparkles-outline" size={20} color={colors.yellow}/><View style={styles.flex}><Text style={styles.rewardTitle}>+5 pontos</Text><Text style={styles.rewardText}>Registro e feedback concluídos hoje.</Text></View></View><Pressable style={styles.primary} onPress={openProgress}><Text style={styles.primaryText}>Ver meu progresso atualizado</Text></Pressable><Pressable style={styles.secondary} onPress={goHome}><Text style={styles.secondaryText}>Voltar ao início</Text></Pressable></View>}
+        {screen === 'done' && <View style={styles.done}><View style={styles.doneIcon}><Ionicons name="checkmark" size={38} color="#07130D"/></View><Text style={styles.doneTitle}>Avaliação enviada!</Text><Text style={styles.doneText}>Obrigado por avaliar sua experiência no refeitório.</Text><View style={styles.rewardCard}><Ionicons name="sparkles-outline" size={20} color={colors.yellow}/><View style={styles.flex}><Text style={styles.rewardTitle}>Avaliação concluída</Text><Text style={styles.rewardText}>Os pontos são calculados pelas refeições registradas.</Text></View></View><Pressable style={styles.primary} onPress={openProgress}><Text style={styles.primaryText}>Ver meu progresso atualizado</Text></Pressable><Pressable style={styles.secondary} onPress={goHome}><Text style={styles.secondaryText}>Voltar ao início</Text></Pressable></View>}
 
         {!!error && <View style={styles.error}><Ionicons name="alert-circle-outline" size={17} color="#FF9BA7"/><Text style={styles.errorText}>{error}</Text></View>}
         {busy && <ActivityIndicator style={{ marginTop: 18 }} color={colors.red}/>} 
@@ -238,7 +241,7 @@ export default function DemoApp({ goal, onProfile, units }: DemoAppProps) {
   )
 }
 
-function Home({ units, unitId, setUnitId, onMenu, onRecommendation, onBuilder, onProgress, onFeedback }: { units:EmployeeUnit[];unitId:string;setUnitId:(id:string)=>void;onMenu:()=>void;onRecommendation:()=>void;onBuilder:()=>void;onProgress:()=>void;onFeedback:()=>void }) {
+function Home({ progress, units, unitId, setUnitId, onMenu, onRecommendation, onBuilder, onProgress, onFeedback }: { progress:MealProgress|null;units:EmployeeUnit[];unitId:string;setUnitId:(id:string)=>void;onMenu:()=>void;onRecommendation:()=>void;onBuilder:()=>void;onProgress:()=>void;onFeedback:()=>void }) {
   return <>
     <View style={styles.homeHero}>
       <View style={styles.homeHeroTop}><View><Text style={styles.homeBrand}>Apetit</Text><Text style={styles.homeTag}>ALIMENTA O QUE TE FAZ BEM</Text></View><Ionicons name="sparkles-outline" size={28} color="#fff"/></View>
@@ -247,8 +250,8 @@ function Home({ units, unitId, setUnitId, onMenu, onRecommendation, onBuilder, o
 
     <View style={styles.achievementCard}>
       <View style={styles.iconSquare}><Ionicons name="trophy-outline" size={21} color="#fff"/></View>
-      <View style={styles.flex}><Text style={styles.achievementTitle}>Minhas conquistas</Text><Achievement text="Atingiu a meta de proteína do dia"/><Achievement text="Registrou a refeição"/><Achievement text="Incluiu salada ou fruta no prato"/></View>
-      <View style={styles.scoreRing}><Text style={styles.score}>25</Text><Text style={styles.scoreLabel}>PONTOS</Text></View>
+      <View style={styles.flex}><Text style={styles.achievementTitle}>Minhas conquistas</Text><Achievement achieved={Boolean(progress?.series.some(day => day.date === today()))} text="Registrou a refeição hoje"/><Text style={styles.achievementLine}>{progress ? `${progress.meal_days} refeição(ões) nos últimos 7 dias` : 'Progresso indisponível no momento'}</Text></View>
+      <View style={styles.scoreRing}><Text style={styles.score}>{progress ? progress.meal_days * 5 : '—'}</Text><Text style={styles.scoreLabel}>PONTOS</Text></View>
     </View>
 
     <Pressable style={styles.heroAction} onPress={onBuilder}><View style={styles.actionLeft}><Ionicons name="restaurant-outline" size={20} color="#111"/><Text style={styles.heroActionText}>Montar meu prato</Text></View><Ionicons name="chevron-forward" size={21} color="#111"/></Pressable>
@@ -266,7 +269,7 @@ function Home({ units, unitId, setUnitId, onMenu, onRecommendation, onBuilder, o
   </>
 }
 
-function Achievement({ text }: { text:string }) { return <View style={styles.achievementRow}><Ionicons name="checkmark-circle" size={14} color={colors.red}/><Text style={styles.achievementLine}>{text}</Text></View> }
+function Achievement({ text, achieved }: { text:string; achieved:boolean }) { return <View style={styles.achievementRow}><Ionicons name={achieved ? "checkmark-circle" : "ellipse-outline"} size={14} color={achieved ? colors.green : colors.muted}/><Text style={styles.achievementLine}>{text}</Text></View> }
 
 function MenuScreen({ menu, unitName, onBuilder, onRecommendation }: { menu:PublishedMenu|null; unitName:string; onBuilder:()=>void; onRecommendation:()=>void }) {
   const [filter, setFilter] = useState<'todos'|'proteinas'|'carboidratos'|'saladas'>('todos')
@@ -285,7 +288,7 @@ function MenuScreen({ menu, unitName, onBuilder, onRecommendation }: { menu:Publ
       <Filter active={filter==='saladas'} label="Saladas" onPress={()=>setFilter('saladas')}/>
     </View>
     {filteredItems.length > 0 ? <View style={styles.listCard}>{filteredItems.map((item, index) => <View key={item.id} style={styles.menuRow}>
-      <Image source={{uri:foodPhotos[index%foodPhotos.length]}} style={styles.foodThumb}/>
+      <View style={[styles.foodThumb,{alignItems:'center',justifyContent:'center'}]}><Ionicons name={item.category === 'salada' ? 'leaf-outline' : 'restaurant-outline'} size={24} color={colors.muted}/></View>
       <View style={styles.flex}><Text style={styles.menuName}>{item.name}</Text><Text style={styles.menuMeta}>{item.standard_portion ?? 'Porção padrão'} · {fmt(item.kcal, ' kcal')}</Text></View>
       <StatusPill index={index}/><Ionicons name="chevron-forward" size={16} color={colors.muted2}/>
     </View>)}</View> : <View style={styles.emptyState}><Ionicons name="restaurant-outline" size={28} color={colors.muted2}/><Text style={styles.emptyStateTitle}>Nenhum item nesta categoria</Text><Text style={styles.emptyStateText}>Veja outra categoria ou escolha “Todos”.</Text></View>}
@@ -402,7 +405,7 @@ function ProgressScreen({ progress, history }: { progress:MealProgress|null; his
   const demoPoints=(progress?.meal_days ?? 0)*5
   return <>
     <Text style={styles.pageTitle}>Meu progresso</Text><Text style={styles.pageSub}>Pequenas escolhas, grandes resultados.</Text>
-    <View style={styles.pointsCard}><View style={styles.pointsRing}><Text style={styles.pointsNumber}>{demoPoints}</Text></View><View style={styles.flex}><Text style={styles.pointsTitle}>pontos acumulados</Text><Text style={styles.pointsText}>{demoPoints ? 'Você ganhou pontos ao registrar sua refeição. Continue assim.' : 'Registre sua primeira refeição para começar a pontuar.'}</Text></View></View>
+    <View style={styles.pointsCard}><View style={styles.pointsRing}><Text style={styles.pointsNumber}>{demoPoints}</Text></View><View style={styles.flex}><Text style={styles.pointsTitle}>pontos nos últimos 7 dias</Text><Text style={styles.pointsText}>{demoPoints ? 'Você ganhou pontos ao registrar sua refeição. Continue assim.' : 'Registre sua primeira refeição para começar a pontuar.'}</Text></View></View>
     <View style={styles.segment}><View style={styles.segmentActive}><Text style={styles.segmentActiveText}>Semana</Text></View><Text style={styles.segmentText}>Mês</Text><Text style={styles.segmentText}>Ano</Text></View>
     <View style={styles.chart}>{series.length?series.map((day,i)=>{const height=32+Math.round(((day.totals.kcal??0)/maxKcal)*78);return <View key={day.date} style={styles.barWrap}><Text style={styles.barValue}>{fmt(day.totals.kcal)}</Text><View style={styles.barTrack}><View style={[styles.bar,{height},i===series.length-2&&styles.barYellow]}/></View><Text style={styles.barLabel}>{shortDate(day.date)}</Text></View>}):<Text style={styles.emptyText}>Registre refeições para visualizar o gráfico semanal.</Text>}</View>
     <View style={styles.statGrid}><Stat icon="fitness-outline" value={`${progress?.adherent_days ?? 0}/${progress?.meal_days ?? 0}`} label="Dias dentro da faixa"/><Stat icon="restaurant-outline" value={`${progress?.meal_days ?? 0}`} label="Refeições registradas"/></View>

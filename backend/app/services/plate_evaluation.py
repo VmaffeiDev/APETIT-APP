@@ -9,18 +9,23 @@ from sqlalchemy import text
 from app.db import engine
 from app.domain.allergens import assess_allergens
 from app.services.demo_menu import resolve_menu_service_date
-from app.services.prescription_workflow import current_prescription_meal
+from app.services.prescription_workflow import nutrition_reference_meal
 
 
-def evaluate_plate(*, person_id: str, unit_id: str, service_date: date, meal_type: str, selections: list[dict]) -> dict:
-    prescription = current_prescription_meal(person_id=person_id, meal_type=meal_type)
+def evaluate_plate(
+    *, person_id: str, unit_id: str, service_date: date, meal_type: str, selections: list[dict]
+) -> dict:
+    prescription = nutrition_reference_meal(person_id=person_id, meal_type=meal_type)
     if prescription is None:
         raise LookupError("nenhuma prescrição confirmada encontrada para esta refeição")
     if not selections:
         raise ValueError("selecione ao menos um item para montar o prato")
 
     selected_ids = [UUID(str(item["menu_item_id"])) for item in selections]
-    quantities = {UUID(str(item["menu_item_id"])): Decimal(str(item.get("quantity", 1))) for item in selections}
+    quantities = {
+        UUID(str(item["menu_item_id"])): Decimal(str(item.get("quantity", 1)))
+        for item in selections
+    }
     if any(value <= 0 for value in quantities.values()):
         raise ValueError("as quantidades precisam ser maiores que zero")
 
@@ -36,11 +41,14 @@ def evaluate_plate(*, person_id: str, unit_id: str, service_date: date, meal_typ
             for row in conn.execute(
                 text("SELECT value FROM dietary_restrictions WHERE person_id = :person_id"),
                 {"person_id": UUID(person_id)},
-            ).mappings().all()
+            )
+            .mappings()
+            .all()
         }
-        rows = conn.execute(
-            text(
-                """
+        rows = (
+            conn.execute(
+                text(
+                    """
                 SELECT mi.id, mi.name, mi.category, mi.standard_portion,
                        mi.kcal, mi.protein_g, mi.carbs_g, mi.fat_g,
                        COALESCE(array_agg(mia.allergen) FILTER (WHERE mia.allergen IS NOT NULL), '{}') AS allergens,
@@ -55,14 +63,17 @@ def evaluate_plate(*, person_id: str, unit_id: str, service_date: date, meal_typ
                 GROUP BY mi.id
                 ORDER BY mi.category, mi.name
                 """
-            ),
-            {
-                "unit_id": UUID(unit_id),
-                "service_date": effective_date,
-                "meal_type": meal_type,
-                "ids": selected_ids,
-            },
-        ).mappings().all()
+                ),
+                {
+                    "unit_id": UUID(unit_id),
+                    "service_date": effective_date,
+                    "meal_type": meal_type,
+                    "ids": selected_ids,
+                },
+            )
+            .mappings()
+            .all()
+        )
 
     by_id = {row["id"]: row for row in rows}
     missing = [str(item_id) for item_id in selected_ids if item_id not in by_id]
@@ -72,7 +83,12 @@ def evaluate_plate(*, person_id: str, unit_id: str, service_date: date, meal_typ
     unsafe: list[str] = []
     uncertain: list[str] = []
     missing_nutrition: list[str] = []
-    totals = {"kcal": Decimal("0"), "protein_g": Decimal("0"), "carbs_g": Decimal("0"), "fat_g": Decimal("0")}
+    totals = {
+        "kcal": Decimal("0"),
+        "protein_g": Decimal("0"),
+        "carbs_g": Decimal("0"),
+        "fat_g": Decimal("0"),
+    }
     items: list[dict] = []
 
     for item_id in selected_ids:
@@ -91,22 +107,29 @@ def evaluate_plate(*, person_id: str, unit_id: str, service_date: date, meal_typ
         nutrient_values = {key: Decimal(row[key]) * factor for key in totals}
         for key, value in nutrient_values.items():
             totals[key] += value
-        items.append({
-            "menu_item_id": str(item_id),
-            "name": row["name"],
-            "category": row["category"],
-            "portion": row["standard_portion"],
-            "quantity": factor,
-            **nutrient_values,
-        })
+        items.append(
+            {
+                "menu_item_id": str(item_id),
+                "name": row["name"],
+                "category": row["category"],
+                "portion": row["standard_portion"],
+                "quantity": factor,
+                **nutrient_values,
+            }
+        )
 
     if unsafe or uncertain:
         return {
+            "reference_kind": "demo" if prescription.get("is_demo") else "confirmed",
             "status": "blocked",
             "target": prescription["target"],
             "items": items,
             "estimated_totals": totals,
-            "warnings": {"unsafe_items": unsafe, "uncertain_allergens": uncertain, "missing_nutrition": missing_nutrition},
+            "warnings": {
+                "unsafe_items": unsafe,
+                "uncertain_allergens": uncertain,
+                "missing_nutrition": missing_nutrition,
+            },
             "message": "O prato contém item incompatível ou com informação de alergênico insuficiente para recomendar com segurança.",
         }
 
@@ -126,12 +149,17 @@ def evaluate_plate(*, person_id: str, unit_id: str, service_date: date, meal_typ
         status = "insufficient_data"
 
     return {
+        "reference_kind": "demo" if prescription.get("is_demo") else "confirmed",
         "status": status,
         "target": target,
         "items": items,
         "estimated_totals": totals,
         "differences": differences,
-        "warnings": {"unsafe_items": [], "uncertain_allergens": [], "missing_nutrition": missing_nutrition},
+        "warnings": {
+            "unsafe_items": [],
+            "uncertain_allergens": [],
+            "missing_nutrition": missing_nutrition,
+        },
         "message": (
             "Seu prato está próximo da meta confirmada."
             if status == "within_target"

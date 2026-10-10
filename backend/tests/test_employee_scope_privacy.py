@@ -536,3 +536,77 @@ def test_integrated_employee_journey_from_email_login_to_report(case, monkeypatc
                 text("DELETE FROM auth_rate_events WHERE key_hash=:key"),
                 {"key": auth_module._rate_key(email)},
             )
+
+
+@pytest.mark.parametrize(
+    "environment,is_demo,expected",
+    [
+        ("development", True, 200),
+        ("production", True, 404),
+        ("development", False, 404),
+    ],
+)
+def test_demo_nutrition_target_is_scoped_and_does_not_create_prescription(
+    case, monkeypatch, environment, is_demo, expected
+):
+    monkeypatch.setattr(settings, "environment", environment)
+    email = f"visitante.{uuid4().hex}@apetit.local" if is_demo else f"{uuid4().hex}@example.com"
+    with engine.begin() as conn:
+        conn.execute(
+            text("UPDATE people SET email=:email WHERE id=:id"),
+            {"email": email, "id": case["people"][0]},
+        )
+    params = {
+        "person_id": str(case["people"][0]),
+        "unit_id": str(case["units"][0]),
+        "service_date": str(case["today"]),
+        "meal_type": "almoco",
+    }
+    recommendation = client.get(
+        "/api/nutrition/recommendation", params=params, headers=case["headers"][0]
+    )
+    plate = client.post(
+        "/api/nutrition/plate-evaluate",
+        json={**params, "selections": [{"menu_item_id": case["items"]["own"], "quantity": 1}]},
+        headers=case["headers"][0],
+    )
+    assert recommendation.status_code == expected
+    assert plate.status_code == expected
+    if expected == 200:
+        assert recommendation.json()["reference_kind"] == "demo"
+        assert plate.json()["reference_kind"] == "demo"
+        progress = client.get(
+            "/api/meals/progress",
+            params={"person_id": params["person_id"]},
+            headers=case["headers"][0],
+        ).json()
+        assert progress["meal_days"] == 0
+    with engine.connect() as conn:
+        assert (
+            conn.execute(
+                text("SELECT count(*) FROM prescriptions WHERE person_id=:id"),
+                {"id": case["people"][0]},
+            ).scalar_one()
+            == 0
+        )
+
+
+def test_overview_and_feedback_include_same_seven_day_window(case):
+    for index in range(5):
+        add_feedback(case, index, days_ago=6)
+    overview = client.get("/api/admin/overview", headers=case["viewer"]).json()
+    report = client.get(
+        "/api/admin/feedback/summary",
+        params={
+            "unit_id": str(case["units"][0]),
+            "start": str(case["today"] - timedelta(days=6)),
+            "end": str(case["today"]),
+        },
+        headers=case["viewer"],
+    ).json()
+    assert overview["feedback_period_start"] == report["period_start"]
+    assert overview["feedback_responses"] == report["responses"] == 5
+    own = next(
+        row for row in overview["unit_comparison"] if row["unit_id"] == str(case["units"][0])
+    )
+    assert own["feedback_responses"] == 5 and own["satisfaction"] == report["ratings"]["overall"]

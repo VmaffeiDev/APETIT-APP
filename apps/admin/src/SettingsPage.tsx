@@ -1,3 +1,4 @@
+import { AdminSidebar } from './AdminSidebar'
 import { FormEvent, useState } from 'react'
 import { AdminUser, adminLogout, changeAdminPassword, getAdminToken, isPresentationMode, setAdminToken } from './api'
 import { hasAdminPermission } from './access'
@@ -49,17 +50,7 @@ export function SettingsPage({user}:{user:AdminUser|null}){
   }
 
   return <div className="app-shell">
-    <aside className="sidebar">
-      <div className="brand"><span className="brand-mark">A</span><div><strong>APETIT</strong><small>Admin</small></div></div>
-      <nav>
-        <button className="nav-item" onClick={()=>location.hash='visao-geral'}>⌂ Visão geral</button>
-        <div className="nav-label">Gestão</div>
-        <button className="nav-item" onClick={()=>location.hash='unidades'}>□ Unidades</button>
-        {canManageUsers&&<button className="nav-item" onClick={()=>location.hash='empresas'}>◫ Empresas</button>}
-        {canManageUsers&&<button className="nav-item" onClick={()=>location.hash='usuarios'}>♙ Usuários e acessos</button>}
-        <button className="nav-item active">⚙ Configurações</button>
-      </nav>
-    </aside>
+    <AdminSidebar />
     <main className="main">
       <header className="topbar"><div><span className="eyebrow">GESTÃO · CONFIGURAÇÕES</span><h1>Configurações do Admin</h1><p>Ambiente, segurança da conta e atalhos de gestão.</p></div></header>
 

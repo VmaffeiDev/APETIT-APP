@@ -1,3 +1,4 @@
+import { AdminSidebar } from './AdminSidebar'
 import { DragEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { AdminUser, getAdminToken, isPresentationMode, MenuPreview, presentationAdminKey, PublicationStatus, PublishResult, getPublicationStatus, previewMenu, publishMenu } from './api'
 import { DEMO_UNITS } from './demoUnits'
@@ -157,26 +158,7 @@ function App({user}:{user:AdminUser|null}) {
 
   return (
     <div className="app-shell">
-      <aside className="sidebar">
-        <div className="brand"><span className="brand-mark">A</span><div><strong>APETIT</strong><small>Admin</small></div></div>
-        <nav>
-          <button className="nav-item" onClick={() => { window.location.hash = 'visao-geral' }}><span>⌂</span>Visão geral</button>
-          <button className="nav-item active"><span>▣</span>Cardápios</button>
-          <button className="nav-item" onClick={() => {window.location.hash=`historico-cardapios/${unitId}`}}>◷ Histórico de publicações</button>
-          <button className="nav-item" onClick={() => { window.location.hash = `calendario-cardapios/${unitId}` }}>▦ Calendário semanal</button>
-          {canManageSheets&&<button className="nav-item" onClick={() => { window.location.hash = 'importar-fichas' }}><span>↥</span>Importações</button>}
-          <button className="nav-item" onClick={() => { window.location.hash = 'fichas-tecnicas' }}><span>⌘</span>Fichas técnicas</button>
-          <div className="nav-label">Experiência</div>
-          <button className="nav-item" onClick={() => { window.location.hash = 'feedbacks' }}><span>♡</span>Feedbacks</button>
-          <button className="nav-item" onClick={() => { window.location.hash = 'feedbacks' }}><span>⌁</span>Satisfação</button>
-          <div className="nav-label">Gestão</div>
-          <button className="nav-item" onClick={() => { window.location.hash = 'unidades' }}><span>□</span>Unidades</button>
-          {canManageUsers&&<button className="nav-item" onClick={() => { window.location.hash = 'empresas' }}><span>◫</span>Empresas</button>}
-          {canManageUsers&&<button className="nav-item" onClick={() => { window.location.hash = 'usuarios' }}><span>♙</span>Usuários e acessos</button>}
-          <button className="nav-item" onClick={() => { window.location.hash = 'configuracoes' }}><span>⚙</span>Configurações</button>
-        </nav>
-        <div className="privacy-note"><strong>Privacidade por padrão</strong><p>Prescrições e histórico alimentar individual não aparecem neste painel.</p></div>
-      </aside>
+      <AdminSidebar />
 
       <main className="main">
         <header className="topbar"><div><span className="eyebrow">OPERAÇÃO · CARDÁPIOS</span><h1>Publicar cardápio semanal</h1><p>Valide a planilha antes de disponibilizar o cardápio para os funcionários.</p></div><div className="status-pill"><span className="status-dot" />API conectada</div></header>

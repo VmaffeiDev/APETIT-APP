@@ -1,3 +1,4 @@
+import { AdminSidebar } from './AdminSidebar'
 import { useEffect, useState } from 'react'
 import { AdminUser, getAdminToken, getMenuHistory, getMenuVersion, restoreMenuVersion, MenuHistoryEvent, MenuVersion, presentationAdminKey } from './api'
 import { DEMO_UNITS } from './demoUnits'
@@ -54,16 +55,7 @@ export function MenuHistoryPage({initialUnitId,user}:{initialUnitId?:string;user
 
   const selected=allowedUnits.find(u=>u.unitId===unitId)??allowedUnits[0]
   return <div className="app-shell">
-    <aside className="sidebar">
-      <div className="brand"><span className="brand-mark">A</span><div><strong>APETIT</strong><small>Admin</small></div></div>
-      <nav>
-        <button className="nav-item" onClick={()=>window.location.hash='visao-geral'}>⌂ Visão geral</button>
-        {canPublishMenus&&<button className="nav-item" onClick={()=>window.location.hash='cardapios'}>▣ Cardápios</button>}
-        <button className="nav-item active">◷ Histórico de publicações</button>
-        <button className="nav-item" onClick={()=>window.location.hash='unidades'}>□ Unidades</button>
-      </nav>
-      <div className="privacy-note"><strong>Registro operacional</strong><p>Eventos registrados desde a implantação do histórico. Identificações declaradas não equivalem a login individual.</p></div>
-    </aside>
+    <AdminSidebar />
     <main className="main">
       <header className="topbar">
         <div><span className="eyebrow">OPERAÇÃO · AUDITORIA</span><h1>Histórico de publicações</h1><p>Veja quando um cardápio foi publicado ou corrigido, para qual unidade e quem declarou a ação.</p></div>

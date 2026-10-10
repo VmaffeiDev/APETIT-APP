@@ -1,3 +1,4 @@
+import { AdminSidebar } from './AdminSidebar'
 import { useEffect, useState } from 'react'
 import { AdminUser, getWeeklyMenu, presentationAdminKey, WeeklyMenu } from './api'
 import { DEMO_UNITS } from './demoUnits'
@@ -37,15 +38,7 @@ export function WeeklyMenuPage({initialUnitId,user}:{initialUnitId?:string;user:
   }
   const unit=allowedUnits.find(u=>u.unitId===unitId)??allowedUnits[0]
   return <div className="app-shell">
-    <aside className="sidebar">
-      <div className="brand"><span className="brand-mark">A</span><div><strong>APETIT</strong><small>Admin</small></div></div>
-      <nav>
-        <button className="nav-item" onClick={()=>window.location.hash='visao-geral'}>⌂ Visão geral</button>
-        {canPublishMenus&&<button className="nav-item" onClick={()=>window.location.hash='cardapios'}>▣ Cardápios</button>}
-        <button className="nav-item" onClick={()=>window.location.hash='fichas-tecnicas'}>⌘ Fichas técnicas</button>
-        <button className="nav-item" onClick={()=>window.location.hash='unidades'}>□ Unidades</button>
-      </nav>
-    </aside>
+    <AdminSidebar />
     <main className="main">
       <header className="topbar"><div><span className="eyebrow">OPERAÇÃO · CARDÁPIOS</span><h1>Calendário semanal</h1><p>Preparações publicadas por unidade e cobertura de fichas técnicas.</p></div><span className="badge">DEMONSTRAÇÃO</span></header>
       <section className="card content-card weekly-controls">

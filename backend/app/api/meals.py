@@ -11,7 +11,7 @@ from sqlalchemy import text
 from app.api.auth import current_person
 from app.api.employee_access import require_employee_unit
 from app.db import engine
-from app.services.prescription_workflow import current_prescription_meal
+from app.services.prescription_workflow import nutrition_reference_meal
 from app.services.demo_menu import resolve_menu_service_date
 
 router = APIRouter()
@@ -221,7 +221,7 @@ def meal_progress(
     meal_type = meal_type.strip().lower()
     end = date.today()
     start = end - timedelta(days=days - 1)
-    prescription = current_prescription_meal(person_id=str(person_id), meal_type=meal_type)
+    prescription = nutrition_reference_meal(person_id=str(person_id), meal_type=meal_type)
     target = prescription["target"] if prescription else {
         "kcal": None,
         "protein_g": None,

@@ -1,3 +1,4 @@
+import { AdminSidebar } from './AdminSidebar'
 import { useEffect, useState } from 'react'
 import { AdminOverview, AdminUser, getAdminOverview, presentationAdminKey } from './api'
 import { hasAdminPermission } from './access'
@@ -49,7 +50,7 @@ export function OverviewPage({user}:{user:AdminUser|null}) {
       items.push({
         level: 'high',
         title: `${unit.company_name} · satisfação requer atenção`,
-        detail: `Média ${unit.satisfaction.toFixed(1)} nos últimos 5 dias.`,
+        detail: `Média ${unit.satisfaction.toFixed(1)} nos últimos 7 dias.`,
         action: 'Ver feedbacks',
         hash: 'feedbacks',
       })
@@ -58,7 +59,7 @@ export function OverviewPage({user}:{user:AdminUser|null}) {
       items.push({
         level: 'medium',
         title: `${unit.company_name} · baixo volume de feedback`,
-        detail: `Apenas ${unit.feedback_responses} respostas no período.`,
+        detail: unit.feedback_responses === 0 ? 'Nenhuma avaliação no período selecionado.' : `${unit.feedback_responses} resposta(s) no período.`,
         action: 'Abrir satisfação',
         hash: 'feedbacks',
       })
@@ -87,21 +88,7 @@ export function OverviewPage({user}:{user:AdminUser|null}) {
 
   return (
     <div className="app-shell">
-      <aside className="sidebar">
-        <div className="brand"><span className="brand-mark">A</span><div><strong>APETIT</strong><small>Admin</small></div></div>
-        <nav>
-          <button className="nav-item active" onClick={() => go('visao-geral')}><span>⌂</span>Visão geral</button>
-          {canPublishMenus&&<button className="nav-item" onClick={() => go('cardapios')}><span>▣</span>Cardápios</button>}
-          {canManageSheets&&<button className="nav-item" onClick={() => go('importar-fichas')}><span>↥</span>Importações</button>}
-          <button className="nav-item" onClick={() => go('fichas-tecnicas')}><span>⌘</span>Fichas técnicas</button>
-          <div className="nav-label">Experiência</div>
-          <button className="nav-item" onClick={() => go('feedbacks')}><span>♡</span>Feedbacks</button>
-          <div className="nav-label">Gestão</div>
-          <button className="nav-item" onClick={() => go('unidades')}><span>□</span>Unidades</button>
-          {canManageUsers&&<button className="nav-item" onClick={() => go('usuarios')}><span>♙</span>Usuários e acessos</button>}
-        </nav>
-        <div className="privacy-note"><strong>Privacidade por padrão</strong><p>Prescrições, restrições e histórico alimentar individual não aparecem neste painel.</p></div>
-      </aside>
+      <AdminSidebar />
 
       <main className="main">
         <header className="topbar">
@@ -128,7 +115,7 @@ export function OverviewPage({user}:{user:AdminUser|null}) {
           <article className="kpi-card"><span className="kpi-icon">□</span><small>Unidades</small><strong>{data?.units ?? '—'}</strong><p>{data?.restaurants ?? '—'} refeitórios cadastrados</p></article>
           <article className="kpi-card"><span className="kpi-icon">▣</span><small>Cardápios publicados</small><strong>{data?.published_menus ?? '—'}</strong><p>{data?.menu_items ?? '—'} itens disponíveis</p></article>
           <article className="kpi-card"><span className="kpi-icon">⌘</span><small>Fichas técnicas</small><strong>{data?.technical_sheets ?? '—'}</strong><p>{data?.complete_sheets ?? '—'} completas</p></article>
-          <article className="kpi-card"><span className="kpi-icon">♡</span><small>Satisfação geral</small><strong>{satisfaction == null ? '—' : satisfaction.toFixed(1)}</strong><p>{data?.feedback_responses ?? '—'} respostas em 5 dias</p></article>
+          <article className="kpi-card"><span className="kpi-icon">♡</span><small>Satisfação geral</small><strong>{satisfaction == null ? '—' : satisfaction.toFixed(1)}</strong><p>{data?.feedback_responses ?? '—'} respostas em 7 dias</p></article>
         </section>
 
         <section className="executive-grid">
@@ -143,7 +130,7 @@ export function OverviewPage({user}:{user:AdminUser|null}) {
             <div className="panel-head"><div><span className="eyebrow">EXPERIÊNCIA</span><h2>Satisfação dos funcionários</h2></div><strong className="coverage-number">{satisfaction == null ? '—' : satisfaction.toFixed(1)}</strong></div>
             <p>{data?.feedback_responses ?? 0} respostas agregadas entre {periodLabel(data?.feedback_period_start,data?.feedback_period_end)}.</p>
             <div className="insight-box"><small>Motivo mais citado</small><strong>{data?.top_feedback_tag ? TAG_LABELS[data.top_feedback_tag.tag] ?? data.top_feedback_tag.tag : '—'}</strong><span>{data?.top_feedback_tag?.count ?? 0} marcações</span></div>
-            <div className="panel-actions"><button className="secondary" onClick={() => go('feedbacks')}>Abrir satisfação</button></div>
+            <p>{satisfaction == null && (data?.feedback_responses ?? 0) > 0 ? 'Média ocultada para proteger grupos pequenos; há avaliações no período.' : ''}</p><div className="panel-actions"><button className="secondary" onClick={() => go('feedbacks')}>Abrir satisfação</button></div>
           </article>
         </section>
 
@@ -222,7 +209,7 @@ export function OverviewPage({user}:{user:AdminUser|null}) {
         </section>
 
         <section className="overview-grid">
-          <article className="card overview-card"><div className="overview-icon">▣</div><span className="eyebrow">ÚLTIMA PUBLICAÇÃO</span><h2>{data?.latest_menu?.unit_name ?? 'Nenhuma publicação'}</h2><p>{data?.latest_menu ? `Período ${periodLabel(data.latest_menu.period_start,data.latest_menu.period_end)}` : 'Ainda não há cardápio publicado.'}</p>{canPublishMenus?<button className="secondary" onClick={() => go('cardapios')}>Abrir cardápios</button>:<button className="secondary" onClick={() => go('unidades')}>Ver unidades</button>}</article>
+          <article className="card overview-card"><div className="overview-icon">▣</div><span className="eyebrow">ÚLTIMA PUBLICAÇÃO CADASTRADA</span><h2>{data?.latest_menu?.unit_name ?? 'Nenhuma publicação'}</h2><p>{data?.latest_menu ? `Período ${periodLabel(data.latest_menu.period_start,data.latest_menu.period_end)}${data.latest_menu.period_end && data.latest_menu.period_end < new Date().toLocaleDateString('en-CA') ? ' · Cardápio histórico; não é o período atual.' : ''}` : 'Ainda não há cardápio publicado.'}</p>{canPublishMenus?<button className="secondary" onClick={() => go('cardapios')}>Abrir cardápios</button>:<button className="secondary" onClick={() => go('unidades')}>Ver unidades</button>}</article>
           <article className="card overview-card"><div className="overview-icon">♡</div><span className="eyebrow">EXPERIÊNCIA</span><h2>Feedbacks e satisfação</h2><p>Veja tendências, motivos mais citados e comentários anonimizados.</p><button className="secondary" onClick={() => go('feedbacks')}>Ver relatório</button></article>
         </section>
       </main>

@@ -1,3 +1,4 @@
+import { AdminSidebar } from './AdminSidebar'
 import { AdminUser } from './api'
 import { DEMO_UNITS } from './demoUnits'
 import { filterUnitsForUser, hasAdminPermission } from './access'
@@ -11,22 +12,7 @@ export function UnitsPage({user}:{user:AdminUser|null}) {
 
   return (
     <div className="app-shell">
-      <aside className="sidebar">
-        <div className="brand"><span className="brand-mark">A</span><div><strong>APETIT</strong><small>Admin</small></div></div>
-        <nav>
-          <button className="nav-item" onClick={() => { window.location.hash = 'visao-geral' }}><span>⌂</span>Visão geral</button>
-          {canPublishMenus&&<button className="nav-item" onClick={() => { window.location.hash = 'cardapios' }}><span>▣</span>Cardápios</button>}
-          {canManageSheets&&<button className="nav-item" onClick={() => { window.location.hash = 'importar-fichas' }}><span>↥</span>Importações</button>}
-          <button className="nav-item" onClick={() => { window.location.hash = 'fichas-tecnicas' }}><span>⌘</span>Fichas técnicas</button>
-          <div className="nav-label">Experiência</div>
-          <button className="nav-item" onClick={() => { window.location.hash = 'feedbacks' }}><span>♡</span>Feedbacks</button>
-          <div className="nav-label">Gestão</div>
-          <button className="nav-item active"><span>□</span>Unidades</button>
-          {canManageUsers&&<button className="nav-item" onClick={() => { window.location.hash='empresas' }}><span>◫</span>Empresas</button>}
-          <button className="nav-item" onClick={() => { window.location.hash='configuracoes' }}><span>⚙</span>Configurações</button>
-        </nav>
-        <div className="privacy-note"><strong>Escopo da sua conta</strong><p>Somente unidades atribuídas ao seu perfil aparecem neste painel.</p></div>
-      </aside>
+      <AdminSidebar />
 
       <main className="main">
         <header className="topbar units-topbar">
@@ -54,7 +40,7 @@ export function UnitsPage({user}:{user:AdminUser|null}) {
           {visibleUnits.map((unit, index) => (
             <article className="unit-card" key={unit.unitId}>
               <div className="unit-card-head">
-                <div className={`company-avatar company-${index + 1}`}><img src={unit.logoUrl} alt={`Logo ${unit.company}`} loading="lazy" /></div>
+                <div className={`company-avatar company-${index + 1}`}><span aria-label={unit.company}>{unit.company.slice(0, 2).toUpperCase()}</span></div>
                 <div>
                   <span className="demo-chip">DEMO</span>
                   <h2>{unit.company}</h2>

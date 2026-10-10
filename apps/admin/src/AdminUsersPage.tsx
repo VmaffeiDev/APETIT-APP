@@ -1,3 +1,4 @@
+import { AdminSidebar } from './AdminSidebar'
 import { EmployeeManagement } from './EmployeeManagement'
 import { FormEvent, useEffect, useState } from 'react'
 import { DEMO_UNITS } from './demoUnits'
@@ -14,7 +15,7 @@ export function AdminUsersPage(){
  const load=()=>Promise.all([listAdminUsers(),getAdminAudit()]).then(([r,a])=>{setUsers(r.users);setEvents(a.events)}).catch(e=>setError(e instanceof Error?e.message:'Falha ao carregar usuários.'))
  useEffect(()=>{void load()},[])
  async function submit(e:FormEvent){e.preventDefault();setBusy(true);setError('');try{await createAdminUser({...form,unit_ids:form.role==='admin'?[]:selectedUnits});setForm({name:'',email:'',password:'',role:'operacao'});setSelectedUnits([]);await load()}catch(e){setError(e instanceof Error?e.message:'Não foi possível criar usuário.')}finally{setBusy(false)}}
- return <div className="app-shell"><aside className="sidebar"><div className="brand"><span className="brand-mark">A</span><div><strong>APETIT</strong><small>Admin</small></div></div><nav><button className="nav-item" onClick={()=>location.hash='visao-geral'}>⌂ Visão geral</button><button className="nav-item active">♙ Usuários e acessos</button></nav></aside><main className="main">
+ return <div className="app-shell"><AdminSidebar /><main className="main">
  <header className="topbar"><div><span className="eyebrow">GESTÃO · ACESSOS</span><h1>Usuários e permissões</h1><p>Crie contas individuais para tornar as ações do Admin rastreáveis.</p></div><button className="secondary" onClick={async()=>{try{await adminLogout()}catch{}finally{location.hash="usuarios";location.reload()}}}>Sair</button></header>
  {error&&<div className="alert error">{error}</div>}
  <EmployeeManagement />
