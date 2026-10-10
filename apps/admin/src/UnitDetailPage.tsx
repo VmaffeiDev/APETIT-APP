@@ -1,3 +1,4 @@
+import { AdminSidebar } from './AdminSidebar'
 import { useEffect, useMemo, useState } from 'react'
 import { AdminOverview, AdminUser, getAdminOverview, presentationAdminKey } from './api'
 import { DEMO_UNITS } from './demoUnits'
@@ -35,7 +36,7 @@ export function UnitDetailPage({unitId,user}:Props){
       })
     }
     if(unit.satisfaction!=null && unit.satisfaction<4){
-      items.push({level:'high',title:'Satisfação requer atenção',detail:`Média ${unit.satisfaction.toFixed(1)} nos últimos 5 dias.`,hash:'feedbacks',action:'Ver feedbacks'})
+      items.push({level:'high',title:'Satisfação requer atenção',detail:`Média ${unit.satisfaction.toFixed(1)} nos últimos 7 dias.`,hash:'feedbacks',action:'Ver feedbacks'})
     }
     if(unit.feedback_responses<5){
       items.push({level:'medium',title:'Baixo volume de feedback',detail:`Apenas ${unit.feedback_responses} respostas no período.`,hash:'feedbacks',action:'Abrir satisfação'})
@@ -62,20 +63,7 @@ export function UnitDetailPage({unitId,user}:Props){
   }
 
   return <div className="app-shell">
-    <aside className="sidebar">
-      <div className="brand"><span className="brand-mark">A</span><div><strong>APETIT</strong><small>Admin</small></div></div>
-      <nav>
-        <button className="nav-item" onClick={()=>go('visao-geral')}><span>⌂</span>Visão geral</button>
-        {canPublishMenus&&<button className="nav-item" onClick={()=>go('cardapios')}><span>▣</span>Cardápios</button>}
-        {canManageSheets&&<button className="nav-item" onClick={()=>go('importar-fichas')}><span>↥</span>Importações</button>}
-        <button className="nav-item" onClick={()=>go('fichas-tecnicas')}><span>⌘</span>Fichas técnicas</button>
-        <div className="nav-label">Experiência</div>
-        <button className="nav-item" onClick={()=>go('feedbacks')}><span>♡</span>Feedbacks</button>
-        <div className="nav-label">Gestão</div>
-        <button className="nav-item active" onClick={()=>go('unidades')}><span>□</span>Unidades</button>
-      </nav>
-      <div className="privacy-note"><strong>Privacidade por padrão</strong><p>Esta tela usa somente indicadores agregados da unidade.</p></div>
-    </aside>
+    <AdminSidebar />
 
     <main className="main">
       <header className="topbar">
@@ -91,7 +79,7 @@ export function UnitDetailPage({unitId,user}:Props){
       </section>
 
       <section className="executive-kpis">
-        <article className="kpi-card"><span className="kpi-icon">♡</span><small>Satisfação</small><strong>{unit?.satisfaction==null?'—':unit.satisfaction.toFixed(1)}</strong><p>{unit?.feedback_responses ?? '—'} respostas em 5 dias</p></article>
+        <article className="kpi-card"><span className="kpi-icon">♡</span><small>Satisfação</small><strong>{unit?.satisfaction==null?'—':unit.satisfaction.toFixed(1)}</strong><p>{unit?.feedback_responses ?? '—'} respostas em 7 dias</p></article>
         <article className="kpi-card"><span className="kpi-icon">▣</span><small>Cardápios</small><strong>{unit?.published_menus ?? '—'}</strong><p>{unit?.menu_days ?? '—'} dias publicados</p></article>
         <article className="kpi-card"><span className="kpi-icon">⌘</span><small>Cobertura técnica</small><strong>{unit?.technical_coverage_percent ?? 0}%</strong><p>{unit?.enriched_items ?? 0} de {unit?.menu_items ?? 0} itens</p></article>
         <article className="kpi-card"><span className="kpi-icon">•</span><small>Itens de cardápio</small><strong>{unit?.menu_items ?? '—'}</strong><p>itens disponíveis na unidade</p></article>
@@ -107,7 +95,7 @@ export function UnitDetailPage({unitId,user}:Props){
 
         <article className="card executive-panel">
           <div className="panel-head"><div><span className="eyebrow">EXPERIÊNCIA</span><h2>Satisfação da unidade</h2></div><strong className="coverage-number">{unit?.satisfaction==null?'—':unit.satisfaction.toFixed(1)}</strong></div>
-          <p>{unit?.feedback_responses ?? 0} respostas agregadas nos últimos 5 dias.</p>
+          <p>{unit?.feedback_responses ?? 0} respostas agregadas nos últimos 7 dias.</p>
           <div className="insight-box"><small>Status</small><strong>{unit?.satisfaction!=null && unit.satisfaction>=4 ? 'Experiência positiva' : 'Requer acompanhamento'}</strong><span>Indicador agregado, sem exposição individual.</span></div>
           <div className="panel-actions"><button className="secondary" onClick={()=>go('feedbacks')}>Abrir feedbacks</button></div>
         </article>

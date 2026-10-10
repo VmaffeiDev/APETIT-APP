@@ -1,3 +1,4 @@
+import { AdminUserContext } from './AdminSidebar'
 import React, { useEffect, useState } from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App'
@@ -72,34 +73,15 @@ function Root() {
 
   useEffect(() => {
     const onHash = () => setHash(window.location.hash.replace('#', '') || 'visao-geral')
-    const onClick = (event: MouseEvent) => {
-      const button = (event.target as HTMLElement | null)?.closest('button')
-      if (!button) return
-      const label = button.textContent?.toLowerCase() ?? ''
-      if (label.includes('visão geral')) {
-        window.location.hash = 'visao-geral'
-      } else if (label.includes('importar fichas')) {
-        window.location.hash = 'importar-fichas'
-      } else if (label.includes('fichas técnicas')) {
-        window.location.hash = 'fichas-tecnicas'
-      } else if ((label.includes('feedback') || label.includes('satisfação')) && !window.location.hash.includes('feedbacks/')) {
-        window.location.hash = 'feedbacks'
-      } else if (label.includes('relatório executivo')) {
-        window.location.hash = 'relatorio-executivo'
-      } else if (label.includes('unidades')) {
-        window.location.hash = 'unidades'
-      } else if (label.includes('cardápios')) {
-        window.location.hash = 'cardapios'
-      }
-    }
     window.addEventListener('hashchange', onHash)
-    document.addEventListener('click', onClick)
     return () => {
       window.removeEventListener('hashchange', onHash)
-      document.removeEventListener('click', onClick)
     }
   }, [])
 
+  return <AdminUserContext.Provider value={currentUser}>{renderPage()}</AdminUserContext.Provider>
+
+  function renderPage() {
   if (hash === 'cadastro') return <AdminRegisterPage />
   if (hash === 'redefinir-senha') return <AdminPasswordResetPage />
   if (hash === 'login') return <AdminLoginPage onSuccess={() => { window.location.hash='visao-geral'; setAuthState('checking'); setAuthRevision(v => v + 1) }} />
@@ -131,6 +113,7 @@ function Root() {
   if (hash === 'fichas-tecnicas') return <TechnicalSheetsPage user={currentUser} />
   if (hash === 'importar-fichas') return <TechnicalSheetImportPage />
   return <App user={currentUser} />
+  }
 }
 
 ReactDOM.createRoot(document.getElementById('root')!).render(

@@ -14,6 +14,7 @@ export default function AuthenticatedApp({ token, person, options, onPersonChang
   onPersonChange: (person: AuthPerson) => void
   onLogout: () => Promise<void>
 }) {
+  const isDemo = /^visitante\.[0-9a-f]{32}@apetit\.local$/.test(person.email)
   const [accountOpen, setAccountOpen] = useState(false)
   const [prescriptionOpen, setPrescriptionOpen] = useState(false)
   const [name, setName] = useState(person.name ?? '')
@@ -55,7 +56,7 @@ export default function AuthenticatedApp({ token, person, options, onPersonChang
 
   if (prescriptionOpen) return <PrescriptionReview personId={person.id} onClose={() => setPrescriptionOpen(false)} />
   const assignedUnit = options?.units.find((item) => item.unit_id === person.unit_id)
-  if (!accountOpen && assignedUnit?.restaurant_id) return <DemoApp key={assignedUnit.unit_id} goal={person.goal} onProfile={() => setAccountOpen(true)} units={[{id: assignedUnit.unit_id, restaurantId: assignedUnit.restaurant_id, company: assignedUnit.company_name, label: assignedUnit.unit_name}]} />
+  if (!accountOpen && assignedUnit?.restaurant_id) return <DemoApp isDemo={isDemo} key={assignedUnit.unit_id} goal={person.goal} onProfile={() => setAccountOpen(true)} units={[{id: assignedUnit.unit_id, restaurantId: assignedUnit.restaurant_id, company: assignedUnit.company_name, label: assignedUnit.unit_name}]} />
   if (!accountOpen) return <SafeAreaView style={styles.safe}><View style={styles.content}>
     <Text style={styles.pageTitle}>Minha unidade</Text>
     <Text style={styles.privateText}>{!options ? 'Não foi possível confirmar sua unidade ainda. Aguarde ou entre novamente.' : 'Sua unidade ou refeitório ainda precisa ser vinculado pela administração.'}</Text>
@@ -72,7 +73,7 @@ export default function AuthenticatedApp({ token, person, options, onPersonChang
       </View>
 
       <Text style={styles.pageTitle}>Perfil</Text>
-      <View style={styles.identity}><View style={styles.avatar}><Text style={styles.avatarText}>{(name || person.email).slice(0,2).toUpperCase()}</Text></View><View style={{flex:1}}><Text style={styles.personName}>{name || 'Seu nome'}</Text><Text style={styles.personMeta}>{person.email}</Text><Text style={styles.personMeta}>{sector || 'Setor não informado'}</Text></View></View>
+      <View style={styles.identity}><View style={styles.avatar}><Text style={styles.avatarText}>{(name || person.email).slice(0,2).toUpperCase()}</Text></View><View style={{flex:1}}><Text style={styles.personName}>{name || 'Seu nome'}</Text><Text style={styles.personMeta}>{isDemo ? 'Conta de demonstração' : person.email}</Text><Text style={styles.personMeta}>{sector || 'Setor não informado'}</Text></View></View>
       <View style={styles.accountStatus}><Ionicons name="checkmark-circle" size={14} color={colors.green}/><Text style={styles.accountStatusText}>Sessão autenticada</Text></View>
 
       <Text style={styles.sectionLabel}>DADOS PESSOAIS</Text>
@@ -95,7 +96,7 @@ export default function AuthenticatedApp({ token, person, options, onPersonChang
       ].map(([value, label]) => <Pressable key={value} style={[styles.choice, goal === value && styles.choiceActive]} onPress={() => { setGoal(value); if(message)setMessage('') }}><Text style={[styles.choiceTitle, goal === value && styles.choiceTitleActive]}>{label}</Text><Ionicons name={goal === value ? 'checkmark-circle' : 'ellipse-outline'} size={18} color={goal === value ? colors.red : colors.muted2}/></Pressable>)}</View>
 
       <Text style={styles.sectionLabel}>RESTRIÇÕES ALIMENTARES</Text>
-      <View style={styles.tags}>{['gluten','lactose','amendoim','castanhas','ovo','soja'].map((item) => <Pressable key={item} style={[styles.tag, restrictions.includes(item) && styles.tagActive]} onPress={() => toggleRestriction(item)}><View style={styles.tagInner}>{restrictions.includes(item) && <Ionicons name="warning-outline" size={13} color="#FF9AA6"/>}<Text style={[styles.tagText, restrictions.includes(item) && styles.tagTextActive]}>{item}</Text></View></Pressable>)}</View>
+      <View style={styles.tags}>{['gluten','lactose','amendoim','castanhas','ovo','soja'].map((item) => <Pressable key={item} style={[styles.tag, restrictions.includes(item) && styles.tagActive]} onPress={() => toggleRestriction(item)}><View style={styles.tagInner}>{restrictions.includes(item) && <Ionicons name="warning-outline" size={13} color="#FF9AA6"/>}<Text style={[styles.tagText, restrictions.includes(item) && styles.tagTextActive]}>{item === 'gluten' ? 'Glúten' : item}</Text></View></Pressable>)}</View>
 
       {!!message && <View style={[styles.message,messageType==='error'&&styles.messageError]}><Ionicons name={messageType==='error'?'alert-circle-outline':'checkmark-circle-outline'} size={17} color={messageType==='error'?colors.danger:colors.green}/><Text style={[styles.messageText,messageType==='error'&&styles.messageErrorText]}>{message}</Text></View>}
       <Pressable style={styles.primary} onPress={save} disabled={busy}><Text style={styles.primaryText}>{busy ? 'Salvando...' : 'Salvar alterações'}</Text></Pressable>

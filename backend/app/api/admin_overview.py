@@ -26,7 +26,7 @@ def admin_overview(
 ) -> dict:
     require_permission(principal, "read")
 
-    start = date.today() - timedelta(days=4)
+    start = date.today() - timedelta(days=6)
     end = date.today()
     granted_units = allowed_unit_ids(principal)
     scoped = granted_units is not None

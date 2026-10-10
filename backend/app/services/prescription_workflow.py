@@ -74,7 +74,9 @@ def confirm_prescription(
             raise LookupError("funcionário não encontrado")
 
         conn.execute(
-            text("UPDATE prescriptions SET status = 'superseded' WHERE person_id = :person_id AND status = 'confirmed'"),
+            text(
+                "UPDATE prescriptions SET status = 'superseded' WHERE person_id = :person_id AND status = 'confirmed'"
+            ),
             {"person_id": person_uuid},
         )
         conn.execute(
@@ -135,9 +137,10 @@ def confirm_prescription(
 
 def current_prescription_meal(*, person_id: str, meal_type: str) -> dict | None:
     with engine.connect() as conn:
-        meal = conn.execute(
-            text(
-                """
+        meal = (
+            conn.execute(
+                text(
+                    """
                 SELECT p.id AS prescription_id, pm.id AS meal_id, pm.meal_type,
                        pm.kcal, pm.protein_g, pm.carbs_g, pm.fat_g
                 FROM prescriptions p
@@ -148,22 +151,29 @@ def current_prescription_meal(*, person_id: str, meal_type: str) -> dict | None:
                 ORDER BY p.confirmed_at DESC
                 LIMIT 1
                 """
-            ),
-            {"person_id": UUID(person_id), "meal_type": meal_type},
-        ).mappings().first()
+                ),
+                {"person_id": UUID(person_id), "meal_type": meal_type},
+            )
+            .mappings()
+            .first()
+        )
         if meal is None:
             return None
-        portions = conn.execute(
-            text(
-                """
+        portions = (
+            conn.execute(
+                text(
+                    """
                 SELECT category, quantity, unit, notes
                 FROM prescription_portions
                 WHERE prescription_meal_id = :meal_id
                 ORDER BY category
                 """
-            ),
-            {"meal_id": meal["meal_id"]},
-        ).mappings().all()
+                ),
+                {"meal_id": meal["meal_id"]},
+            )
+            .mappings()
+            .all()
+        )
 
     return {
         "prescription_id": str(meal["prescription_id"]),
@@ -175,4 +185,35 @@ def current_prescription_meal(*, person_id: str, meal_type: str) -> dict | None:
             "fat_g": meal["fat_g"],
         },
         "portions": [dict(row) for row in portions],
+    }
+
+
+def nutrition_reference_meal(*, person_id: str, meal_type: str) -> dict | None:
+    """Use real confirmed data first; a fictitious target is limited to demo identities."""
+    import re
+    from app.settings import settings
+
+    confirmed = current_prescription_meal(person_id=person_id, meal_type=meal_type)
+    if confirmed is not None:
+        return confirmed
+    if settings.environment.strip().lower() != "development" or meal_type != "almoco":
+        return None
+    with engine.connect() as conn:
+        email = conn.execute(
+            text("SELECT email FROM people WHERE id=:id AND deleted_at IS NULL"),
+            {"id": UUID(person_id)},
+        ).scalar_one_or_none()
+    if not email or re.fullmatch(r"visitante\.[0-9a-f]{32}@apetit\.local", str(email)) is None:
+        return None
+    return {
+        "prescription_id": None,
+        "meal_type": meal_type,
+        "is_demo": True,
+        "target": {
+            "kcal": Decimal("650"),
+            "protein_g": Decimal("30"),
+            "carbs_g": Decimal("80"),
+            "fat_g": Decimal("20"),
+        },
+        "portions": [],
     }

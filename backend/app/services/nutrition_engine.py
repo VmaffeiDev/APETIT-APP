@@ -11,7 +11,7 @@ from sqlalchemy import text
 from app.db import engine
 from app.domain.allergens import assess_allergens
 from app.services.demo_menu import resolve_menu_service_date
-from app.services.prescription_workflow import current_prescription_meal
+from app.services.prescription_workflow import nutrition_reference_meal
 from app.settings import settings
 
 
@@ -59,7 +59,7 @@ def recommend_meal(
     service_date: date,
     meal_type: str,
 ) -> dict:
-    prescription = current_prescription_meal(person_id=person_id, meal_type=meal_type)
+    prescription = nutrition_reference_meal(person_id=person_id, meal_type=meal_type)
     if prescription is None:
         raise LookupError("nenhuma prescrição confirmada encontrada para esta refeição")
 
@@ -75,12 +75,15 @@ def recommend_meal(
             for row in conn.execute(
                 text("SELECT value FROM dietary_restrictions WHERE person_id = :person_id"),
                 {"person_id": UUID(person_id)},
-            ).mappings().all()
+            )
+            .mappings()
+            .all()
         }
 
-        rows = conn.execute(
-            text(
-                """
+        rows = (
+            conn.execute(
+                text(
+                    """
                 SELECT mi.id, mi.name, mi.category, mi.standard_portion,
                        mi.kcal, mi.protein_g, mi.carbs_g, mi.fat_g,
                        COALESCE(array_agg(mia.allergen) FILTER (WHERE mia.allergen IS NOT NULL), '{}') AS allergens,
@@ -94,13 +97,16 @@ def recommend_meal(
                 GROUP BY mi.id
                 ORDER BY mi.category, mi.name
                 """
-            ),
-            {
-                "unit_id": UUID(unit_id),
-                "service_date": effective_date,
-                "meal_type": meal_type,
-            },
-        ).mappings().all()
+                ),
+                {
+                    "unit_id": UUID(unit_id),
+                    "service_date": effective_date,
+                    "meal_type": meal_type,
+                },
+            )
+            .mappings()
+            .all()
+        )
 
     candidates: list[CandidateItem] = []
     excluded_for_restriction: list[str] = []
@@ -134,6 +140,7 @@ def recommend_meal(
 
     if not candidates:
         return {
+            "reference_kind": "demo" if prescription.get("is_demo") else "confirmed",
             "status": "insufficient_data",
             "message": "Não há itens com dados nutricionais suficientes e seguros para calcular uma sugestão.",
             "target": prescription["target"],
@@ -156,7 +163,9 @@ def recommend_meal(
         preferred_categories = ("prato_principal", "arroz", "feijao", "salada")
         demo_items = []
         for category in preferred_categories:
-            item = next((candidate for candidate in candidates if candidate.category == category), None)
+            item = next(
+                (candidate for candidate in candidates if candidate.category == category), None
+            )
             if item is not None:
                 demo_items.append(item)
         if len(demo_items) >= 3:
@@ -180,6 +189,7 @@ def recommend_meal(
     totals = _total(best)
 
     return {
+        "reference_kind": "demo" if prescription.get("is_demo") else "confirmed",
         "status": "recommended",
         "prescription_id": prescription["prescription_id"],
         "service_date": service_date.isoformat(),

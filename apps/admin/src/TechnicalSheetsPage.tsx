@@ -1,3 +1,4 @@
+import { AdminSidebar } from './AdminSidebar'
 import { useEffect, useMemo, useState } from 'react'
 import { AdminUser, getAdminToken, getTechnicalSheet, getTechnicalSheetCoverage, isPresentationMode, listTechnicalSheets, presentationAdminKey, saveTechnicalSheet, TechnicalSheet, TechnicalSheetCoverage, TechnicalSheetSummary } from './api'
 import { filterUnitsForUser, hasAdminPermission } from './access'
@@ -29,7 +30,7 @@ export function TechnicalSheetsPage({user}:{user:AdminUser|null}) {
   const canPublishMenus=hasAdminPermission(user,'publish_menu')
   const authenticated=Boolean(getAdminToken())
   const allowedUnits=useMemo(()=>filterUnitsForUser(DEMO_UNITS,user),[user])
-  const [unitId,setUnitId]=useState(allowedUnits[0]?.unitId ?? '')
+  const [unitId,setUnitId]=useState((allowedUnits.find(unit => unit.company === 'Coca-Cola') ?? allowedUnits[0])?.unitId ?? '')
   const [coverage,setCoverage]=useState<TechnicalSheetCoverage|null>(null)
   const [coverageBusy,setCoverageBusy]=useState(false)
   const [coverageMessage,setCoverageMessage]=useState('')
@@ -127,18 +128,7 @@ export function TechnicalSheetsPage({user}:{user:AdminUser|null}) {
   useEffect(() => { if ((authenticated || adminKey) && unitId) void loadCoverage(unitId) }, [unitId])
 
   return <div className="app-shell">
-    <aside className="sidebar">
-      <div className="brand"><span className="brand-mark">A</span><div><strong>APETIT</strong><small>Admin</small></div></div>
-      <nav>
-        <button className="nav-item" onClick={() => { window.location.hash = 'visao-geral' }}>⌂ Visão geral</button>
-        {canPublishMenus&&<button className="nav-item" onClick={() => { window.location.hash = 'cardapios' }}>▣ Cardápios</button>}
-        <button className="nav-item active">⌘ Fichas técnicas</button>
-        {canManage&&<button className="nav-item" onClick={() => { window.location.hash = 'importar-fichas' }}>↥ Importar fichas</button>}
-        <button className="nav-item" onClick={() => { window.location.hash = 'feedbacks' }}>♡ Feedbacks</button>
-        <button className="nav-item" onClick={() => { window.location.hash = 'unidades' }}>□ Unidades</button>
-      </nav>
-      <div className="privacy-note"><strong>Base nutricional</strong><p>Somente dados técnicos validados devem ser usados para alimentar recomendações.</p></div>
-    </aside>
+    <AdminSidebar />
     <main className="main">
       <header className="topbar"><div><span className="eyebrow">OPERAÇÃO · NUTRIÇÃO</span><h1>Fichas técnicas</h1><p>{canManage?'Cadastre composição, porção, ingredientes e alergênicos por código técnico.':'Consulte composição, porção, ingredientes e alergênicos cadastrados.'}</p></div><div style={{display:'flex',gap:8}}>{canManage?<><button className="secondary" onClick={() => { window.location.hash = 'importar-fichas' }}>Importar planilha</button><button className="primary" onClick={reset}>Nova ficha</button></>:<span className="badge soft">Somente leitura</span>}</div></header>
 
