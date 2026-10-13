@@ -16,6 +16,8 @@ from app.services.admin_login_rate import (
     reserve_login_attempt,
 )
 from app.settings import Settings, settings
+from app.api import admin_users
+from app.services.email_delivery import EmailDeliveryError
 
 client = TestClient(app)
 DEV_KEY = "test-only-security-key-not-a-real-secret-2026"
@@ -82,6 +84,10 @@ def admin_account():
                 conn.execute(
                     text("DELETE FROM auth_rate_events WHERE key_hash=:key AND event_type=:event"),
                     {"key": login_key(address), "event": EVENT_TYPE},
+                )
+                conn.execute(
+                    text("DELETE FROM auth_rate_events WHERE key_hash=:key"),
+                    {"key": admin_users._recovery_key(address)},
                 )
 
 
@@ -159,3 +165,76 @@ def test_concurrent_requests_cannot_exceed_account_budget(admin_account):
             {"key": login_key(admin_account["email"]), "event": EVENT_TYPE},
         ).scalar_one()
     assert count == ADMIN_LOGIN_LIMIT
+
+
+def test_invalid_recovery_links_remain_counted_after_unauthorized(admin_account):
+    payload = {
+        "email": admin_account["email"],
+        "token": "invalid-synthetic-reset-token-0000000000",
+        "new_password": "Recovery-Test-2026!",
+    }
+    for _ in range(admin_users.ADMIN_RESET_VERIFY_LIMIT):
+        response = client.post("/api/admin/auth/password-reset/confirm", json=payload)
+        assert response.status_code == 401
+    payload["email"] = payload["email"].upper()
+    assert client.post("/api/admin/auth/password-reset/confirm", json=payload).status_code == 429
+    assert attempt(admin_account["email"]).status_code == 200
+
+
+def test_concurrent_recovery_requests_share_one_account_budget(admin_account):
+    def reserve(_):
+        try:
+            admin_users._reserve_recovery_attempt(
+                email=admin_account["email"],
+                kind="admin_reset_request",
+                maximum=admin_users.ADMIN_RESET_REQUEST_LIMIT,
+            )
+            return 200
+        except HTTPException as error:
+            return error.status_code
+
+    with ThreadPoolExecutor(max_workers=12) as pool:
+        results = list(pool.map(reserve, range(12)))
+    assert results.count(200) == admin_users.ADMIN_RESET_REQUEST_LIMIT
+    assert results.count(429) == 12 - admin_users.ADMIN_RESET_REQUEST_LIMIT
+
+
+def test_failed_recovery_delivery_is_limited_and_invalidates_link(admin_account, monkeypatch):
+    def refuse_delivery(**payload):
+        raise EmailDeliveryError("Synthetic provider failure")
+
+    monkeypatch.setattr(admin_users, "send_admin_password_reset", refuse_delivery)
+    monkeypatch.setattr(settings, "cors_origins", "https://admin.example.com")
+    payload = {"email": admin_account["email"]}
+    for _ in range(admin_users.ADMIN_RESET_REQUEST_LIMIT):
+        response = client.post("/api/admin/auth/password-reset/request", json=payload)
+        assert response.status_code == 503
+    assert client.post("/api/admin/auth/password-reset/request", json=payload).status_code == 429
+    with engine.connect() as conn:
+        assert conn.execute(
+            text("SELECT count(*) FROM admin_password_resets WHERE user_id=:id"),
+            {"id": admin_account["id"]},
+        ).scalar_one() == 0
+
+
+def test_recovery_link_is_single_use_and_revokes_existing_sessions(admin_account, monkeypatch):
+    delivered = []
+    monkeypatch.setattr(admin_users, "send_admin_password_reset", lambda **p: delivered.append(p))
+    monkeypatch.setattr(settings, "cors_origins", "https://admin.example.com")
+    session = attempt(admin_account["email"]).json()["token"]
+    response = client.post(
+        "/api/admin/auth/password-reset/request", json={"email": admin_account["email"]}
+    )
+    assert response.status_code == 200 and len(delivered) == 1
+    from urllib.parse import parse_qs, urlparse
+
+    query = parse_qs(urlparse(delivered[0]["reset_url"]).query)
+    payload = {
+        "email": admin_account["email"],
+        "token": query["reset_token"][0],
+        "new_password": "Recovered-Synthetic-2026!",
+    }
+    assert client.post("/api/admin/auth/password-reset/confirm", json=payload).status_code == 200
+    assert client.get("/api/admin/auth/me", headers={"Authorization": f"Bearer {session}"}).status_code == 401
+    assert client.post("/api/admin/auth/password-reset/confirm", json=payload).status_code == 401
+    assert attempt(admin_account["email"], payload["new_password"]).status_code == 200

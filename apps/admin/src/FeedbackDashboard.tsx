@@ -86,7 +86,7 @@ export function FeedbackDashboard({ initialUnitId, user }: { initialUnitId?: str
           <label><span>Refeitório</span><input value={selectedUnit.restaurantName} readOnly /></label>
           <label><span>De</span><input type="date" value={start} onChange={(e) => setStart(e.target.value)} /></label>
           <label><span>Até</span><input type="date" value={end} onChange={(e) => setEnd(e.target.value)} /></label>
-          {isPresentationMode ? <div className="full presentation-access"><strong>Modo apresentação</strong><span>Dados fictícios controlados de 15/09 a 19/09/2026. Se a API demo estiver indisponível, o painel usa uma amostra local identificada como demonstração.</span></div> : !authenticated ? <label className="full"><span>Chave administrativa</span><input type="password" value={adminKey} onChange={(e) => setAdminKey(e.target.value)} placeholder="Chave de acesso da operação" /></label> : <div className="full presentation-access"><strong>Conta autenticada</strong><span>Relatório limitado às unidades atribuídas a {user?.name}.</span></div>}
+          {isPresentationMode ? <div className="full presentation-access"><strong>Modo apresentação</strong><span>Consulte os dados fictícios pelo período selecionado. Se a API demo estiver indisponível, o painel usa uma amostra local identificada como demonstração.</span></div> : !authenticated ? <label className="full"><span>Chave administrativa</span><input type="password" value={adminKey} onChange={(e) => setAdminKey(e.target.value)} placeholder="Chave de acesso da operação" /></label> : <div className="full presentation-access"><strong>Conta autenticada</strong><span>Relatório limitado às unidades atribuídas a {user?.name}.</span></div>}
         </div>
         {error && <div className="alert error">{error}</div>}
         <div className="action-row"><span className="helper">{isPresentationMode ? 'Dados fictícios para demonstração · nenhum funcionário real é usado.' : 'Nenhum identificador de funcionário é retornado neste relatório.'}</span><button className="primary" disabled={busy} onClick={load}>{busy ? 'Carregando...' : 'Atualizar relatório'}</button></div>
@@ -95,11 +95,11 @@ export function FeedbackDashboard({ initialUnitId, user }: { initialUnitId?: str
       {summary?.suppressed && (
         <section className="card privacy-empty">
           <div className="privacy-shield">◈</div>
-          <span className="eyebrow">RECORTE PROTEGIDO</span>
-          <h2>Dados detalhados não exibidos</h2>
-          <p>{summary.message}</p>
+          <span className="eyebrow">{summary.responses === 0 ? 'SEM AVALIAÇÕES' : 'RECORTE PROTEGIDO'}</span>
+          <h2>{summary.responses === 0 ? 'Nenhuma avaliação neste período' : 'Dados detalhados não exibidos'}</h2>
+          <p>{summary.responses === 0 ? 'Selecione outro período para consultar avaliações anteriores.' : summary.message}</p>
           <div className="suppressed-count"><strong>{summary.responses}</strong><span>respostas no período</span></div>
-          <small>O relatório detalhado será liberado automaticamente quando houver pelo menos {summary.minimum_group} respostas no recorte selecionado.</small>
+          <small>Período consultado: {formatDate(summary.period_start)} a {formatDate(summary.period_end)}. O relatório detalhado exige pelo menos {summary.minimum_group} pessoas distintas no recorte selecionado.</small>
         </section>
       )}
 

@@ -380,11 +380,21 @@ def _recovery_rate(conn, *, email: str, kind: str, maximum: int) -> None:
         )
 
 
-def _recovery_record(conn, *, email: str, kind: str) -> None:
-    conn.execute(text("""
-        INSERT INTO auth_rate_events(key_hash,event_type)
-        VALUES (:key_hash,:kind)
-    """), {"key_hash": _recovery_key(email), "kind": kind})
+def _reserve_recovery_attempt(*, email: str, kind: str, maximum: int) -> None:
+    """Commit the attempt before work that may roll back or fail delivery.
+
+    Serialize reservations for the same account across workers. Confirmation
+    counts every attempt; a successful reset clears the confirmation budget.
+    """
+    key = _recovery_key(email)
+    lock_id = int.from_bytes(bytes.fromhex(key)[:8], signed=True)
+    with engine.begin() as conn:
+        conn.execute(text("SELECT pg_advisory_xact_lock(:lock_id)"), {"lock_id": lock_id})
+        _recovery_rate(conn, email=email, kind=kind, maximum=maximum)
+        conn.execute(text("""
+            INSERT INTO auth_rate_events(key_hash,event_type)
+            VALUES (:key_hash,:kind)
+        """), {"key_hash": key, "kind": kind})
 
 
 @router.post("/api/admin/auth/password-reset/request", tags=["admin-auth"])
@@ -393,9 +403,10 @@ def request_admin_password_reset(payload: AdminPasswordResetRequest, request: Re
     reset_token: str | None = None
     user_id = None
 
+    _reserve_recovery_attempt(
+        email=email, kind="admin_reset_request", maximum=ADMIN_RESET_REQUEST_LIMIT
+    )
     with engine.begin() as conn:
-        _recovery_rate(conn, email=email, kind="admin_reset_request", maximum=ADMIN_RESET_REQUEST_LIMIT)
-        _recovery_record(conn, email=email, kind="admin_reset_request")
         row = conn.execute(text("""
             SELECT id,email,active FROM admin_users WHERE email=:email
         """), {"email": email}).mappings().one_or_none()
@@ -459,8 +470,10 @@ def confirm_admin_password_reset(payload: AdminPasswordResetConfirm) -> dict:
     email = str(payload.email).strip().lower()
     token_hash = hashlib.sha256(payload.token.strip().encode()).hexdigest()
 
+    _reserve_recovery_attempt(
+        email=email, kind="admin_reset_verify_failed", maximum=ADMIN_RESET_VERIFY_LIMIT
+    )
     with engine.begin() as conn:
-        _recovery_rate(conn, email=email, kind="admin_reset_verify_failed", maximum=ADMIN_RESET_VERIFY_LIMIT)
         row = conn.execute(text("""
             SELECT u.id AS user_id, r.id AS reset_id
             FROM admin_users u
@@ -473,7 +486,6 @@ def confirm_admin_password_reset(payload: AdminPasswordResetConfirm) -> dict:
         """), {"email": email, "token_hash": token_hash}).mappings().one_or_none()
 
         if row is None:
-            _recovery_record(conn, email=email, kind="admin_reset_verify_failed")
             raise HTTPException(status_code=401, detail="Link de redefinição inválido ou expirado")
 
         conn.execute(text("""
@@ -510,9 +522,8 @@ class SelfRegistrationRequest(BaseModel):
 def register_admin_user(payload: SelfRegistrationRequest) -> dict:
     """Public team signup. New accounts are inactive until an administrator approves access."""
     email = str(payload.email).strip().lower()
+    _reserve_recovery_attempt(email=email, kind="admin_register", maximum=3)
     with engine.begin() as conn:
-        _recovery_rate(conn, email=email, kind="admin_register", maximum=3)
-        _recovery_record(conn, email=email, kind="admin_register")
         existing = conn.execute(
             text("SELECT active FROM admin_users WHERE email=:email"),
             {"email": email},
