@@ -8,13 +8,15 @@ from uuid import UUID
 from fastapi import APIRouter, File, Form, Header, HTTPException, UploadFile
 from app.services.upload_limits import read_limited_upload
 from pydantic import BaseModel, Field
+from pypdf.errors import PdfReadError
+from starlette.concurrency import run_in_threadpool
 
 from app.api.auth import current_person
 from app.api.employee_access import require_employee_unit
 from app.domain.prescription import NutritionTarget, PortionInstruction
 from app.services.nutrition_engine import recommend_meal
 from app.services.plate_evaluation import evaluate_plate
-from app.services.prescription_document import extract_text, meal_to_payload, parse_prescription_text
+from app.services.prescription_document import DocumentLimitError, extract_text, meal_to_payload, parse_prescription_text
 from app.services.prescription_workflow import confirm_prescription, get_staged, stage_prescription
 
 
@@ -72,7 +74,12 @@ async def preview_prescription(
     _require_self(person_id, authorization)
     file_name = file.filename or "prescricao"
     content = await read_limited_upload(file)
-    extracted_text, extraction_status = extract_text(file_name, content)
+    try:
+        extracted_text, extraction_status = await run_in_threadpool(extract_text, file_name, content)
+    except DocumentLimitError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except (ValueError, OSError, PdfReadError) as exc:
+        raise HTTPException(status_code=422, detail="documento inválido ou acima dos limites de processamento") from exc
 
     if extraction_status == "unsupported":
         raise HTTPException(

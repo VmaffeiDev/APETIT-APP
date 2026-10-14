@@ -17,6 +17,17 @@ from app.settings import settings
 
 register_heif_opener()
 
+MAX_IMAGE_PIXELS = 20_000_000
+
+
+class DocumentLimitError(ValueError):
+    pass
+
+
+def _check_image_size(width: int, height: int) -> None:
+    if width <= 0 or height <= 0 or width * height > MAX_IMAGE_PIXELS:
+        raise DocumentLimitError("imagem excede o limite de 20 megapixels")
+
 _MEAL_ALIASES = {
     "almoco": "almoco",
     "almoço": "almoco",
@@ -50,11 +61,16 @@ def _ocr_image(content: bytes) -> tuple[str | None, str]:
 def _heic_to_png(content: bytes) -> bytes | None:
     try:
         with Image.open(io.BytesIO(content)) as image:
+            _check_image_size(image.width, image.height)
             converted = image.convert("RGB")
             output = io.BytesIO()
             converted.save(output, format="PNG")
             return output.getvalue()
-    except (OSError, ValueError):
+    except Image.DecompressionBombError as exc:
+        raise DocumentLimitError("imagem excede o limite de processamento") from exc
+    except (OSError, ValueError) as exc:
+        if isinstance(exc, DocumentLimitError):
+            raise
         return None
 
 
@@ -66,9 +82,12 @@ def _ocr_pdf(content: bytes) -> tuple[str | None, str]:
 
     pages: list[str] = []
     try:
-        page_count = min(len(document), max(1, settings.ocr_pdf_max_pages))
+        page_count = len(document)
+        if page_count > max(1, settings.ocr_pdf_max_pages):
+            raise DocumentLimitError(f"PDF excede o limite de {max(1, settings.ocr_pdf_max_pages)} páginas")
         for index in range(page_count):
             page = document[index]
+            _check_image_size(int(page.rect.width * 2) + 1, int(page.rect.height * 2) + 1)
             pixmap = page.get_pixmap(matrix=fitz.Matrix(2, 2), alpha=False)
             image_bytes = pixmap.tobytes("png")
             try:
@@ -90,11 +109,18 @@ def extract_text(file_name: str, content: bytes) -> tuple[str | None, str]:
         return content.decode("utf-8-sig", errors="replace"), "text"
     if extension == ".pdf":
         reader = PdfReader(io.BytesIO(content))
+        if len(reader.pages) > max(1, settings.ocr_pdf_max_pages):
+            raise DocumentLimitError(f"PDF excede o limite de {max(1, settings.ocr_pdf_max_pages)} páginas")
         text = "\n".join((page.extract_text() or "") for page in reader.pages).strip()
         if text:
             return text, "pdf_text"
         return _ocr_pdf(content)
     if extension in {".png", ".jpg", ".jpeg", ".webp"}:
+        try:
+            with Image.open(io.BytesIO(content)) as image:
+                _check_image_size(image.width, image.height)
+        except Image.DecompressionBombError as exc:
+            raise DocumentLimitError("imagem excede o limite de processamento") from exc
         return _ocr_image(content)
     if extension in {".heic", ".heif"}:
         converted = _heic_to_png(content)
