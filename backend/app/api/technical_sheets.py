@@ -5,6 +5,7 @@ from pathlib import Path
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from app.services.upload_limits import read_limited_upload, validate_xlsx_archive
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 
@@ -80,7 +81,9 @@ async def preview_technical_sheet_import(
     file_name = file.filename or "fichas-tecnicas"
     if Path(file_name).suffix.lower() not in {".xlsx", ".csv"}:
         raise HTTPException(status_code=415, detail="formato não suportado; envie .xlsx ou .csv")
-    content = await file.read()
+    content = await read_limited_upload(file)
+    if Path(file_name).suffix.lower() == ".xlsx":
+        validate_xlsx_archive(content)
     try:
         staged = stage_import(file_name, content)
     except ValueError as exc:

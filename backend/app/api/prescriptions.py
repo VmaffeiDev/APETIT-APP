@@ -6,6 +6,7 @@ from pathlib import Path
 from uuid import UUID
 
 from fastapi import APIRouter, File, Form, Header, HTTPException, UploadFile
+from app.services.upload_limits import read_limited_upload
 from pydantic import BaseModel, Field
 
 from app.api.auth import current_person
@@ -70,7 +71,7 @@ async def preview_prescription(
 ) -> dict:
     _require_self(person_id, authorization)
     file_name = file.filename or "prescricao"
-    content = await file.read()
+    content = await read_limited_upload(file)
     extracted_text, extraction_status = extract_text(file_name, content)
 
     if extraction_status == "unsupported":
