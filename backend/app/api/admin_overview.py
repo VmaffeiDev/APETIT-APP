@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import datetime, timedelta
 from io import BytesIO
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, Header
 from fastapi.responses import StreamingResponse
@@ -26,8 +27,8 @@ def admin_overview(
 ) -> dict:
     require_permission(principal, "read")
 
-    start = date.today() - timedelta(days=6)
-    end = date.today()
+    end = datetime.now(ZoneInfo("America/Sao_Paulo")).date()
+    start = end - timedelta(days=6)
     granted_units = allowed_unit_ids(principal)
     scoped = granted_units is not None
     params = {"start": start, "end": end, "unit_ids": granted_units or [], "minimum_group": MIN_REPORT_GROUP}
@@ -471,7 +472,7 @@ def admin_overview_pdf(
     require_permission(principal, "read")
     payload = admin_overview(principal)
     pdf_bytes = _report_pdf(payload)
-    filename = f"APETIT-Relatorio-Executivo-{date.today().isoformat()}.pdf"
+    filename = f"APETIT-Relatorio-Executivo-{datetime.now(ZoneInfo('America/Sao_Paulo')).date().isoformat()}.pdf"
     return StreamingResponse(
         BytesIO(pdf_bytes),
         media_type="application/pdf",

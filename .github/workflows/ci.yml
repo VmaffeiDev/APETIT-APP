@@ -75,5 +75,7 @@ jobs:
           node-version: '22'
       - name: Install
         run: npm install --no-audit --no-fund
+      - name: Report period regressions
+        run: node --experimental-strip-types --test tests/reportPeriod.test.mjs
       - name: Build
         run: npm run build

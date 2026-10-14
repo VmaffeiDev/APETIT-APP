@@ -1,7 +1,7 @@
 """HTTP regressions with isolated synthetic records in PostgreSQL."""
 
 import hashlib
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from uuid import uuid4
 
 import pytest
@@ -14,6 +14,20 @@ from app.main import app
 from app.settings import settings
 
 client = TestClient(app)
+
+
+def test_overview_uses_operation_date_near_utc_midnight(case, monkeypatch):
+    class Clock(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return datetime(2026, 10, 14, 2, 30, tzinfo=timezone.utc).astimezone(tz)
+
+    monkeypatch.setattr(overview_module, "datetime", Clock)
+    response = client.get("/api/admin/overview", headers=case["viewer"])
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["feedback_period_start"] == "2026-10-07"
+    assert payload["feedback_period_end"] == "2026-10-13"
 
 
 @pytest.fixture
