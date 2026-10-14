@@ -5,6 +5,7 @@ from pathlib import Path
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, UploadFile
+from app.services.upload_limits import read_limited_upload, validate_xlsx_archive
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 
@@ -48,7 +49,9 @@ async def preview_menu_import(
 
     file_name = file.filename or "cardapio"
     extension = Path(file_name).suffix.lower()
-    content = await file.read()
+    content = await read_limited_upload(file)
+    if extension == ".xlsx":
+        validate_xlsx_archive(content)
 
     try:
         if extension == ".xlsx":
