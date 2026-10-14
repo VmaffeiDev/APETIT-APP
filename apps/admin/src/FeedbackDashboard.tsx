@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { AdminUser, FeedbackSummary, getAdminToken, getFeedbackSummary, isPresentationMode, presentationAdminKey } from './api'
 import { DEMO_UNITS } from './demoUnits'
 import { filterUnitsForUser } from './access'
+import { reportPeriod } from './reportPeriod'
 
 const TAG_LABELS: Record<string, string> = {
   sabor: 'Sabor',
@@ -22,15 +23,13 @@ export function FeedbackDashboard({ initialUnitId, user }: { initialUnitId?: str
   const allowedUnits = useMemo(()=>filterUnitsForUser(DEMO_UNITS,user),[user])
   const initialUnit = allowedUnits.find((unit) => unit.unitId === initialUnitId) ?? allowedUnits[0] ?? DEMO_UNITS[0]
   const authenticated=Boolean(getAdminToken())
-  const today = new Date()
-  const sevenDaysAgo = new Date(today)
-  sevenDaysAgo.setDate(today.getDate() - 6)
+  const [initialPeriod] = useState(() => reportPeriod())
 
   const [unitId, setUnitId] = useState(initialUnit.unitId)
   const [restaurantId, setRestaurantId] = useState(initialUnit.restaurantId)
   const [adminKey, setAdminKey] = useState(presentationAdminKey)
-  const [start, setStart] = useState(sevenDaysAgo.toLocaleDateString('en-CA'))
-  const [end, setEnd] = useState(today.toLocaleDateString('en-CA'))
+  const [start, setStart] = useState(initialPeriod.start)
+  const [end, setEnd] = useState(initialPeriod.end)
   const [summary, setSummary] = useState<FeedbackSummary | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
