@@ -11,6 +11,9 @@ class OcrError(RuntimeError):
     pass
 
 
+MAX_OCR_RESPONSE_BYTES = 2 * 1024 * 1024
+
+
 def extract_document_text(image_bytes: bytes) -> str:
     provider = settings.ocr_provider.strip().lower()
     if provider in {"", "none", "disabled"}:
@@ -41,7 +44,10 @@ def extract_document_text(image_bytes: bytes) -> str:
     )
     try:
         with request.urlopen(http_request, timeout=settings.ocr_timeout_seconds) as response:
-            body = json.loads(response.read().decode("utf-8"))
+            raw = response.read(MAX_OCR_RESPONSE_BYTES + 1)
+            if len(raw) > MAX_OCR_RESPONSE_BYTES:
+                raise OcrError("resposta do OCR excede o limite de processamento")
+            body = json.loads(raw.decode("utf-8"))
     except (error.HTTPError, error.URLError, TimeoutError, json.JSONDecodeError) as exc:
         raise OcrError("não foi possível processar o documento no serviço de OCR") from exc
 
