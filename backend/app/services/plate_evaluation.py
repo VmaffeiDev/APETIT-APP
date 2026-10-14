@@ -148,6 +148,8 @@ def evaluate_plate(
     if missing_nutrition:
         status = "insufficient_data"
 
+    reference_label = "meta fictícia de demonstração" if prescription.get("is_demo") else "meta confirmada"
+
     return {
         "reference_kind": "demo" if prescription.get("is_demo") else "confirmed",
         "status": status,
@@ -161,9 +163,9 @@ def evaluate_plate(
             "missing_nutrition": missing_nutrition,
         },
         "message": (
-            "Seu prato está próximo da meta confirmada."
+            f"Seu prato está próximo da {reference_label}."
             if status == "within_target"
-            else "Seu prato pode ser ajustado para ficar mais próximo da meta confirmada."
+            else f"Seu prato pode ser ajustado para ficar mais próximo da {reference_label}."
             if status == "outside_target"
             else "Há itens sem dados nutricionais suficientes para avaliar o prato com segurança."
         ),
