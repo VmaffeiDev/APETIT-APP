@@ -1,12 +1,12 @@
 export const colors = {
-  bg: '#090B0E',
-  surface: '#121519',
-  surfaceAlt: '#191D22',
-  border: '#2B3037',
-  borderSoft: '#1F242A',
+  bg: '#0B0E13',
+  surface: '#151A20',
+  surfaceAlt: '#202630',
+  border: '#333B45',
+  borderSoft: '#272F38',
   text: '#F5F7FA',
-  muted: '#98A1AC',
-  muted2: '#6F7884',
+  muted: '#B5BDC8',
+  muted2: '#919BA8',
   red: '#F00646',
   redDark: '#7C122E',
   yellow: '#FFDA32',
@@ -19,10 +19,10 @@ export const colors = {
 }
 
 export const radius = {
-  sm: 10,
-  md: 15,
-  lg: 19,
-  xl: 23,
+  sm: 12,
+  md: 16,
+  lg: 22,
+  xl: 26,
   pill: 999,
 }
 
