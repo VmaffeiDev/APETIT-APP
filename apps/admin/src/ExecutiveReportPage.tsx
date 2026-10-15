@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { AdminOverview, getAdminOverview, getExecutiveReportPdf, presentationAdminKey } from './api'
+import { reportPeriod } from './reportPeriod'
 
 function go(hash:string){ window.location.hash = hash }
 
@@ -56,11 +57,12 @@ export function ExecutiveReportPage(){
   },[data])
 
   async function downloadPdf(){
+    if(!data) return
     setExporting(true)
     setError('')
     try{
       const blob=await getExecutiveReportPdf(presentationAdminKey)
-      const fileName=`APETIT-Relatorio-Executivo-${new Date().toISOString().slice(0,10)}.pdf`
+      const fileName=`APETIT-Relatorio-Executivo-${reportPeriod().end}.pdf`
       const file=new File([blob],fileName,{type:'application/pdf'})
       const shareNavigator=navigator as Navigator & {
         canShare?: (data: ShareData) => boolean
@@ -90,15 +92,15 @@ export function ExecutiveReportPage(){
   }
 
   const generatedAt=new Intl.DateTimeFormat('pt-BR',{
-    day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'
+    timeZone:'America/Sao_Paulo',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'
   }).format(new Date())
 
   return <div className="report-shell">
     <div className="report-toolbar no-print">
       <button className="secondary" onClick={()=>go('visao-geral')}>← Voltar ao painel</button>
       <div className="report-toolbar-actions">
-        <button className="secondary" onClick={()=>window.print()}>Imprimir</button>
-        <button className="primary" disabled={exporting} onClick={downloadPdf}>{exporting ? 'Gerando PDF...' : 'Baixar PDF'}</button>
+        <button className="secondary" disabled={!data} onClick={()=>window.print()}>Imprimir</button>
+        <button className="primary" disabled={exporting || !data} onClick={downloadPdf}>{exporting ? 'Gerando PDF...' : 'Baixar PDF'}</button>
       </div>
     </div>
 
@@ -121,7 +123,9 @@ export function ExecutiveReportPage(){
       </section>
 
       {error && <div className="alert error">{error}</div>}
+      {!data && !error && <div role="status">Carregando indicadores do relatório...</div>}
 
+      {data && <>
       <section className="report-kpis">
         <article><small>Unidades</small><strong>{data?.units ?? '—'}</strong><span>{data?.restaurants ?? '—'} refeitórios</span></article>
         <article><small>Cardápios publicados</small><strong>{data?.published_menus ?? '—'}</strong><span>{data?.menu_items ?? '—'} itens</span></article>
@@ -189,6 +193,7 @@ export function ExecutiveReportPage(){
         <strong>APETIT · Relatório Executivo de Demonstração</strong>
         <p>Todos os dados deste relatório são fictícios e controlados para apresentação. Na versão final, serão substituídos exclusivamente pelos dados oficiais da APETIT. O relatório utiliza somente indicadores agregados e não exibe prescrições, restrições ou histórico alimentar individual.</p>
       </footer>
+      </>}
     </main>
   </div>
 }
