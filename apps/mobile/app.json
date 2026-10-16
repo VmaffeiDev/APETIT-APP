@@ -4,8 +4,8 @@
     "slug": "apetit-app",
     "version": "0.1.0",
     "orientation": "portrait",
-    "userInterfaceStyle": "dark",
-    "backgroundColor": "#07090B",
+    "userInterfaceStyle": "automatic",
+    "backgroundColor": "#F7F6F2",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.apetit.app.demo"
@@ -13,8 +13,8 @@
     "android": {
       "package": "com.apetit.app.demo",
       "navigationBar": {
-        "backgroundColor": "#07090B",
-        "barStyle": "light-content"
+        "backgroundColor": "#F7F6F2",
+        "barStyle": "dark-content"
       }
     },
     "web": {
@@ -22,9 +22,11 @@
       "output": "single",
       "name": "Apetit",
       "shortName": "Apetit",
-      "themeColor": "#07090B",
-      "backgroundColor": "#07090B"
+      "themeColor": "#F7F6F2",
+      "backgroundColor": "#F7F6F2"
     },
-    "plugins": ["expo-document-picker"]
+    "plugins": [
+      "expo-document-picker"
+    ]
   }
 }
