@@ -25,7 +25,7 @@ export function AppShell({ children, active, screenKey, onNavigate, name = 'Visi
   const date = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: 'numeric', month: 'long' }).format(new Date())
   const nav = (vertical: boolean) => <View style={vertical ? s.railNav : s.bottomNav} accessibilityLabel="Navegação principal">
     {tabs.map(tab => <Pressable key={tab.id} accessibilityRole="button" accessibilityLabel={tab.label}
-      accessibilityState={{ selected: active === tab.id, disabled: busy }} disabled={busy} onPress={() => onNavigate(tab.id)}
+      accessibilityState={{ selected: active === tab.id, disabled: busy }} aria-current={active === tab.id ? 'page' : undefined} disabled={busy} onPress={() => onNavigate(tab.id)}
       style={({ pressed }) => [vertical ? s.railItem : s.navItem, vertical && active === tab.id && s.railActive, pressed && s.pressed]}>
       <View style={[s.navIcon, active === tab.id && s.navIconActive]}><Ionicons name={tab.icon} size={22} color={active === tab.id ? colors.red : colors.muted}/></View>
       <Text numberOfLines={1} style={[vertical ? s.railLabel : s.navLabel, active === tab.id && s.activeLabel]}>{tab.label}</Text>

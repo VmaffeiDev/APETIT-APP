@@ -20,6 +20,7 @@ export default function EmployeeEntry() {
   const [session, setSession] = useState<AuthSession | null>(null)
   const [person, setPerson] = useState<AuthPerson | null>(null)
   const [options, setOptions] = useState<OnboardingOptions | null>(null)
+  const [optionsError, setOptionsError] = useState('')
   const [name, setName] = useState('')
   const [unitId, setUnitId] = useState('')
   const [sector, setSector] = useState('')
@@ -34,6 +35,7 @@ export default function EmployeeEntry() {
 
   useEffect(() => {
     setOptions(null)
+    setOptionsError('')
     if (!session?.access_token) return
     let cancelled = false
     getOnboardingOptions(session.access_token)
@@ -42,7 +44,12 @@ export default function EmployeeEntry() {
         setOptions(loaded)
         setUnitId(loaded.units[0]?.unit_id || '')
       })
-      .catch(() => { if (!cancelled) setError('Não foi possível carregar sua unidade. Entre novamente para tentar de novo.') })
+      .catch(() => {
+        if (cancelled) return
+        const message = 'Não foi possível carregar sua unidade. Entre novamente para tentar de novo.'
+        setOptionsError(message)
+        setError(message)
+      })
     return () => { cancelled = true }
   }, [session?.access_token, person?.unit_id])
 
@@ -183,7 +190,7 @@ export default function EmployeeEntry() {
   }
 
   if (step === 'restoring') return <SafeAreaView style={styles.loading}><ActivityIndicator color={colors.red}/><Text style={styles.loadingText}>Abrindo sua conta…</Text></SafeAreaView>
-  if (step === 'app' && session && person) return <AuthenticatedApp token={session.access_token} person={person} options={options} onPersonChange={handlePersonChange} onLogout={signOut}/>
+  if (step === 'app' && session && person) return <AuthenticatedApp token={session.access_token} person={person} options={options} optionsError={optionsError} onPersonChange={handlePersonChange} onLogout={signOut}/>
 
   return <SafeAreaView style={styles.safe}>
     <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>

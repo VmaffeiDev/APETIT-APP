@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Ionicons } from '@expo/vector-icons'
-import { Pressable, SafeAreaView, StyleSheet, Text, TextInput, View } from 'react-native'
+import { ActivityIndicator, Pressable, SafeAreaView, StyleSheet, Text, TextInput, View } from 'react-native'
 
 import DemoApp from './DemoApp'
 import PrescriptionReview from './PrescriptionReview'
@@ -8,10 +8,11 @@ import { AuthPerson, OnboardingOptions, updateProfile } from './authApi'
 import { Palette, useTheme, useThemedStyles } from './theme'
 import { AppShell, AppTab } from './AppShell'
 
-export default function AuthenticatedApp({ token, person, options, onPersonChange, onLogout }: {
+export default function AuthenticatedApp({ token, person, options, optionsError, onPersonChange, onLogout }: {
   token: string
   person: AuthPerson
   options: OnboardingOptions | null
+  optionsError: string
   onPersonChange: (person: AuthPerson) => void
   onLogout: () => Promise<void>
 }) {
@@ -61,9 +62,10 @@ export default function AuthenticatedApp({ token, person, options, onPersonChang
   if (prescriptionOpen) return <PrescriptionReview personId={person.id} onClose={() => setPrescriptionOpen(false)} />
   const assignedUnit = options?.units.find((item) => item.unit_id === person.unit_id)
   if (!accountOpen && assignedUnit?.restaurant_id) return <DemoApp initialTab={initialTab} isDemo={isDemo} key={assignedUnit.unit_id} goal={person.goal} onProfile={() => setAccountOpen(true)} units={[{id: assignedUnit.unit_id, restaurantId: assignedUnit.restaurant_id, company: assignedUnit.company_name, label: assignedUnit.unit_name}]} />
+  if (!accountOpen && !options && !optionsError) return <SafeAreaView style={styles.loading}><ActivityIndicator color={colors.red}/><Text style={styles.privateText}>Carregando sua unidade…</Text></SafeAreaView>
   if (!accountOpen) return <SafeAreaView style={styles.safe}><View style={styles.content}>
     <Text style={styles.pageTitle}>Minha unidade</Text>
-    <Text style={styles.privateText}>{!options ? 'Não foi possível confirmar sua unidade ainda. Aguarde ou entre novamente.' : 'Sua unidade ou refeitório ainda precisa ser vinculado pela administração.'}</Text>
+    <Text style={styles.privateText}>{!options ? optionsError : 'Sua unidade ou refeitório ainda precisa ser vinculado pela administração.'}</Text>
     <Pressable accessibilityRole="button" style={styles.primary} onPress={() => setAccountOpen(true)}><Text style={styles.primaryText}>Abrir perfil</Text></Pressable>
     <Pressable accessibilityRole="button" style={styles.logout} onPress={onLogout}><Text style={styles.logoutText}>Sair da conta</Text></Pressable>
   </View></SafeAreaView>
@@ -82,7 +84,7 @@ export default function AuthenticatedApp({ token, person, options, onPersonChang
         <Text style={styles.panelDescription}>Sua preferência fica salva neste dispositivo.</Text>
         <View accessibilityRole="radiogroup" accessibilityLabel="Aparência do aplicativo" style={styles.themeRow}>
           {([{ value: 'light', label: 'Claro', icon: 'sunny-outline' }, { value: 'dark', label: 'Escuro', icon: 'moon-outline' }] as const).map(theme =>
-            <Pressable key={theme.value} accessibilityRole="radio" accessibilityLabel={`Tema ${theme.label.toLowerCase()}`} accessibilityState={{ checked: mode === theme.value }}
+            <Pressable key={theme.value} accessibilityRole="radio" accessibilityLabel={`Tema ${theme.label.toLowerCase()}`} accessibilityState={{ checked: mode === theme.value }} aria-checked={mode === theme.value}
               onPress={() => setMode(theme.value)} style={[styles.themeChoice, mode === theme.value && styles.choiceActive]}>
               <Ionicons name={theme.icon} size={23} color={mode === theme.value ? colors.red : colors.muted}/>
               <Text style={[styles.choiceTitle, mode === theme.value && styles.choiceTitleActive]}>{theme.label}</Text>
@@ -122,6 +124,7 @@ export default function AuthenticatedApp({ token, person, options, onPersonChang
 }
 
 const makeStyles = (colors: Palette) => StyleSheet.create({
+  loading: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24, backgroundColor: colors.bg },
   safe: { flex: 1, backgroundColor: colors.bg }, content: { padding: 28, maxWidth: 720, width: '100%', alignSelf: 'center' },
   profile: { width: '100%', maxWidth: 760, alignSelf: 'center' }, kicker: { fontSize: 11, letterSpacing: 1.5, fontWeight: '600', color: colors.muted },
   pageTitle: { fontSize: 30, lineHeight: 38, fontWeight: '700', color: colors.text, letterSpacing: -0.9, marginTop: 5 },
